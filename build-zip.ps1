@@ -1,49 +1,31 @@
-# Build the Chrome Web Store upload zip: runtime files only, forward-slash paths.
-# Usage:  powershell -ExecutionPolicy Bypass -File build-zip.ps1
+# Package the React build (dist/) into a store-upload zip with forward-slash paths.
+# Run `npm run build` first, then:  powershell -ExecutionPolicy Bypass -File build-zip.ps1
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$manifest = Get-Content (Join-Path $root 'manifest.json') -Raw | ConvertFrom-Json
+$dist = Join-Path $root 'dist'
+if (-not (Test-Path (Join-Path $dist 'manifest.json'))) {
+  throw "dist/manifest.json not found - run 'npm run build' first"
+}
+$manifest = Get-Content (Join-Path $dist 'manifest.json') -Raw | ConvertFrom-Json
 $version = $manifest.version
 
-$files = @(
-  'manifest.json',
-  'background.js',
-  'offscreen.html',
-  'offscreen.js',
-  'popup.html',
-  'popup.css',
-  'popup.js',
-  'onboarding.html',
-  'onboarding.js',
-  'snap.svg-min.js',
-  'icon16.png',
-  'icon32.png',
-  'icon48.png',
-  'icon128.png',
-  'fonts/InterVariable.ttf',
-  'fonts/GeistMono-Regular.ttf',
-  'fonts/OFL-Inter.txt',
-  'fonts/OFL-GeistMono.txt'
-)
-
-$dist = Join-Path $root 'dist'
-New-Item -ItemType Directory -Force $dist | Out-Null
-$zip = Join-Path $dist "umbra-eq-$version.zip"
+$rel = Join-Path $root 'release'
+New-Item -ItemType Directory -Force $rel | Out-Null
+$zip = Join-Path $rel "umbra-eq-$version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 
-# Use System.IO.Compression so zip entry names use forward slashes (Compress-Archive
-# writes backslashes on Windows PowerShell 5.1, which the Chrome Web Store rejects).
+# System.IO.Compression so zip entry names use forward slashes (the Chrome Web Store
+# rejects the backslashes Compress-Archive writes on Windows PowerShell).
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::Open($zip, 'Create')
 try {
-  foreach ($f in $files) {
-    $src = Join-Path $root $f
-    if (-not (Test-Path $src)) { throw "missing runtime file: $f" }
-    $entryName = ($f -replace '\\', '/')
-    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-      $archive, $src, $entryName, 'Optimal') | Out-Null
-  }
+  Get-ChildItem -Path $dist -Recurse -File |
+    Where-Object { $_.FullName -notmatch '\\\.vite\\' } |
+    ForEach-Object {
+      $entry = ($_.FullName.Substring($dist.Length + 1)) -replace '\\', '/'
+      [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $entry, 'Optimal') | Out-Null
+    }
 } finally {
   $archive.Dispose()
 }

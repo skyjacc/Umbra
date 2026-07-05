@@ -22,3 +22,6 @@ mockups/
 # OS cruft
 Thumbs.db
 .DS_Store
+
+# Store package output
+release/

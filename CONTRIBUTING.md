@@ -13,33 +13,34 @@ See [`PROJECT.md`](PROJECT.md) for the full architecture reference. In short:
 
 ## Run it locally
 
-1. Open `chrome://extensions` (or `edge://extensions`, `opera://extensions`).
-2. Enable **Developer mode** → **Load unpacked** → select this folder.
-3. After editing files, press **⟳ Reload** on the extension card (the popup re-reads
-   files on open, but the service worker / offscreen document do not until reloaded).
+```bash
+npm install
+npm run build   # or: npm run dev  (HMR)
+```
+
+Then `chrome://extensions` → **Developer mode** → **Load unpacked** → select the
+**`dist/`** folder (Chrome 116+). After changing source, rebuild (or use `dev`) and
+press **⟳ Reload** on the extension card so the service worker / offscreen document pick
+up the new build.
 
 ## Tests
 
-The suites in `test/` run in a browser over `http://` and expose results on
-`window.__results`. Serve the folder and open each `*.html`:
-
 ```bash
-# from the repo root
-python -m http.server 8000
-# then open http://localhost:8000/test/engine-test.html etc.
+npm test        # Vitest — pure audio/preset logic in src/lib
 ```
 
-Keep the suite green (currently 53/53) and add cases for behavior changes.
+Add cases for behavior changes. (The audio engine in `public/offscreen.js` is unchanged
+vanilla; its browser suites live on the `main` branch.)
 
 ## Coding conventions
 
-- Vanilla JS, no build step, no bundler. Match the surrounding style and comment density.
-- Strict CSP (`script-src 'self'`): **no inline scripts, no remote scripts, no `eval`,
-  no CDN.** Inline or bundle everything.
-- Never put a CSS `transform`/`filter` on any ancestor of the graph SVGs — drag
-  hit-testing reads live element rectangles and a transformed ancestor breaks it.
-- Keep the three `BUILD` constants (`background.js`, `offscreen.js`, `popup.js`) and the
-  manifest `version` in sync.
+- Popup: React + TypeScript. Engine (`src/background.js`, `public/offscreen.js`): vanilla.
+- Strict CSP (`script-src 'self'`): **no remote code, no `eval`, no CDN.** The production
+  Vite bundle satisfies this — keep it that way (no `new Function`, no runtime script injection).
+- Never put a CSS `transform`/`filter`/`backdrop-filter` on any ancestor of the EQ graph
+  SVGs — drag hit-testing reads live element rectangles and those break it.
+- Keep the `BUILD` constants (`src/background.js`, `public/offscreen.js`, `src/lib/engine-io.ts`)
+  and the manifest `version` (`src/manifest.config.ts`) in sync.
 
 ## Pull requests
 
@@ -49,6 +50,7 @@ Keep the suite green (currently 53/53) and add cases for behavior changes.
 
 ## Build the store package
 
-```powershell
-powershell -ExecutionPolicy Bypass -File build-zip.ps1
+```bash
+npm run build
+powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-<version>.zip
 ```

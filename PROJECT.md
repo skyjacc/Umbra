@@ -10,6 +10,13 @@ stands**. For narrower docs see the [Documentation index](#15-documentation-inde
 - **Status:** feature-complete + security-audited; being prepped for public GitHub +
   Chromium-store release. Firefox is a planned separate port (see §13, `FIREFOX_PORT.md`)
 
+> **Build note (react-migration):** the popup has been rewritten as a React + TypeScript
+> app (Vite + CRXJS, Tailwind + shadcn/ui); the EQ graph is plain React SVG (Snap.svg
+> dropped) and pure logic lives in `src/lib` (Vitest). The service worker + offscreen
+> Web Audio engine are unchanged vanilla. Build → `dist/`, load that folder unpacked.
+> Sections below that reference `popup.js`/Snap.svg describe the original vanilla popup;
+> the engine details still apply. See `CONTRIBUTING.md` for the current build.
+
 ---
 
 ## 1. What it is

@@ -7,6 +7,12 @@ All notable changes to Umbra EQ are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Popup migrated to React + TypeScript** (Vite + CRXJS, Tailwind + shadcn/ui). The
+  audio engine stays vanilla (service worker + offscreen Web Audio). Pure audio/preset
+  math moved to `src/lib` and unit-tested with Vitest; the EQ graph is plain React SVG
+  (Snap.svg dropped). Build → `dist/`; package via `build-zip.ps1` → `release/` zip.
+  Load the **`dist/`** folder unpacked. Old flat-file vanilla popup + browser test
+  harnesses removed on this build.
 - **New bottom-nav app UI** — `popup.html`, `popup.css`, and the popup's view wiring
   rewritten from scratch. The single-screen layout is replaced by four full views
   (EQ / Presets / Tabs / More) switched by a bottom tab bar; the old chip-overlays and
