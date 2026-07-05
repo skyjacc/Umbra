@@ -7,12 +7,13 @@ All notable changes to Umbra EQ are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
-- **New "Aurora Glass" UI** — `popup.html` and `popup.css` rewritten from scratch:
-  frosted-glass shell over an animated aurora gradient, gradient primary button,
-  pill toggles, glass preset drawer, upward glass theme menu. The four themes
-  (Eclipse/Nocturne/Aurora/Solar) are recolored as glass palettes; the EQ engine and
-  `popup.js` are unchanged (all 53 tests still pass). Graph-ancestor filter/transform
-  rule preserved so drag hit-testing keeps working.
+- **New bottom-nav app UI** — `popup.html`, `popup.css`, and the popup's view wiring
+  rewritten from scratch. The single-screen layout is replaced by four full views
+  (EQ / Presets / Tabs / More) switched by a bottom tab bar; the old chip-overlays and
+  preset drawer are gone. Clean dark theme with a teal→indigo accent; the four color
+  themes (Eclipse/Nocturne/Aurora/Solar) recolor the graph + accent. The audio engine
+  is untouched and all 53 tests still pass. Graph-ancestor transform/filter rule
+  preserved (views toggle by display/opacity, never transform) so drag keeps working.
 - `test/visual-harness.html` updated to the new markup.
 
 ### Added

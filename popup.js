@@ -1324,101 +1324,27 @@ function showNotice(text) {
 // ---------------------------------------------------------------------------
 // Screen overlays (Guide / Active Tabs) + the Presets drawer
 
-function closeOverlays() {
-  ['guideDiv', 'tabsDiv'].forEach((id) => document.getElementById(id) && document.getElementById(id).classList.remove('open'));
-  ['guideToggle', 'tabsToggle'].forEach((id) => document.getElementById(id) && document.getElementById(id).classList.remove('active'));
+// Bottom-nav view switching (EQ / Presets / Tabs / More). Replaces the old
+// overlay + drawer model: each section is now a full view toggled by the tab bar.
+let currentView = 'eq';
+
+function showView(name) {
+  currentView = name;
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.dataset.view === name));
+  document.querySelectorAll('.nav-btn').forEach((b) => {
+    const on = b.dataset.nav === name;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
 }
 
-function wireOverlays() {
-  const map = [
-    ['guideToggle', 'guideDiv'],
-    ['tabsToggle', 'tabsDiv']
-  ];
-  for (const [tid, oid] of map) {
-    const t = document.getElementById(tid);
-    const o = document.getElementById(oid);
-    if (!t || !o) continue;
-    t.onclick = () => {
-      const isOpen = o.classList.contains('open');
-      closeOverlays();
-      if (!isOpen) {
-        o.classList.add('open');
-        t.classList.add('active');
-      }
-    };
-  }
+function wireNav() {
+  document.querySelectorAll('.nav-btn').forEach((b) => {
+    b.onclick = () => showView(b.dataset.nav);
+  });
+  showView('eq'); // EQ is the default view (and visible at boot, so the graph draws while shown)
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeOverlays();
-      closeDrawer();
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('.screen-overlay') || e.target.closest('#guideToggle') || e.target.closest('#tabsToggle')) return;
-    closeOverlays();
-  });
-}
-
-function openDrawer() {
-  const d = document.getElementById('presetDrawer');
-  const h = document.getElementById('presetDrawerHandle');
-  if (d) d.classList.add('open');
-  if (h) {
-    h.classList.add('open');
-    h.setAttribute('aria-expanded', 'true');
-  }
-}
-function closeDrawer() {
-  const d = document.getElementById('presetDrawer');
-  const h = document.getElementById('presetDrawerHandle');
-  if (d) d.classList.remove('open');
-  if (h) {
-    h.classList.remove('open');
-    h.setAttribute('aria-expanded', 'false');
-  }
-}
-function toggleDrawer() {
-  const d = document.getElementById('presetDrawer');
-  d && d.classList.contains('open') ? closeDrawer() : openDrawer();
-}
-
-function wirePresetDrawer() {
-  const handle = document.getElementById('presetDrawerHandle');
-  if (!handle) return;
-  let startY = null;
-  let dragHandled = false;
-  handle.addEventListener('pointerdown', (e) => {
-    startY = e.clientY;
-    dragHandled = false;
-  });
-  handle.addEventListener('pointermove', (e) => {
-    if (startY == null) return;
-    const dy = e.clientY - startY;
-    const open = document.getElementById('presetDrawer').classList.contains('open');
-    if (dy > 14 && !open) {
-      openDrawer();
-      dragHandled = true;
-      startY = null;
-    } else if (dy < -14 && open) {
-      closeDrawer();
-      dragHandled = true;
-      startY = null;
-    }
-  });
-  const clear = () => (startY = null);
-  handle.addEventListener('pointerup', clear);
-  handle.addEventListener('pointercancel', clear);
-  handle.onclick = () => {
-    if (dragHandled) {
-      dragHandled = false;
-      return;
-    }
-    toggleDrawer();
-  };
-  // Outside-click closes the drawer.
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('#presetDrawer') || e.target.closest('#presetDrawerHandle')) return;
-    closeDrawer();
+    if (e.key === 'Escape' && currentView !== 'eq') showView('eq');
   });
 }
 
@@ -1507,8 +1433,7 @@ function wireControls() {
     if (save) save.textContent = name && presets[name] ? 'Update "' + name + '"' : '+ Save';
   });
 
-  wireOverlays();
-  wirePresetDrawer();
+  wireNav();
 
 
   // Diagnostics button (dev only)

@@ -16,6 +16,9 @@ ENGINE_STUDY.md
 test/*.png
 *.tmp
 
+# Design exploration mockups (kept on disk for reference, not shipped)
+mockups/
+
 # OS cruft
 Thumbs.db
 .DS_Store
