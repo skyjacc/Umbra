@@ -21,6 +21,14 @@ export function useEngine() {
   const [tabId, setTabId] = useState<number | null>(null);
   const [engineStatus, setEngineStatus] = useState('starting…');
   const [notice, setNoticeState] = useState('');
+  const [spectrum, setSpectrum] = useState<boolean>(() => {
+    try {
+      return localStorage.SHOW_VISUALIZER === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [fft, setFft] = useState<number[] | null>(null);
 
   // Refs mirror state so message-handler closures read fresh values.
   const bandsRef = useRef(bands);
@@ -153,6 +161,41 @@ export function useEngine() {
     };
   }, [handleStatus, maybeAutoCapture, showNotice]);
 
+  // Spectrum: poll the offscreen FFT ~30fps while enabled.
+  useEffect(() => {
+    if (!spectrum || !io.hasChrome()) {
+      setFft(null);
+      return;
+    }
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (!alive) return;
+      io.toOffscreen('getFFT', {}, (resp: any) => {
+        if (!alive) return;
+        if (resp && resp.fft) setFft(resp.fft);
+        timer = setTimeout(tick, 1000 / 30);
+      });
+    };
+    tick();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [spectrum]);
+
+  const toggleSpectrum = useCallback(() => {
+    setSpectrum((s) => {
+      const n = !s;
+      try {
+        localStorage.SHOW_VISUALIZER = n ? '1' : '';
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  }, []);
+
   // ---- Actions ----
   const onBandsLive = useCallback(
     (nb: Band[]) => {
@@ -276,6 +319,9 @@ export function useEngine() {
     engineStatus,
     notice,
     capturing,
+    spectrum,
+    fft,
+    toggleSpectrum,
     onBandsLive,
     onGainLive,
     onCommit,

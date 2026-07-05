@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2 } from 'lucide-react';
+import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { BottomNav, type ViewId } from './components/BottomNav';
@@ -74,13 +74,25 @@ export default function App() {
               style={{ background: 'radial-gradient(circle at 65% 35%, transparent 42%, hsl(var(--accent)) 44%)' }}
             />
             <span className="text-[15px] font-bold">Equalizer</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">{eng.engineStatus}</span>
+            <button
+              onClick={eng.toggleSpectrum}
+              title="Live spectrum overlay (visual only — does not change the sound)"
+              className={
+                'ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ' +
+                (eng.spectrum ? 'border-accent/50 bg-accent/15 text-foreground' : 'border-border text-muted-foreground hover:text-foreground')
+              }
+            >
+              <Activity className="size-3.5" />
+              Spectrum
+              <span className={'size-1.5 rounded-full ' + (eng.spectrum ? 'bg-accent' : 'bg-muted-foreground/40')} />
+            </button>
           </header>
 
           <EqGraph
             bands={eng.bands}
             gain={eng.gain}
             sampleRate={eng.sampleRate}
+            fft={eng.fft}
             onBands={eng.onBandsLive}
             onGain={eng.onGainLive}
             onCommit={eng.onCommit}

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   EQ_W,
   EQ_H,
@@ -31,6 +31,7 @@ interface Props {
   bands: Band[];
   gain: number; // linear master gain
   sampleRate: number;
+  fft?: number[] | null; // spectrum data (offscreen FFT), when the visualizer is on
   onBands: (b: Band[]) => void; // live, during drag
   onGain: (g: number) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
@@ -50,11 +51,12 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, gain, sampleRate, onBands, onGain, onCommit }: Props) {
+export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommit }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const gainRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const gainDrag = useRef(false);
+  const [hover, setHover] = useState<number | null>(null);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {
@@ -88,10 +90,29 @@ export function EqGraph({ bands, gain, sampleRate, onBands, onGain, onCommit }: 
     return t;
   }, []);
 
+  // Spectrum polygon — resampled per x-pixel (log axis vs linear FFT bins),
+  // peak-held and capped to the bottom half so it never hides the curve.
+  const spectrumPoints = useMemo(() => {
+    if (!fft || !fft.length) return '';
+    const pts: string[] = [];
+    for (let x = 0; x <= EQ_W; x += 2) {
+      const fLo = xToFreq(Math.max(0, x - 1));
+      const fHi = xToFreq(x + 1);
+      const b0 = Math.max(0, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
+      const b1 = Math.max(0, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
+      let db = -100;
+      for (let b = b0; b <= b1; b++) if (fft[b] > db) db = fft[b];
+      const h = Math.max(0, Math.min(EQ_H * 0.5, ((db + 100) / 100) * (EQ_H * 0.5)));
+      pts.push(`${x},${EQ_H - 1 - h}`);
+    }
+    return pts.length ? `0,${EQ_H} ${pts.join(' ')} ${EQ_W},${EQ_H}` : '';
+  }, [fft, sampleRate]);
+
   // ---- Drag: filter dots ----
   function dotDown(i: number, e: React.PointerEvent) {
     e.preventDefault();
     dragIdx.current = i;
+    setHover(i);
     try {
       eqRef.current?.setPointerCapture(e.pointerId);
     } catch {
@@ -124,6 +145,7 @@ export function EqGraph({ bands, gain, sampleRate, onBands, onGain, onCommit }: 
       dragIdx.current = null;
       onCommit();
     }
+    setHover(null);
   }
   function resetBand(i: number) {
     const nb = bands.slice();
@@ -234,6 +256,11 @@ export function EqGraph({ bands, gain, sampleRate, onBands, onGain, onCommit }: 
           </text>
         ))}
 
+        {/* spectrum ghost (behind everything) */}
+        {spectrumPoints && (
+          <polygon points={spectrumPoints} fill={G('viz')} fillOpacity={0.14} stroke={G('viz')} strokeOpacity={0.35} pointerEvents="none" />
+        )}
+
         {/* ghost per-band curves */}
         {ghosts.map((d, i) => (
           <path key={'g' + i} d={d} fill="none" stroke={G('viz')} strokeOpacity={0.4} strokeWidth={1} pointerEvents="none" />
@@ -255,9 +282,29 @@ export function EqGraph({ bands, gain, sampleRate, onBands, onGain, onCommit }: 
             strokeWidth={1.5}
             className="cursor-grab"
             onPointerDown={(e) => dotDown(i, e)}
+            onPointerEnter={() => dragIdx.current == null && setHover(i)}
+            onPointerLeave={() => dragIdx.current == null && setHover(null)}
             onDoubleClick={() => resetBand(i)}
           />
         ))}
+
+        {/* readout tooltip for the hovered / dragged band */}
+        {hover != null &&
+          bands[hover] &&
+          (() => {
+            const b = bands[hover];
+            const tx = Math.max(60, Math.min(EQ_W - 60, dots[hover].x));
+            const ty = Math.max(20, dots[hover].y - 16);
+            const label = `${freqLabel(b.frequency)}  ·  ${b.gain >= 0 ? '+' : ''}${b.gain.toFixed(1)} dB  ·  Q ${b.q.toFixed(2)}`;
+            return (
+              <g pointerEvents="none">
+                <rect x={tx - 59} y={ty - 11} width={118} height={16} rx={5} fill={G('screen')} fillOpacity={0.92} stroke={dots[hover].color} strokeOpacity={0.5} />
+                <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle">
+                  {label}
+                </text>
+              </g>
+            );
+          })()}
       </svg>
     </div>
   );
