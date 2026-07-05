@@ -1,27 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark, muted, glass tokens (shadcn-style HSL variables). No neon. */
 :root {
-  --bg: #0b0c11;
-  --panel: rgba(255, 255, 255, 0.05);
-  --brd: rgba(255, 255, 255, 0.1);
-  --ink: #e7e8ee;
-  --dim: #969aa8;
-  --acc: #8b93c6;
-  --acc2: #a6adda;
+  --background: 228 14% 6%;
+  --foreground: 230 20% 92%;
+  --card: 230 16% 10%;
+  --card-foreground: 230 20% 92%;
+  --muted: 232 16% 13%;
+  --muted-foreground: 228 8% 62%;
+  --primary: 231 33% 66%;
+  --primary-foreground: 228 33% 8%;
+  --secondary: 232 16% 15%;
+  --secondary-foreground: 230 20% 92%;
+  --accent: 231 33% 70%;
+  --accent-foreground: 228 33% 8%;
+  --destructive: 342 37% 64%;
+  --destructive-foreground: 230 20% 96%;
+  --border: 230 12% 20%;
+  --input: 230 12% 20%;
+  --ring: 231 33% 66%;
+  --radius: 0.75rem;
 }
-* { box-sizing: border-box; }
-html, body { width: 552px; margin: 0; }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply text-foreground;
+  }
+}
+
+html,
 body {
-  background: radial-gradient(130% 90% at 50% -12%, #171922 0, transparent 52%), var(--bg);
-  color: var(--ink);
+  width: 552px;
+  margin: 0;
+}
+body {
+  background:
+    radial-gradient(135% 90% at 50% -12%, hsl(230 16% 13%) 0, transparent 52%),
+    radial-gradient(120% 90% at 0% 108%, hsl(230 16% 10%) 0, transparent 50%),
+    hsl(var(--background));
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-.shell { display: flex; flex-direction: column; gap: 14px; padding: 16px; min-height: 300px; }
-.bar { display: flex; align-items: center; gap: 9px; }
-.logo { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 65% 35%, transparent 42%, var(--acc) 44%); }
-.wordmark { font-weight: 700; font-size: 15px; }
-.wordmark b { background: linear-gradient(90deg, var(--acc), var(--acc2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-left: 2px; }
-.card { background: var(--panel); border: 1px solid var(--brd); border-radius: 14px; padding: 16px; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
-.lab { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--acc2); margin-bottom: 10px; }
-.line { margin: 0 0 8px; font-size: 13px; color: var(--dim); line-height: 1.5; }
-.status { margin: 0; font-size: 13px; color: var(--dim); }
-.status b { color: var(--ink); }
