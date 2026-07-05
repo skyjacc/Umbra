@@ -1,0 +1,838 @@
+/* Umbra EQ — Eclipse design language (near-black + eclipse red).
+   Bundled fonts (SIL OFL): Inter Variable, Geist Mono.
+   Graph colors are read by popup.js loadTheme() from the CSS custom properties
+   --screen/--axis/--peak/--shelf/--viz/--grab/--text/--glow on <body>. */
+
+@font-face {
+  font-family: 'InterUmbra';
+  src: url('fonts/InterVariable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GeistUmbra';
+  src: url('fonts/GeistMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-size: 15px;
+  --sans: 'InterUmbra', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'GeistUmbra', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
+/* Shared near-black chrome; per-theme blocks only swap the accent + graph hues.
+   `--red*` = the accent family (kept named for minimal churn). Default = Eclipse. */
+body {
+  --bg: #060608;
+  --panel: #0c0c0f;
+  --panel-2: #0f0f12;
+  --inset: #08080a;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.13);
+  --txt: #f3f3f5;
+  --muted: #8b8b93;
+  --faint: #5a5a62;
+  --off: #26262c;
+  --grab: #ffffff;
+  --text: #f3f3f5;
+  --glow: 0;
+  --screen: #0c0c0f;
+  --axis: #3a3a42;
+  /* accent — Eclipse (red) is the default */
+  --red: #ce3535;
+  --red-hi: #e24a4a;
+  --red-dim: rgba(206, 53, 53, 0.14);
+  --peak: #ce3535;
+  --shelf: #d9574a;
+  --viz: #9c3636;
+}
+body[data-theme='nocturne'] {
+  --red: #5b8bd0;
+  --red-hi: #7aa4e0;
+  --red-dim: rgba(91, 139, 208, 0.14);
+  --peak: #5b8bd0;
+  --shelf: #79a0dc;
+  --viz: #3f5f8a;
+}
+body[data-theme='aurora'] {
+  --red: #6fa25e;
+  --red-hi: #8bc077;
+  --red-dim: rgba(111, 162, 94, 0.14);
+  --peak: #6fa25e;
+  --shelf: #86b673;
+  --viz: #4d7043;
+}
+body[data-theme='solar'] {
+  --red: #d0803a;
+  --red-hi: #e09a52;
+  --red-dim: rgba(208, 128, 58, 0.14);
+  --peak: #d0803a;
+  --shelf: #dd9a55;
+  --viz: #8a5626;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background-repeat: no-repeat;
+}
+
+body {
+  min-width: 556px;
+  padding: 0;
+  background: var(--panel);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #000;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2e36;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2e36 #000;
+}
+
+/* ---- Shell ------------------------------------------------------------ */
+.face {
+  width: 100%;
+  max-width: 556px;
+  margin: 0 auto;
+  background:
+    radial-gradient(130% 55% at 50% -10%, color-mix(in srgb, var(--red) 11%, transparent), transparent 60%),
+    var(--panel);
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+  animation: face-in 0.24s ease both;
+}
+@keyframes face-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---- Masthead --------------------------------------------------------- */
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--red); /* crescent follows the active theme accent */
+}
+.brand .nm {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.brand .nm b {
+  color: var(--red);
+  font-weight: 600;
+}
+.brand .tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-left: 4px;
+}
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Toggle chips (SPECTRUM / GUIDE / TABS) --------------------------- */
+.chips {
+  display: flex;
+  gap: 8px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--txt) 16%, transparent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  transition: color 0.16s, border-color 0.16s, background 0.16s;
+}
+.chip svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+/* Spectrum is a stateful on/off toggle (LED dot), set slightly apart from the
+   Guide/Tabs panel buttons. */
+.chip .led-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--off);
+  flex: none;
+  margin-left: 1px;
+  transition: background 0.16s, box-shadow 0.16s;
+}
+.chip.on .led-dot,
+.chip.active .led-dot {
+  background: var(--red);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--red) 70%, transparent);
+}
+#vizButton {
+  margin-right: 5px;
+}
+.chip .sw {
+  width: 34px;
+  height: 20px;
+  border-radius: 20px;
+  background: var(--off);
+  position: relative;
+  flex: none;
+  transition: background 0.16s;
+}
+.chip .sw::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #0a0a0c;
+  transition: left 0.16s, background 0.16s;
+}
+.chip:hover {
+  color: var(--txt);
+  border-color: color-mix(in srgb, var(--txt) 26%, transparent);
+}
+.chip.on,
+.chip.active {
+  color: var(--txt);
+  border-color: color-mix(in srgb, var(--red) 50%, transparent);
+  background: var(--red-dim);
+}
+.chip.on svg,
+.chip.active svg {
+  color: var(--red);
+}
+.chip.on .sw,
+.chip.active .sw {
+  background: var(--red);
+}
+.chip.on .sw::after,
+.chip.active .sw::after {
+  left: 16px;
+  background: #fff;
+}
+
+/* ---- Caution ---------------------------------------------------------- */
+.caution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.warn-ico {
+  width: 15px;
+  height: 15px;
+  color: var(--red);
+  flex: none;
+}
+
+/* ---- Screen (recessed EQ) — NEVER put transform/filter here ----------- */
+.screen {
+  position: relative;
+  margin: 0 8px 6px;
+  padding: 2px 6px 4px;
+  background: transparent;
+  border: none;
+}
+.screen-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 2px 4px 10px;
+}
+.screen-head .t {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.screen-head .read {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+#eqDiv {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+}
+#eqDiv svg {
+  flex: 0 0 auto;
+  display: block;
+  overflow: hidden; /* clip a curve that exits the top/bottom instead of drawing into the chrome */
+}
+
+/* screen overlays (guide / active tabs) */
+.screen-overlay {
+  position: absolute;
+  inset: 10px;
+  background: color-mix(in srgb, var(--inset) 92%, #000);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  padding: 16px 18px;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+  z-index: 4;
+}
+.screen-overlay.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.screen-overlay h3 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.screen-overlay h3:not(:first-child) {
+  margin-top: 14px;
+}
+.screen-overlay p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.screen-overlay b {
+  color: var(--txt);
+  font-weight: 600;
+}
+#eqTabList {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tabRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tabRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.tabFav {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  flex: none;
+  color: var(--faint);
+}
+.tabFav img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+.tabTitle {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--txt);
+}
+.tabStop {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: 7px;
+  background: var(--red-dim);
+  color: var(--red-hi);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tabStop:hover {
+  background: color-mix(in srgb, var(--red) 22%, transparent);
+}
+
+/* ---- Transport deck --------------------------------------------------- */
+.deck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+#eqTabButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 9px;
+  background: var(--red);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 55%, transparent),
+    0 6px 18px -6px color-mix(in srgb, var(--red) 55%, transparent);
+  transition: background 0.15s, transform 0.08s;
+}
+#eqTabButton .btn-ico {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+#eqTabButton:hover {
+  background: var(--red-hi);
+}
+#eqTabButton:active {
+  transform: translateY(1px);
+}
+#eqTabButton.active {
+  background: transparent;
+  color: var(--red-hi);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent);
+}
+#eqTabButton.active .btn-ico {
+  color: var(--red);
+}
+
+.rail-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--txt) 16%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+}
+.rail-key .key-ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.rail-key:hover {
+  color: var(--txt);
+  border-color: var(--line-2);
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+.rail-handle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: 9px;
+  background: var(--red-dim);
+  color: var(--red-hi);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  touch-action: none;
+}
+.rail-handle .chev {
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.rail-handle .chev svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.rail-handle.open .chev {
+  transform: rotate(180deg);
+}
+.rail-handle:hover {
+  background: color-mix(in srgb, var(--red) 22%, transparent);
+}
+
+/* ---- Presets drawer --------------------------------------------------- */
+#presetDrawer {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.26s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.2s ease;
+  border-top: 1px solid var(--line);
+}
+#presetDrawer.open {
+  max-height: 220px;
+  opacity: 1;
+}
+.preset-tray {
+  padding: 12px;
+}
+.pd-name {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#presetNameInput {
+  flex: 1;
+  height: 36px;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--txt) 16%, transparent);
+  border-radius: 8px;
+  background: var(--inset);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+#presetNameInput::placeholder {
+  color: var(--faint);
+}
+#presetNameInput:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+}
+#savePresetButton {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: 8px;
+  background: var(--red-dim);
+  color: var(--red-hi);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#savePresetButton:hover {
+  background: color-mix(in srgb, var(--red) 22%, transparent);
+}
+#deletePresetButton {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+#deletePresetButton.pd-hidden-delete {
+  display: none;
+}
+
+/* Presets = compact wrapping chips (not full-width rows) */
+.pd-library {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 108px;
+  overflow-y: auto;
+}
+#userPresetSpan {
+  display: contents;
+}
+.pd-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--txt) 16%, transparent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--txt);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.14s, border-color 0.14s;
+}
+.pd-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: color-mix(in srgb, var(--txt) 26%, transparent);
+}
+.pd-row.pd-factory {
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
+  color: var(--red-hi);
+}
+.pd-row.applied {
+  background: var(--red-dim);
+  border-color: color-mix(in srgb, var(--red) 55%, transparent);
+  color: #fff;
+}
+.pd-del {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1;
+  margin-left: 1px;
+  border-radius: 4px;
+}
+.pd-del:hover {
+  color: var(--red-hi);
+}
+
+.pd-io {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.pd-io button {
+  flex: 1;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--txt) 14%, transparent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.pd-io button:hover {
+  color: var(--txt);
+  border-color: var(--line-2);
+}
+#importPresetsFile {
+  display: none;
+}
+
+/* ---- Notice ----------------------------------------------------------- */
+#noticeDiv {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-size: 12px;
+  transition: max-height 0.2s, opacity 0.2s;
+}
+#noticeDiv.show {
+  max-height: 64px;
+  opacity: 1;
+  margin: 0 14px 12px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  border-radius: 8px;
+  background: var(--red-dim);
+  color: var(--red-hi);
+}
+
+/* ---- Footer ----------------------------------------------------------- */
+.nameplate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+.nameplate label {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+/* Custom theme dropdown — fully themeable (opens upward; the native <select>'s
+   open list highlight can't be styled). */
+.theme-select {
+  position: relative;
+}
+.theme-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 110px;
+  height: 28px;
+  padding: 0 8px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--txt) 16%, transparent);
+  border-radius: 8px;
+  background: var(--inset);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.theme-trigger svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+.theme-trigger[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.theme-trigger:hover {
+  border-color: color-mix(in srgb, var(--txt) 26%, transparent);
+}
+.theme-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 110px;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s;
+  z-index: 20;
+}
+.theme-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.theme-menu li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme-menu li::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--off);
+  flex: none;
+}
+.theme-menu li:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--txt);
+}
+.theme-menu li[aria-selected='true'] {
+  background: var(--red-dim);
+  color: #fff;
+}
+.theme-menu li[aria-selected='true']::before {
+  background: var(--red);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--red) 70%, transparent);
+}
+.np-spacer {
+  flex: 1;
+}
+#verLabel {
+  color: var(--faint);
+}
+#verLabel.stale {
+  color: var(--red-hi);
+}
+#diagBtn {
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+#diagBtn:hover {
+  color: var(--txt);
+}
+#fullscreen-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--faint);
+  text-decoration: none;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+#fullscreen-link .fs-ico {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+#fullscreen-link:hover {
+  color: var(--red-hi);
+}
+.sep {
+  color: var(--line-2);
+}
+#dbg {
+  display: none;
+}

@@ -1,0 +1,21 @@
+# Build output (the packaged .zip goes to GitHub Releases, not the repo)
+dist/
+
+# Tooling / dev
+node_modules/
+.playwright-mcp/
+*.log
+scratchpad/
+
+# Private/local notes — do not publish in repo or store package
+Chat.md
+handoff.md
+ENGINE_STUDY.md
+
+# Dev-only screenshots & scratch
+test/*.png
+*.tmp
+
+# OS cruft
+Thumbs.db
+.DS_Store

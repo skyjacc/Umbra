@@ -1,0 +1,7 @@
+# Normalize line endings; keep binaries untouched.
+* text=auto eol=lf
+
+*.png binary
+*.ttf binary
+*.zip binary
+*.svg text

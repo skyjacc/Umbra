@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Umbra EQ — Getting started</title>
+  <link rel="icon" type="image/png" href="icon32.png" />
+  <style>
+    @font-face { font-family: 'InterUmbra'; src: url('fonts/InterVariable.ttf') format('truetype'); font-weight: 100 900; font-display: swap; }
+    @font-face { font-family: 'GeistUmbra'; src: url('fonts/GeistMono-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    :root {
+      --bg: #060608; --panel: #0c0c0f; --panel-2: #0f0f12; --inset: #08080a;
+      --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.13);
+      --txt: #f3f3f5; --muted: #8b8b93; --faint: #5a5a62;
+      --red: #ce3535; --red-hi: #e24a4a; --red-dim: rgba(206,53,53,.14);
+      --sans: 'InterUmbra', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mono: 'GeistUmbra', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; font-family: var(--sans); color: var(--txt); font-size: 15px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      background: radial-gradient(760px 460px at 50% -8%, rgba(206,53,53,.14), transparent 60%), var(--bg);
+      display: flex; align-items: center; justify-content: center; padding: 44px 20px;
+    }
+    .card {
+      width: 100%; max-width: 620px; background: var(--panel);
+      border: 1px solid var(--line); border-radius: 16px; padding: 30px 32px;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; margin-bottom: 4px; }
+    .brand .mark { width: 26px; height: 26px; color: var(--red); flex: none; }
+    .brand .nm { font-size: 18px; font-weight: 600; letter-spacing: .14em; }
+    .brand .nm b { color: var(--red); font-weight: 600; }
+    .brand .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+    .lead { color: var(--muted); margin: 12px 0 24px; font-size: 14px; }
+    ol.steps { list-style: none; counter-reset: s; margin: 0 0 22px; padding: 0; }
+    ol.steps li {
+      counter-increment: s; position: relative; padding: 13px 14px 13px 52px; margin-bottom: 8px;
+      background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 10px; line-height: 1.5; font-size: 14px;
+    }
+    ol.steps li::before {
+      content: counter(s); position: absolute; left: 12px; top: 11px; width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center; border-radius: 8px;
+      background: var(--red-dim); border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+      color: var(--red-hi); font-weight: 600; font-family: var(--mono); font-size: 13px;
+    }
+    ol.steps b { color: var(--red-hi); font-weight: 600; }
+    .tips { border-top: 1px solid var(--line); padding-top: 18px; }
+    .tips h2 { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; font-family: var(--mono); font-weight: 400; }
+    .tips ul { margin: 0; padding: 0; list-style: none; }
+    .tips li { position: relative; padding: 4px 0 4px 18px; color: var(--muted); line-height: 1.6; font-size: 13.5px; }
+    .tips li::before { content: ''; position: absolute; left: 2px; top: 12px; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+    .tips b { color: var(--txt); font-weight: 600; }
+    .foot { margin-top: 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .cta {
+      appearance: none; cursor: pointer; border: none; border-radius: 10px;
+      background: var(--red); color: #fff; font-weight: 600; letter-spacing: .01em;
+      padding: 12px 22px; font-family: var(--sans); font-size: 14px;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 55%, transparent), 0 8px 22px -8px color-mix(in srgb, var(--red) 60%, transparent);
+    }
+    .cta:hover { background: var(--red-hi); }
+    .note { color: var(--faint); font-size: 11px; font-family: var(--mono); letter-spacing: .1em; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <mask id="umbraCut"><rect width="32" height="32" fill="#fff" /><circle cx="20.5" cy="13.5" r="11" fill="#000" /></mask>
+        <circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#umbraCut)" />
+        <circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.5" />
+      </svg>
+      <span class="nm">UMBRA<b>·EQ</b></span>
+      <span class="tag">Getting started</span>
+    </div>
+
+    <p class="lead">A live 11-band equalizer and bass boost for any browser tab. No ads, no tracking, works fully offline.</p>
+
+    <ol class="steps">
+      <li>Open a tab that is playing sound (music, video, a call).</li>
+      <li>Click the <b>Umbra EQ</b> icon in the toolbar to open the panel.</li>
+      <li>Press <b>EQ This Tab</b> — that tab is now equalized live.</li>
+      <li>Drag the dots to shape the sound. To EQ another tab, open it and press <b>EQ This Tab</b> again.</li>
+    </ol>
+
+    <div class="tips">
+      <h2>Good to know</h2>
+      <ul>
+        <li><b>Shift-drag</b> a dot changes its width (Q); <b>double-click</b> resets that band.</li>
+        <li>The strip on the left of the graph is <b>master volume</b>.</li>
+        <li><b>Presets</b> save your settings and sync across your browser.</li>
+        <li><b>Spectrum</b> shows the live frequency graph — it is visual only.</li>
+        <li>Loud audio can harm hearing and speakers — keep it sensible.</li>
+      </ul>
+    </div>
+
+    <div class="foot">
+      <button class="cta" id="closeBtn">Got it — start EQing</button>
+      <span class="note" id="ver"></span>
+    </div>
+  </main>
+  <script src="onboarding.js"></script>
+</body>
+</html>
