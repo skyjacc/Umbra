@@ -9,10 +9,20 @@
   <script src="popup.js" defer></script>
 </head>
 <body data-theme="eclipse">
-  <div class="face">
 
-    <!-- MASTHEAD -->
-    <header class="top">
+  <!-- Aurora backdrop: decorative, sits BEHIND the glass shell. Never an ancestor
+       of the EQ SVGs, so its blur/transform can't break drag hit-testing. -->
+  <div class="aurora" aria-hidden="true">
+    <span class="blob b1"></span>
+    <span class="blob b2"></span>
+    <span class="blob b3"></span>
+    <span class="grain"></span>
+  </div>
+
+  <main class="face">
+
+    <!-- HEADER -->
+    <header class="bar glass">
       <div class="brand">
         <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
           <mask id="umbraCut">
@@ -22,26 +32,23 @@
           <circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#umbraCut)" />
           <circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.5" />
         </svg>
-        <span class="nm">UMBRA<b>·EQ</b></span>
+        <span class="wordmark">Umbra<i>EQ</i></span>
       </div>
-      <div class="top-right"></div>
+      <nav class="tools">
+        <button id="vizButton" class="tool" title="Show/hide the live frequency spectrum drawn over the graph. Visual only — it does not change the sound." aria-label="Toggle live spectrum">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8l4-16l3 8h4"/></svg>
+          <span class="tool-t">Spectrum</span><span class="led-dot" aria-hidden="true"></span>
+        </button>
+        <button id="guideToggle" class="tool" title="Guide" aria-label="Guide">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6v13M12 6v13M21 6v13"/></svg>
+          <span class="tool-t">Guide</span>
+        </button>
+        <button id="tabsToggle" class="tool" title="Active tabs" aria-label="Active tabs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm3 1h.01M9 8h.01"/></svg>
+          <span class="tool-t">Tabs</span>
+        </button>
+      </nav>
     </header>
-
-    <!-- TOGGLE CHIPS -->
-    <div class="chips">
-      <button id="vizButton" class="chip chip-btn" title="Show/hide the live frequency spectrum drawn over the graph. Visual only — it does not change the sound." aria-label="Toggle live spectrum">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8l4-16l3 8h4"/></svg>
-        Spectrum<span class="led-dot" aria-hidden="true"></span>
-      </button>
-      <button id="guideToggle" class="chip chip-btn" title="Guide" aria-label="Guide">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6v13M12 6v13M21 6v13"/></svg>
-        Guide
-      </button>
-      <button id="tabsToggle" class="chip chip-btn" title="Active tabs" aria-label="Active tabs">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm3 1h.01M9 8h.01"/></svg>
-        Tabs
-      </button>
-    </div>
 
     <!-- CAUTION -->
     <div class="caution">
@@ -51,54 +58,54 @@
       <span id="warning">Loud audio can harm hearing — keep it sensible</span>
     </div>
 
-    <!-- SCREEN (recessed EQ) — no transform/filter on this element or its ancestors -->
-    <div class="screen">
+    <!-- STAGE (the graph). GRAPH ANCESTOR: no transform / filter / backdrop-filter here. -->
+    <section class="stage">
       <div id="eqDiv">
         <svg id="gainSvg" width="26" height="220"></svg>
         <svg id="eqSvg" width="480" height="220"></svg>
       </div>
 
-      <div id="guideDiv" class="screen-overlay">
+      <div id="guideDiv" class="screen-overlay glass">
         <h3>Quick start</h3>
         <p>Open a tab that plays sound, then press <b>EQ This Tab</b>. That tab is now equalized. To EQ another tab, open it and press <b>EQ This Tab</b> again.</p>
         <h3>Shape the sound</h3>
         <p>Drag a dot: left/right = frequency, up/down = boost/cut. <b>Shift-drag</b> = width (Q). <b>Double-click</b> resets a band. The strip on the left is master volume.</p>
         <h3>Presets &amp; spectrum</h3>
-        <p>Save or apply presets from <b>PRESETS</b> (they sync across your browser). <b>SPECTRUM</b> draws the live frequency graph — visual only, it does not change the sound.</p>
+        <p>Save or apply presets from <b>Presets</b> (they sync across your browser). <b>Spectrum</b> draws the live frequency graph — visual only, it does not change the sound.</p>
       </div>
 
-      <div id="tabsDiv" class="screen-overlay"><div id="eqTabList"></div></div>
-    </div>
+      <div id="tabsDiv" class="screen-overlay glass"><div id="eqTabList"></div></div>
+    </section>
 
-    <!-- TRANSPORT -->
-    <div class="deck">
-      <button id="eqTabButton">
+    <!-- DECK -->
+    <div class="deck glass">
+      <button id="eqTabButton" class="primary">
         <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 6a7.75 7.75 0 1 0 10 0m-5-2v8"/></svg>
         <span class="btn-label">EQ This Tab</span>
       </button>
-      <button id="resetFiltersButton" class="rail-key">
+      <button id="resetFiltersButton" class="ghost">
         <svg class="key-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.95 11a8 8 0 1 0-.5 4m.5 5v-5h-5"/></svg>Reset
       </button>
-      <span class="rail-spacer"></span>
-      <button id="presetDrawerHandle" class="rail-handle" aria-expanded="false" aria-controls="presetDrawer">
+      <span class="spacer"></span>
+      <button id="presetDrawerHandle" class="ghost handle" aria-expanded="false" aria-controls="presetDrawer">
         <span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9l6 6l6-6"/></svg></span>Presets
       </button>
     </div>
 
     <!-- PRESETS DRAWER -->
-    <div id="presetDrawer">
-      <div class="preset-tray">
-        <div class="pd-name">
+    <div id="presetDrawer" class="glass">
+      <div class="tray">
+        <div class="name-row">
           <input id="presetNameInput" type="text" placeholder="Name a preset…" />
-          <button id="savePresetButton">+ Save</button>
-          <button id="deletePresetButton" class="pd-hidden-delete">- Delete</button>
+          <button id="savePresetButton" class="mini accent">+ Save</button>
+          <button id="deletePresetButton" class="mini danger pd-hidden-delete">- Delete</button>
         </div>
-        <div class="pd-library">
+        <div class="library">
           <span id="userPresetSpan"></span>
         </div>
-        <div class="pd-io">
-          <button id="exportPresetsButton">Export</button>
-          <button id="importPresetsButton">Import</button>
+        <div class="io">
+          <button id="exportPresetsButton" class="mini">Export</button>
+          <button id="importPresetsButton" class="mini">Import</button>
           <input type="file" id="importPresetsFile" accept=".json,application/json" />
         </div>
       </div>
@@ -107,12 +114,12 @@
     <div id="noticeDiv"></div>
 
     <!-- FOOTER -->
-    <div class="nameplate">
+    <footer class="plate glass">
       <span id="diagWrap" hidden>
         <button id="diagBtn" title="Copy full diagnostics (logs + state) to clipboard">⧉ Diagnostics</button>
         <span class="sep">·</span>
       </span>
-      <label>Theme</label>
+      <label class="lbl">Theme</label>
       <div class="theme-select" id="themeSelect">
         <button type="button" class="theme-trigger" id="themeTrigger" aria-haspopup="listbox" aria-expanded="false">
           <span id="themeCurrent">Eclipse</span>
@@ -125,13 +132,13 @@
           <li role="option" data-theme="solar">Solar</li>
         </ul>
       </div>
-      <span class="np-spacer"></span>
+      <span class="spacer"></span>
       <a id="fullscreen-link" target="_blank" href="#" title="Open the EQ in a full browser window">
         <svg class="fs-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2m8-16h2a2 2 0 0 1 2 2v2m-4 12h2a2 2 0 0 0 2-2v-2"/></svg>Full window
       </a>
-    </div>
+    </footer>
 
     <div id="dbg"></div>
-  </div>
+  </main>
 </body>
 </html>

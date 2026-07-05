@@ -6,6 +6,15 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **New "Aurora Glass" UI** — `popup.html` and `popup.css` rewritten from scratch:
+  frosted-glass shell over an animated aurora gradient, gradient primary button,
+  pill toggles, glass preset drawer, upward glass theme menu. The four themes
+  (Eclipse/Nocturne/Aurora/Solar) are recolored as glass palettes; the EQ engine and
+  `popup.js` are unchanged (all 53 tests still pass). Graph-ancestor filter/transform
+  rule preserved so drag hit-testing keeps working.
+- `test/visual-harness.html` updated to the new markup.
+
 ### Added
 - MIT license; project open-sourced.
 - Multi-store packaging guidance for Chrome, Edge, and Opera (single Chromium zip).
