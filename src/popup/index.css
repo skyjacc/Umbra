@@ -33,6 +33,32 @@
   --g-text: #767a88;
 }
 
+/* Four muted themes (no neon). Eclipse = the :root defaults above. */
+body[data-theme='nocturne'] {
+  --primary: 213 40% 62%;
+  --accent: 213 40% 66%;
+  --ring: 213 40% 62%;
+  --g-peak: #7f93bd;
+  --g-shelf: #6f9ab2;
+  --g-viz: #46587a;
+}
+body[data-theme='aurora'] {
+  --primary: 152 30% 60%;
+  --accent: 152 30% 64%;
+  --ring: 152 30% 60%;
+  --g-peak: #7fae97;
+  --g-shelf: #9ab585;
+  --g-viz: #4a6a5c;
+}
+body[data-theme='solar'] {
+  --primary: 38 42% 59%;
+  --accent: 38 42% 63%;
+  --ring: 38 42% 59%;
+  --g-peak: #c2a06a;
+  --g-shelf: #c78f7a;
+  --g-viz: #6e5a44;
+}
+
 @layer base {
   * {
     @apply border-border;
