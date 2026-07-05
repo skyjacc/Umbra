@@ -19,6 +19,11 @@ All notable changes to Umbra EQ are documented here. The format follows
 - `test/visual-harness.html` updated to the new markup.
 
 ### Added
+- **Clearer master-volume strip** — a recessed rounded track, a level fill that shows
+  deviation from unity (accent above 0 dB, dim below), a chunky grabbable handle, and a
+  live signed dB readout (e.g. "+4"). Widened for easier grabbing.
+- **More readable EQ graph** — axis labels use the readable text color (were dark-on-dark),
+  a dashed 0 dB baseline marks the boost/cut reference, and band dots are larger.
 - MIT license; project open-sourced.
 - Multi-store packaging guidance for Chrome, Edge, and Opera (single Chromium zip).
 - GitHub scaffolding: CI build-on-tag, issue templates, contributing guide.

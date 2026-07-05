@@ -85,7 +85,7 @@ body[data-theme='solar'] {
 /* ===========================================================================
    SHELL — dark radial ground; panels blur it for a frosted look.
    =========================================================================== */
-html, body { width: 544px; margin: 0; overflow: hidden; }
+html, body { width: 552px; margin: 0; overflow: hidden; }
 body {
   font-family: var(--sans);
   color: var(--ink);

@@ -12,7 +12,7 @@
 
 const EQ_W = 480;
 const EQ_H = 220;
-const GAIN_W = 26;
+const GAIN_W = 34;
 
 // Audio/model hard limits. Legacy imported presets can be wildly outside this range;
 // we clamp sound data here so the engine and saved presets stay sane.
@@ -210,6 +210,12 @@ const dbToY = (db) => EQ_H * (1 - (db - VIEW_DB_BOTTOM) / (VIEW_DB_TOP - VIEW_DB
 const yToDb = (y) => (1 - y / EQ_H) * (VIEW_DB_TOP - VIEW_DB_BOTTOM) + VIEW_DB_BOTTOM;
 const masterGainToDb = (g) => 10 * Math.log10(g);
 const dbToMasterGain = (db) => Math.pow(10, db / 10);
+// Signed, compact dB readout for the volume strip: 0 / +3 / +3.5 / -2.
+const gainDbText = (g) => {
+  const r = Math.round(masterGainToDb(clampMasterGain(g)) * 10) / 10;
+  if (r === 0) return '0';
+  return (r > 0 ? '+' : '') + (Number.isInteger(r) ? String(r) : r.toFixed(1));
+};
 const clampQ = (q) => Math.max(0.2, Math.min(11, q));
 const clampGainDb = (g) => Math.max(DB_BOTTOM, Math.min(DB_TOP, g));
 const clampFreq = (f) => Math.max(5, Math.min(20000, f));
@@ -698,17 +704,21 @@ function drawAxes() {
   for (let f = 5; f < AXIS_MAX_FREQ; f *= 2) {
     const x = freqToX(f);
     // Full-height engraved vertical grid line, very faint.
-    eqSnap.line(x, 0, x, EQ_H).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.1 });
+    eqSnap.line(x, 0, x, EQ_H).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.12 });
     // Tick marks top + bottom, slightly stronger.
-    eqSnap.line(x, EQ_H, x, EQ_H - 12).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.35 });
-    eqSnap.line(x, 0, x, 12).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.35 });
-    eqSnap.text(x, EQ_H - 16, freqLabel(f)).attr({
-      fill: COLOR_AXIS,
-      'fill-opacity': 0.62,
+    eqSnap.line(x, EQ_H, x, EQ_H - 10).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.4 });
+    eqSnap.line(x, 0, x, 10).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.4 });
+    eqSnap.text(x, EQ_H - 15, freqLabel(f)).attr({
+      fill: COLOR_TEXT,
+      'fill-opacity': 0.72,
       'text-anchor': 'middle',
       'font-size': 9
     });
   }
+
+  // Emphasized unity (0 dB) baseline — the reference for boost vs. cut.
+  const zeroY = dbToY(0);
+  eqSnap.line(0, zeroY, EQ_W, zeroY).attr({ stroke: COLOR_TEXT, 'stroke-opacity': 0.22, 'stroke-dasharray': '1 4' });
 
   // dB gridlines span the (possibly auto-fitted) view range with an adaptive step.
   const range = VIEW_DB_TOP;
@@ -716,10 +726,10 @@ function drawAxes() {
   for (let db = Math.ceil(-range / step) * step; db <= range; db += step) {
     if (range - Math.abs(db) <= step * 0.5) continue; // skip labels crowding the edge
     const y = dbToY(db);
-    eqSnap.line(0, y, 5, y).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.35 });
-    eqSnap.text(7, y, String(db)).attr({
-      fill: COLOR_AXIS,
-      'fill-opacity': 0.62,
+    eqSnap.line(0, y, 5, y).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.4 });
+    eqSnap.text(8, y, (db > 0 ? '+' : '') + db).attr({
+      fill: COLOR_TEXT,
+      'fill-opacity': db === 0 ? 0.85 : 0.62,
       'font-size': 9,
       'dominant-baseline': 'middle'
     });
@@ -799,14 +809,30 @@ function makeGainDragMove(gainModel) {
   return function (dx, dy, cx, cy) {
     let [, ly] = svgLocalPoint(gainSnap, cx, cy);
     if (ly < 0 || ly >= EQ_H) return;
-    if (yToDb(ly) > MASTER_DB_MAX) {
-      dy -= ly - dbToY(MASTER_DB_MAX);
-      ly = dbToY(MASTER_DB_MAX);
+    const topY = dbToY(MASTER_DB_MAX);
+    const botY = dbToY(DB_BOTTOM);
+    if (ly < topY) {
+      dy -= ly - topY;
+      ly = topY;
+    } else if (ly > botY) {
+      dy -= ly - botY;
+      ly = botY;
     }
     gainModel.y = ly;
     gainModel.gain = dbToMasterGain(yToDb(ly));
     const orig = this.data('origTransform');
     this.attr({ transform: orig + (orig ? 'T' : 't') + [0, dy] });
+    // Live level fill + dB readout follow the handle.
+    if (gainModel.fill) {
+      const zY = gainModel.zeroY;
+      gainModel.fill.attr({
+        y: Math.min(ly, zY),
+        height: Math.abs(zY - ly),
+        fill: ly <= zY ? COLOR_PEAKING : COLOR_VIZ,
+        'fill-opacity': ly <= zY ? 0.5 : 0.4
+      });
+    }
+    if (gainModel.label) gainModel.label.node.textContent = gainDbText(gainModel.gain);
     throttledSend(() => toOffscreen('modifyGain', { gain: gainModel.gain, activePreset: '' }));
   };
 }
@@ -864,23 +890,39 @@ function renderWorkspace(status) {
 
   redrawCurves(models); // faint per-band curves + the bold combined curve
 
-  // Volume strip: channel, 0 dB tick, label
-  gainSnap
-    .line(GAIN_W / 2, dbToY(DB_BOTTOM), GAIN_W / 2, dbToY(MASTER_DB_MAX))
-    .attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.35 });
-  gainSnap.text(GAIN_W / 2, dbToY(MASTER_DB_MAX) - 10, 'vol').attr({
-    fill: COLOR_AXIS,
-    'fill-opacity': 0.62,
-    'text-anchor': 'middle',
-    'font-size': 8
-  });
-  gainSnap.line(GAIN_W / 2 - 5, dbToY(0), GAIN_W / 2 + 5, dbToY(0)).attr({ stroke: COLOR_AXIS, 'stroke-opacity': 0.5 });
+  // Master-volume strip: recessed track, a level fill that shows deviation from
+  // unity (accent above 0 dB, dim below), a chunky handle, and a live dB readout.
+  const gx = 3;
+  const gw = GAIN_W - 6;
+  const topY = dbToY(MASTER_DB_MAX);
+  const botY = dbToY(DB_BOTTOM);
+  const zeroY = dbToY(0);
+  const gainY = clampY(dbToY(masterGainToDb(clampMasterGain(status.gain))));
 
-  // Fat rect master-volume handle (chunky drag target).
-  const gainModel = { gain: status.gain, y: dbToY(masterGainToDb(status.gain)) };
+  // Track (rounded channel).
+  gainSnap.rect(gx, topY, gw, botY - topY, gw / 2).attr({ fill: COLOR_AXIS, 'fill-opacity': 0.16 });
+  // 0 dB reference tick across the track.
+  gainSnap.line(gx, zeroY, gx + gw, zeroY).attr({ stroke: COLOR_TEXT, 'stroke-opacity': 0.4, 'stroke-dasharray': '1 2' });
+
+  const gainModel = { gain: status.gain, y: gainY, zeroY };
+
+  // Level fill: from the handle to the 0 dB line (grows/shrinks live during drag).
+  gainModel.fill = gainSnap
+    .rect(gx, Math.min(gainY, zeroY), gw, Math.abs(zeroY - gainY), gw / 2)
+    .attr({ fill: gainY <= zeroY ? COLOR_PEAKING : COLOR_VIZ, 'fill-opacity': gainY <= zeroY ? 0.5 : 0.4 });
+
+  // Live dB readout above the track; "VOL" caption below it.
+  gainModel.label = gainSnap.text(GAIN_W / 2, topY - 8, gainDbText(status.gain)).attr({
+    fill: COLOR_TEXT, 'fill-opacity': 0.92, 'text-anchor': 'middle', 'font-size': 9, 'font-family': 'GeistUmbra, monospace'
+  });
+  gainSnap.text(GAIN_W / 2, botY + 14, 'VOL').attr({
+    fill: COLOR_TEXT, 'fill-opacity': 0.45, 'text-anchor': 'middle', 'font-size': 7, 'letter-spacing': '0.14em'
+  });
+
+  // Chunky rounded handle (clear grab target).
   const gainHandle = gainSnap
-    .rect(0, gainModel.y - 3, GAIN_W, 6)
-    .attr({ fill: COLOR_PEAKING })
+    .rect(gx - 1, gainY - 5, gw + 2, 10, 4)
+    .attr({ fill: COLOR_PEAKING, stroke: COLOR_BG, 'stroke-width': 1.5 })
     .addClass('gainLine');
   gainHandle.drag(makeGainDragMove(gainModel), dragStart, makeGainDragEnd(gainModel));
 
@@ -888,8 +930,8 @@ function renderWorkspace(status) {
   models.forEach((m, i) => {
     const color = m.type === 'peaking' ? COLOR_PEAKING : COLOR_SHELF;
     const dot = eqSnap
-      .circle(m.x, m.y, 5)
-      .attr({ fill: color, stroke: COLOR_BG, 'stroke-width': 1 })
+      .circle(m.x, m.y, 6)
+      .attr({ fill: color, stroke: COLOR_BG, 'stroke-width': 1.5 })
       .addClass('filterDot');
     dot.node.style.color = color; // drives CSS drop-shadow(... currentColor)
     dot.drag(makeDotDragMove(m, i), dragStart, makeDotDragEnd(m, i));
