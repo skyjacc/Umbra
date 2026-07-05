@@ -22,6 +22,15 @@
   --input: 230 12% 20%;
   --ring: 231 33% 66%;
   --radius: 0.75rem;
+
+  /* EQ graph colors (muted, no neon) — consumed by the SVG graph component. */
+  --g-screen: #0e0f16;
+  --g-axis: #2b2e3a;
+  --g-peak: #8b93c6;
+  --g-shelf: #79a0a3;
+  --g-viz: #4c5170;
+  --g-grab: #edeff5;
+  --g-text: #767a88;
 }
 
 @layer base {
