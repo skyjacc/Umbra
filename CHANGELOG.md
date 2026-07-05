@@ -10,10 +10,12 @@ All notable changes to Umbra EQ are documented here. The format follows
 - **New bottom-nav app UI** — `popup.html`, `popup.css`, and the popup's view wiring
   rewritten from scratch. The single-screen layout is replaced by four full views
   (EQ / Presets / Tabs / More) switched by a bottom tab bar; the old chip-overlays and
-  preset drawer are gone. Clean dark theme with a teal→indigo accent; the four color
-  themes (Eclipse/Nocturne/Aurora/Solar) recolor the graph + accent. The audio engine
-  is untouched and all 53 tests still pass. Graph-ancestor transform/filter rule
-  preserved (views toggle by display/opacity, never transform) so drag keeps working.
+  preset drawer are gone. Styled as a **dark frosted-glass** interface: muted,
+  low-saturation accents (no neon), a cool near-black ground with soft radial depth,
+  and backdrop-blur panels (kept off every EQ-graph ancestor so drag hit-testing still
+  works). The four color themes (Eclipse/Nocturne/Aurora/Solar) recolor the graph +
+  accent, all muted. The audio engine is untouched and all 53 tests still pass. Views
+  toggle by display/opacity only — never transform — so drag keeps working.
 - `test/visual-harness.html` updated to the new markup.
 
 ### Added
