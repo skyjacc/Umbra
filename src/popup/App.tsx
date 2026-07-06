@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
-import { VolumeSlider } from './components/VolumeSlider';
+import { VerticalVolume } from './components/VerticalVolume';
 import { BottomNav, type ViewId } from './components/BottomNav';
 import { useEngine } from './useEngine';
 import { hasChrome } from '@/lib/engine-io';
@@ -89,15 +89,22 @@ export default function App() {
             </button>
           </header>
 
-          <EqGraph
-            bands={eng.bands}
-            sampleRate={eng.sampleRate}
-            fft={eng.fft}
-            onBands={eng.onBandsLive}
-            onCommit={eng.onCommit}
-          />
-
-          <VolumeSlider gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} />
+          <div
+            className="flex items-center gap-2 rounded-2xl border border-white/10 p-3"
+            style={{
+              background: 'linear-gradient(180deg, rgba(255,255,255,.03), transparent 42%), var(--g-screen)',
+              boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
+            }}
+          >
+            <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} />
+            <EqGraph
+              bands={eng.bands}
+              sampleRate={eng.sampleRate}
+              fft={eng.fft}
+              onBands={eng.onBandsLive}
+              onCommit={eng.onCommit}
+            />
+          </div>
 
           <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground/70">
             <TriangleAlert className="size-3.5 opacity-70" />

@@ -156,15 +156,7 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
   const zeroY = dbToY(0); // 0 dB baseline for the graph
 
   return (
-    <div
-      className="flex justify-center gap-1.5 rounded-2xl border border-white/10 p-3"
-      style={{
-        background: `linear-gradient(180deg, rgba(255,255,255,.03), transparent 42%), ${G('screen')}`,
-        boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
-      }}
-    >
-      {/* EQ curve */}
-      <svg
+    <svg
         ref={eqRef}
         width={EQ_W}
         height={EQ_H}
@@ -249,6 +241,5 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
             );
           })()}
       </svg>
-    </div>
   );
 }
