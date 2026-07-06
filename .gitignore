@@ -8,6 +8,7 @@ node_modules/
 scratchpad/
 
 # Private/local notes — do not publish in repo or store package
+MONETIZATION.md
 Chat.md
 handoff.md
 ENGINE_STUDY.md

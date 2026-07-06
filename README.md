@@ -15,11 +15,14 @@ sound of music, video, streams and calls in real time — right from the toolbar
 ## Features
 
 - **11-band parametric EQ** — drag the response curve to boost or cut any frequency, live.
-- **Bass boost** + a one-click preset, plus your own named presets.
-- **Master volume** boost when a video is too quiet (up to +10 dB).
+- **Per-tab EQ** — every captured tab gets its own equalizer, so a film tab and a music tab can sound different at the same time.
+- **Sticky per-site sound** — a tab's curve is remembered by site (hostname) and re-applied automatically next time.
+- **Site rules** — assign a preset or a saved curve to sites by address pattern, e.g. one rule for every `film.*` mirror.
+- **Presets** — save, apply, export/import as a file, or share by a self-contained offline code.
+- **Bass boost** + **master volume** up to +10 dB for quiet videos.
 - **Live spectrum** overlay (visual only — it never changes the sound).
-- **4 themes**: Eclipse (default), Nocturne, Aurora, Solar.
-- **100% local & offline** — no account, no ads, no tracking, no network.
+- **Русский & English** interface, plus **4 themes and a custom accent color**.
+- **100% local & offline** — no account, no ads, no tracking, no network. Your audio never leaves your device.
 
 ## Browser support
 
@@ -54,7 +57,10 @@ root). Requires Chrome 116+.
 2. Click the Umbra EQ icon → **EQ This Tab**.
 3. Drag the dots: left/right = frequency, up/down = boost/cut. **Shift-drag** = width (Q).
    **Double-click** a dot resets that band. The strip on the left is master volume.
-4. Save/apply presets from **Presets**; **Export/Import** them as JSON.
+4. Save/apply presets from **Presets** (Export/Import as a file, or Copy/Paste a share code).
+5. In **Rules**, keep **Remember EQ per site** on so a site's sound sticks, and add
+   pattern rules (e.g. `youtube.`, `film. kino.`) to auto-apply a preset per site.
+6. Each captured tab keeps its own EQ — manage or reset them under **Tabs**.
 
 ## Build the store package
 

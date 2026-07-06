@@ -12,8 +12,8 @@ Umbra EQ — Equalizer & Bass Boost
 
 ## Summary / short description (≤ 132 chars)
 
-Live 11-band equalizer and bass boost for any tab. Crank the bass, tame the highs,
-lift vocals — all in real time. No ads, no tracking.
+Live 11-band EQ & bass boost for any tab. Per-tab sound, per-site memory, presets.
+Crank bass, tame highs — real time. No ads, no tracking.
 
 ## Category
 
@@ -29,11 +29,18 @@ playing in their browser tabs in real time.
 Umbra EQ turns any browser tab into a studio-grade equalizer.
 
 • 11-band parametric EQ — drag the response curve to boost or cut any frequency,
-  live, while the audio plays.
-• One combined response curve with a spectrum analyzer behind it, so you can see
-  exactly what you are shaping.
-• Master volume boost — go past 100% when a video is too quiet.
-• One-click Bass Boost, plus save your own named presets.
+  live, while the audio plays, with a spectrum analyzer behind it so you see exactly
+  what you are shaping.
+• Per-tab EQ — every tab gets its own equalizer, so a movie tab and a music tab can
+  sound different at the same time.
+• Remembers your sound per website and re-applies it automatically the next time you
+  open that site.
+• Site rules — assign a preset to sites by an address pattern (for example, one rule
+  that covers a movie site and all of its mirrors).
+• Presets — save your own, and share your presets or rules with a single copy-paste
+  code (or an export file).
+• Master volume boost — go past 100% when a video is too quiet. One-click Bass Boost.
+• Русский and English interface, four themes and a custom accent color.
 • Works on any tab with sound: music, video, streams, calls.
 • 100% local. No account, no ads, no tracking — your audio never leaves your device.
 
@@ -42,6 +49,8 @@ How to use:
 2. Click the Umbra EQ icon, then "EQ This Tab".
 3. Drag the dots: left/right = frequency, up/down = boost/cut. Shift-drag changes the
    width (Q). Double-click a dot to reset it.
+4. Open the same site again and your sound comes back automatically. Add pattern rules
+   in the Rules tab to cover a whole site (e.g. youtube.) or several at once.
 
 ## Permission justifications (paste into the review form)
 
