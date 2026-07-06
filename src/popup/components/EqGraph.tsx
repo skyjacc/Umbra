@@ -90,22 +90,31 @@ export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommi
     return t;
   }, []);
 
-  // Spectrum polygon — resampled per x-pixel (log axis vs linear FFT bins),
-  // peak-held and capped to the bottom half so it never hides the curve.
-  const spectrumPoints = useMemo(() => {
-    if (!fft || !fft.length) return '';
-    const pts: string[] = [];
-    for (let x = 0; x <= EQ_W; x += 2) {
-      const fLo = xToFreq(Math.max(0, x - 1));
-      const fHi = xToFreq(x + 1);
+  // Spectrum — resampled per x-column (log axis vs linear FFT bins), peak-held,
+  // 3-point smoothed, capped to ~40% height. Rendered as a soft gradient that fades
+  // to nothing at the baseline, so it reads as a clean glass "energy" ghost that
+  // never fights the axis labels or the curve.
+  const spectrum = useMemo(() => {
+    if (!fft || !fft.length) return null;
+    const cap = EQ_H * 0.4;
+    const xs: number[] = [];
+    const raw: number[] = [];
+    for (let x = 0; x <= EQ_W; x += 3) {
+      const fLo = xToFreq(Math.max(0, x - 1.5));
+      const fHi = xToFreq(x + 1.5);
       const b0 = Math.max(0, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
       const b1 = Math.max(0, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
       let db = -100;
       for (let b = b0; b <= b1; b++) if (fft[b] > db) db = fft[b];
-      const h = Math.max(0, Math.min(EQ_H * 0.5, ((db + 100) / 100) * (EQ_H * 0.5)));
-      pts.push(`${x},${EQ_H - 1 - h}`);
+      xs.push(x);
+      raw.push(Math.max(0, Math.min(cap, ((db + 100) / 100) * cap)));
     }
-    return pts.length ? `0,${EQ_H} ${pts.join(' ')} ${EQ_W},${EQ_H}` : '';
+    const h = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25);
+    const top = xs.map((x, i) => `${x} ${(EQ_H - 1 - h[i]).toFixed(1)}`);
+    return {
+      area: `0,${EQ_H} ${xs.map((x, i) => `${x},${(EQ_H - 1 - h[i]).toFixed(1)}`).join(' ')} ${EQ_W},${EQ_H}`,
+      line: 'M' + top.join(' L')
+    };
   }, [fft, sampleRate]);
 
   // ---- Drag: filter dots ----
@@ -186,47 +195,79 @@ export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommi
   }
 
   return (
-    <div className="flex justify-center gap-1.5 rounded-2xl border border-border p-3" style={{ background: G('screen') }}>
-      {/* master volume strip */}
+    <div
+      className="flex justify-center gap-1.5 rounded-2xl border border-white/10 p-3"
+      style={{
+        background: `linear-gradient(180deg, rgba(255,255,255,.03), transparent 42%), ${G('screen')}`,
+        boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
+      }}
+    >
+      {/* master volume — glass fader */}
       <svg
         ref={gainRef}
         width={GAIN_W}
         height={EQ_H}
         className="touch-none rounded-lg"
-        style={{ background: 'rgba(0,0,0,.28)' }}
+        style={{ background: 'rgba(0,0,0,.32)' }}
         onPointerMove={gainMove}
         onPointerUp={gainUp}
         onPointerCancel={gainUp}
       >
-        <rect x={gx} y={topY} width={gw} height={botY - topY} rx={gw / 2} fill={G('axis')} fillOpacity={0.16} />
-        <line x1={gx} y1={zeroY} x2={gx + gw} y2={zeroY} stroke={G('text')} strokeOpacity={0.4} strokeDasharray="1 2" />
+        <defs>
+          <linearGradient id="umbraVol" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style={{ stopColor: G('peak'), stopOpacity: 0.6 }} />
+            <stop offset="1" style={{ stopColor: G('peak'), stopOpacity: 0.14 }} />
+          </linearGradient>
+        </defs>
+
+        {/* dB readout chip */}
+        <rect x={2} y={topY - 24} width={GAIN_W - 4} height={16} rx={5} fill="#000" fillOpacity={0.35} stroke="#fff" strokeOpacity={0.06} />
+        <text
+          x={GAIN_W / 2}
+          y={topY - 15.5}
+          textAnchor="middle"
+          fontSize={10}
+          fill={G('grab')}
+          dominantBaseline="middle"
+          style={{ fontFamily: 'ui-monospace, monospace' }}
+        >
+          {gainDbText(gain)}
+        </text>
+
+        {/* frosted track */}
+        <rect x={gx} y={topY} width={gw} height={botY - topY} rx={gw / 2} fill="#000" fillOpacity={0.4} />
+        <rect x={gx} y={topY} width={gw} height={botY - topY} rx={gw / 2} fill="none" stroke="#fff" strokeOpacity={0.07} />
+        <line x1={gx + 2} y1={zeroY} x2={gx + gw - 2} y2={zeroY} stroke={G('text')} strokeOpacity={0.3} strokeDasharray="1 2" />
+
+        {/* level fill */}
         <rect
           x={gx}
           y={Math.min(gainY, zeroY)}
           width={gw}
           height={Math.abs(zeroY - gainY)}
           rx={gw / 2}
-          fill={gainY <= zeroY ? G('peak') : G('viz')}
-          fillOpacity={gainY <= zeroY ? 0.5 : 0.4}
+          fill={gainY <= zeroY ? 'url(#umbraVol)' : G('viz')}
+          fillOpacity={gainY <= zeroY ? 1 : 0.4}
         />
-        <text x={GAIN_W / 2} y={topY - 8} textAnchor="middle" fontSize={9} fill={G('text')} fillOpacity={0.92} style={{ fontFamily: 'ui-monospace, monospace' }}>
-          {gainDbText(gain)}
-        </text>
-        <text x={GAIN_W / 2} y={botY + 14} textAnchor="middle" fontSize={7} fill={G('text')} fillOpacity={0.45} letterSpacing="0.14em">
+
+        <text x={GAIN_W / 2} y={botY + 15} textAnchor="middle" fontSize={7} fill={G('text')} fillOpacity={0.45} letterSpacing="0.16em">
           VOL
         </text>
+
+        {/* thumb with grip line */}
         <rect
-          x={gx - 1}
-          y={gainY - 5}
-          width={gw + 2}
-          height={10}
-          rx={4}
+          x={gx - 2}
+          y={gainY - 6}
+          width={gw + 4}
+          height={12}
+          rx={5}
           fill={G('peak')}
           stroke={G('screen')}
           strokeWidth={1.5}
           className="cursor-ns-resize"
           onPointerDown={gainDown}
         />
+        <line x1={gx + 2} y1={gainY} x2={gx + gw - 2} y2={gainY} stroke={G('screen')} strokeOpacity={0.45} strokeWidth={1} pointerEvents="none" />
       </svg>
 
       {/* EQ curve */}
@@ -240,6 +281,12 @@ export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommi
         onPointerUp={eqUp}
         onPointerCancel={eqUp}
       >
+        <defs>
+          <linearGradient id="umbraSpec" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style={{ stopColor: G('viz'), stopOpacity: 0.4 }} />
+            <stop offset="1" style={{ stopColor: G('viz'), stopOpacity: 0 }} />
+          </linearGradient>
+        </defs>
         {/* grid */}
         {freqTicks.map((t, i) => (
           <g key={'f' + i}>
@@ -256,9 +303,12 @@ export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommi
           </text>
         ))}
 
-        {/* spectrum ghost (behind everything) */}
-        {spectrumPoints && (
-          <polygon points={spectrumPoints} fill={G('viz')} fillOpacity={0.14} stroke={G('viz')} strokeOpacity={0.35} pointerEvents="none" />
+        {/* spectrum ghost — soft gradient fading to the baseline, behind everything */}
+        {spectrum && (
+          <g pointerEvents="none">
+            <polygon points={spectrum.area} fill="url(#umbraSpec)" />
+            <path d={spectrum.line} fill="none" stroke={G('viz')} strokeOpacity={0.4} strokeWidth={1} />
+          </g>
         )}
 
         {/* ghost per-band curves */}

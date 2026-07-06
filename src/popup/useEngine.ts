@@ -163,8 +163,13 @@ export function useEngine() {
 
   // Spectrum: poll the offscreen FFT ~30fps while enabled.
   useEffect(() => {
-    if (!spectrum || !io.hasChrome()) {
+    if (!spectrum) {
       setFft(null);
+      return;
+    }
+    if (!io.hasChrome()) {
+      // Dev preview (no engine): a static synthetic spectrum so the overlay is visible.
+      setFft(Array.from({ length: 1024 }, (_, i) => -100 + 78 * Math.exp(-((i - 46) ** 2) / 1600) + 34 * Math.exp(-i / 240) * (0.6 + 0.4 * Math.sin(i))));
       return;
     }
     let alive = true;
