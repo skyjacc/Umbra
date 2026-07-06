@@ -1,8 +1,8 @@
 // Pure audio/graph math — ported verbatim from the vanilla popup.js so the React
 // graph reuses the exact, test-covered logic (no behavior change). No DOM here.
 
-export const EQ_W = 480;
-export const EQ_H = 220;
+export const EQ_W = 524;
+export const EQ_H = 252;
 export const GAIN_W = 34;
 
 export const DB_TOP = 30;

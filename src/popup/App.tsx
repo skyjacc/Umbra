@@ -68,13 +68,19 @@ export default function App() {
     <div className="flex min-h-[470px] flex-col">
       <div className="flex-1">
         {/* ================= EQ ================= */}
-        <section className={'flex flex-col gap-3 p-4 ' + hide('eq')}>
+        <section className={'flex flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
-            <span
-              className="h-5 w-5 rounded-full"
-              style={{ background: 'radial-gradient(circle at 65% 35%, transparent 42%, hsl(var(--accent)) 44%)' }}
-            />
-            <span className="text-[15px] font-bold">Equalizer</span>
+            <svg className="h-5 w-5" style={{ color: 'hsl(var(--accent))' }} viewBox="0 0 32 32" fill="none" aria-hidden="true">
+              <mask id="umbraCut">
+                <rect width="32" height="32" fill="#fff" />
+                <circle cx="20.5" cy="13.5" r="11" fill="#000" />
+              </mask>
+              <circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#umbraCut)" />
+              <circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeOpacity="0.5" />
+            </svg>
+            <span className="text-[15px] font-bold">
+              Umbra<span className="text-primary">EQ</span>
+            </span>
             <button
               onClick={eng.toggleSpectrum}
               title="Live spectrum overlay (visual only — does not change the sound)"
@@ -111,12 +117,12 @@ export default function App() {
             Loud audio can harm hearing — keep it sensible
           </div>
 
-          <div className="flex gap-2.5">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={eng.toggleCapture}
               className={
-                'flex-1 rounded-xl border py-6 text-[13.5px] font-semibold backdrop-blur-md transition-colors ' +
+                'h-10 flex-1 rounded-xl border text-[13px] font-semibold backdrop-blur-md transition-colors ' +
                 (eng.capturing
                   ? 'border-destructive/50 bg-destructive/10 text-foreground hover:bg-destructive/15'
                   : 'border-primary/50 bg-primary/20 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,.12)] hover:bg-primary/30')
@@ -125,7 +131,7 @@ export default function App() {
               <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
               {eng.capturing ? 'Stop EQing' : 'EQ This Tab'}
             </Button>
-            <Button variant="outline" className="rounded-xl py-6 backdrop-blur-md" onClick={eng.resetAll}>
+            <Button variant="outline" className="h-10 rounded-xl backdrop-blur-md" onClick={eng.resetAll}>
               <RotateCcw />
               Reset
             </Button>
@@ -133,7 +139,7 @@ export default function App() {
         </section>
 
         {/* ================= PRESETS ================= */}
-        <section className={'flex flex-col gap-3 p-4 ' + hide('presets')}>
+        <section className={'flex flex-col gap-2.5 p-3 ' + hide('presets')}>
           <h1 className="text-[15px] font-semibold">Presets</h1>
           <div className="flex gap-2">
             <input
@@ -189,7 +195,7 @@ export default function App() {
         </section>
 
         {/* ================= TABS ================= */}
-        <section className={'flex flex-col gap-3 p-4 ' + hide('tabs')}>
+        <section className={'flex flex-col gap-2.5 p-3 ' + hide('tabs')}>
           <h1 className="text-[15px] font-semibold">Active tabs</h1>
           {eng.streams.length === 0 ? (
             <p className="text-[12.5px] text-muted-foreground">No tabs are being EQ'd. Start with EQ This Tab.</p>
@@ -218,7 +224,7 @@ export default function App() {
         </section>
 
         {/* ================= MORE ================= */}
-        <section className={'flex flex-col gap-3 p-4 ' + hide('more')}>
+        <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
           <h1 className="text-[15px] font-semibold">More</h1>
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/[.05] p-3">
             <div className="flex flex-col">
