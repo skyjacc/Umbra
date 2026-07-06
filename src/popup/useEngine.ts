@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
+import { matchRule, type Rule } from '@/lib/rules';
 import * as io from '@/lib/engine-io';
 
 export interface TabInfo {
@@ -41,6 +42,7 @@ export function useEngine() {
   const [sampleRate, setSampleRate] = useState(44100);
   const [presets, setPresets] = useState<Record<string, PresetBands>>({});
   const [savedHosts, setSavedHosts] = useState<SavedHost[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
   const [autoDomain, setAutoDomainState] = useState(true);
   const [engineStatus, setEngineStatus] = useState('starting…');
   const [notice, setNoticeState] = useState('');
@@ -66,6 +68,8 @@ export function useEngine() {
   activeRef.current = activePreset;
   const presetsRef = useRef(presets);
   presetsRef.current = presets;
+  const rulesRef = useRef(rules);
+  rulesRef.current = rules;
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const interacting = useRef(false); // true mid-drag — don't let a broadcast clobber the curve
@@ -137,6 +141,9 @@ export function useEngine() {
     io.readInitialState().then((init) => {
       if (mounted) setPresets(init.presets);
     });
+    io.readRules().then((rs) => {
+      if (mounted) setRules(rs);
+    });
 
     if (io.hasChrome()) {
       io.getActiveTab().then(async (t) => {
@@ -171,9 +178,11 @@ export function useEngine() {
       }
     };
     const onChanged = (changes: any, area: string) => {
-      if (area === 'sync' && Object.keys(changes).some((k) => k.startsWith(io.PRESET_PREFIX))) {
+      if (area !== 'sync') return;
+      if (Object.keys(changes).some((k) => k.startsWith(io.PRESET_PREFIX))) {
         io.refreshPresets().then((p) => mounted && setPresets(p));
       }
+      if (io.RULES_KEY in changes) io.readRules().then((rs) => mounted && setRules(rs));
     };
     if (io.hasChrome()) {
       chrome.runtime.onMessage.addListener(onMsg);
@@ -313,6 +322,50 @@ export function useEngine() {
     [showNotice]
   );
 
+  // ---- Domain rules (pattern -> preset/curve, first match wins) ----
+  const persistRules = useCallback((next: Rule[]) => {
+    setRules(next);
+    io.writeRules(next).then((ok) => {
+      if (!ok) showNotice('Rules save failed (sync storage full?).');
+    });
+  }, [showNotice]);
+
+  const addRule = useCallback((rule: Rule) => persistRules([...rulesRef.current, rule]), [persistRules]);
+  const updateRule = useCallback(
+    (id: string, patch: Partial<Rule>) => persistRules(rulesRef.current.map((r) => (r.id === id ? { ...r, ...patch } : r))),
+    [persistRules]
+  );
+  const deleteRule = useCallback((id: string) => persistRules(rulesRef.current.filter((r) => r.id !== id)), [persistRules]);
+
+  // Quick-add a rule from the active tab: snapshots the current curve and picks a
+  // pattern scope off the hostname (exact / any-tld / any-subdomain).
+  const quickAddRule = useCallback(
+    (scope: 'exact' | 'anyTld' | 'anySub') => {
+      const host = (activeHostRef.current || '').replace(/^www\./, '');
+      if (!host) {
+        showNotice('No site to add a rule for.');
+        return;
+      }
+      const labels = host.split('.');
+      const base = labels.length >= 2 ? labels[labels.length - 2] : host; // registrable name label
+      const pattern = scope === 'anyTld' ? base + '.' : scope === 'anySub' ? '.' + base + '.' : host;
+      const rule: Rule = {
+        id: 'r_' + Date.now().toString(36),
+        patterns: [pattern],
+        mode: 'curve',
+        curve: io.bandsToPreset(bandsRef.current),
+        gain: gainRef.current,
+        preset: activeRef.current || '',
+        enabled: true
+      };
+      persistRules([...rulesRef.current, rule]);
+      showNotice('Added rule "' + pattern + '".');
+    },
+    [persistRules, showNotice]
+  );
+
+  const matchedRule = activeHost ? matchRule(activeHost, rules) : null;
+
   const applyPreset = useCallback(
     async (name: string) => {
       let p = presetsRef.current[name];
@@ -404,6 +457,8 @@ export function useEngine() {
     activeHost,
     capturable,
     savedHosts,
+    rules,
+    matchedRule,
     autoDomain,
     presets,
     engineStatus,
@@ -424,6 +479,10 @@ export function useEngine() {
     resetEverything,
     setAutoDomain,
     forgetHost,
+    addRule,
+    updateRule,
+    deleteRule,
+    quickAddRule,
     applyPreset,
     savePreset,
     deletePreset,

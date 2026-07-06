@@ -3,6 +3,7 @@ import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, A
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { VerticalVolume } from './components/VerticalVolume';
+import { RulesView } from './components/RulesView';
 import { BottomNav, type ViewId } from './components/BottomNav';
 import { useEngine } from './useEngine';
 import { hasChrome } from '@/lib/engine-io';
@@ -194,6 +195,20 @@ export default function App() {
             </Button>
             <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={onFile} />
           </div>
+        </section>
+
+        {/* ================= RULES ================= */}
+        <section className={'p-3 ' + hide('rules')}>
+          <RulesView
+            rules={eng.rules}
+            presets={eng.presets}
+            activeHost={eng.activeHost}
+            matchedRuleId={eng.matchedRule?.id ?? null}
+            onAdd={eng.addRule}
+            onUpdate={eng.updateRule}
+            onDelete={eng.deleteRule}
+            onQuickAdd={eng.quickAddRule}
+          />
         </section>
 
         {/* ================= TABS ================= */}

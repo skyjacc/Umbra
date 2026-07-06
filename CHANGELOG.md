@@ -14,6 +14,14 @@ All notable changes to Umbra EQ are documented here. The format follows
   hostname and, while **Remember EQ per site** is on, re-applied automatically the next
   time that site's tab is captured. Manage or forget saved sites in **More → Remembered
   sites**; the popup previews a site's saved curve before you even press EQ This Tab.
+- **Domain rules** — a pattern language assigns a preset or a saved curve to sites by
+  hostname pattern: `youtube.` (name + any TLD), `.youtube.` (subdomains + any TLD),
+  `.youtube.com` (any subdomain, fixed TLD), exact hosts, and multi-pattern rules
+  (`film. / kino.`) that group several sites under one preset. First matching rule wins;
+  a hand-tweaked site always overrides its rule. Managed in a new **Rules** tab with an
+  inline guide and a one-click "rule for this site". Rules sync across the user's
+  browsers. Matcher is unit-tested (14 cases); multi-part TLDs (.co.uk) match
+  approximately (no public-suffix list).
 - **Reset scope** — **Reset** (EQ view) flattens the current tab and forgets its saved
   curve; each row in **Tabs** has its own **Reset**; **Clear all** (More) flattens every
   live tab and wipes all remembered sites.

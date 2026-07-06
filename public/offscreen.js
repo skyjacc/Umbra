@@ -14,6 +14,7 @@ const DEFAULT_FREQUENCIES = [20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240,
 const DEFAULT_Q = 0.7071; // Butterworth
 const PRESET_PREFIX = 'PRESETS.';
 const DEQ_PREFIX = 'DEQ.'; // per-hostname saved EQ, e.g. DEQ.music.youtube.com
+const RULES_KEY = 'RULES'; // sync: ordered array of domain rules (patterns -> preset/curve)
 const AUTO_KEY = 'AUTO_DOMAIN'; // bool — auto-apply a domain's saved curve on capture
 
 // Bump on every change so the popup can detect a STALE service worker / offscreen.
@@ -178,6 +179,78 @@ async function getPresets() {
 }
 
 // ---------------------------------------------------------------------------
+// Domain rules — pattern -> preset/curve. Mirror of src/lib/rules.ts (kept in sync
+// by the popup which owns rule CRUD; the engine only reads + matches at capture time).
+
+function normHostPat(h) {
+  return (h || '').toLowerCase().replace(/\.+$/, '');
+}
+function hostMatchesPattern(host, pattern) {
+  const h = normHostPat(host);
+  if (!h) return false;
+  const p = (pattern || '').trim().toLowerCase();
+  if (!p) return false;
+  let lead = p.startsWith('.');
+  let trail = p.endsWith('.');
+  const core = p.replace(/^\.+/, '').replace(/\.+$/, '');
+  if (!core) return false;
+  if (!lead && !trail && !core.includes('.')) trail = true;
+  const hl = h.split('.');
+  const cl = core.split('.');
+  if (!lead && !trail) return h === core;
+  if (trail && !lead) return hl.length === cl.length + 1 && hl.slice(0, cl.length).join('.') === core;
+  if (lead && !trail) return h === core || h.endsWith('.' + core);
+  for (let i = 0; i + cl.length <= hl.length; i++) {
+    if (hl.slice(i, i + cl.length).join('.') === core) return true;
+  }
+  return false;
+}
+function matchRule(host, rules) {
+  for (const r of rules || []) {
+    if (r && r.enabled !== false && (r.patterns || []).some((p) => hostMatchesPattern(host, p))) return r;
+  }
+  return null;
+}
+async function getRules() {
+  const s = _stg('sync');
+  if (!s) return [];
+  try {
+    const r = await s.get(RULES_KEY);
+    return Array.isArray(r[RULES_KEY]) ? r[RULES_KEY] : [];
+  } catch (e) {
+    dlog('getRules failed:', e && e.message);
+    return [];
+  }
+}
+// Resolve a rule to { bands, gain, presetName } or null.
+async function bandsFromRule(rule) {
+  if (!rule) return null;
+  if (rule.mode === 'curve' && rule.curve && Array.isArray(rule.curve.frequencies)) {
+    const c = rule.curve;
+    return {
+      bands: DEFAULT_FREQUENCIES.map((_, i) => ({ f: c.frequencies[i], g: c.gains[i], q: c.qs[i] })),
+      gain: rule.gain != null ? rule.gain : 1,
+      presetName: rule.preset || ''
+    };
+  }
+  if (rule.mode === 'preset' && rule.preset) {
+    let preset;
+    if (rule.preset === 'bassBoost') {
+      preset = { frequencies: [340, ...DEFAULT_FREQUENCIES.slice(1)], gains: [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], qs: Array(NUM_FILTERS).fill(DEFAULT_Q) };
+    } else {
+      preset = (await getPresets())[rule.preset];
+    }
+    if (!preset) return null;
+    return {
+      bands: DEFAULT_FREQUENCIES.map((_, i) => ({ f: preset.frequencies[i], g: preset.gains[i], q: preset.qs[i] })),
+      gain: 1,
+      presetName: rule.preset
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Engine bootstrap — just the context now; chains are built per captured tab.
 
 async function setupAudioNodes() {
@@ -238,15 +311,30 @@ async function startCapture(streamId, tab) {
   if (Object.keys(streams).length === 0) audioContext.resume();
 
   const host = hostOf(tab.url);
-  // Auto-apply: a known site starts from its saved curve; anything else starts flat.
-  let bands, gain, presetName;
-  const saved = autoDomain ? await loadDomainEq(host) : null;
-  if (saved) {
-    bands = saved.filters.map((b) => ({ f: b.f, g: b.g, q: b.q }));
-    gain = saved.gain ?? 1;
-    presetName = saved.preset || '';
-    dlog('auto-applied saved EQ for', host);
-  } else {
+  // Auto-apply resolution (when the toggle is on): an exact-host tweak beats a matching
+  // domain rule beats flat. That's why a hand-tweaked film.gg keeps its own curve while
+  // every other film.* still follows the rule.
+  let bands = null;
+  let gain = 1;
+  let presetName = '';
+  if (autoDomain) {
+    const saved = await loadDomainEq(host);
+    if (saved) {
+      bands = saved.filters.map((b) => ({ f: b.f, g: b.g, q: b.q }));
+      gain = saved.gain ?? 1;
+      presetName = saved.preset || '';
+      dlog('applied host memory for', host);
+    } else {
+      const fromRule = await bandsFromRule(matchRule(host, await getRules()));
+      if (fromRule) {
+        bands = fromRule.bands;
+        gain = fromRule.gain;
+        presetName = fromRule.presetName;
+        dlog('applied domain rule for', host);
+      }
+    }
+  }
+  if (!bands) {
     bands = flatBands();
     gain = 1;
     presetName = '';

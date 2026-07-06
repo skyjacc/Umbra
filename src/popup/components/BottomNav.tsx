@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { AudioLines, SlidersHorizontal, AppWindow, MoreHorizontal } from 'lucide-react';
+import { AudioLines, SlidersHorizontal, ListFilter, AppWindow, MoreHorizontal } from 'lucide-react';
 
-export type ViewId = 'eq' | 'presets' | 'tabs' | 'more';
+export type ViewId = 'eq' | 'presets' | 'rules' | 'tabs' | 'more';
 
 const TABS: { id: ViewId; label: string; Icon: typeof AudioLines }[] = [
   { id: 'eq', label: 'EQ', Icon: AudioLines },
   { id: 'presets', label: 'Presets', Icon: SlidersHorizontal },
+  { id: 'rules', label: 'Rules', Icon: ListFilter },
   { id: 'tabs', label: 'Tabs', Icon: AppWindow },
   { id: 'more', label: 'More', Icon: MoreHorizontal }
 ];

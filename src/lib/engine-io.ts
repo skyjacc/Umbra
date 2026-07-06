@@ -11,10 +11,12 @@ import {
   type Band
 } from './audio';
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
+import { type Rule } from './rules';
 
 export const BUILD = '2.1.0';
 export const PRESET_PREFIX = 'PRESETS.';
 export const DEQ_PREFIX = 'DEQ.'; // per-hostname saved EQ (mirrors offscreen.js)
+export const RULES_KEY = 'RULES'; // sync: ordered domain-rules array (mirrors offscreen.js)
 export const EQ_STATE_KEY = 'EQ_STATE';
 export const ACTIVE_PRESET_KEY = 'ACTIVE_PRESET';
 
@@ -217,6 +219,27 @@ export async function savePreset(name: string, bands: Band[]) {
 
 export async function deletePreset(name: string) {
   await chrome.storage.sync.remove(PRESET_PREFIX + name);
+}
+
+// Domain rules live in one sync array key so ordering (first-match-wins) is preserved.
+export async function readRules(): Promise<Rule[]> {
+  if (!hasChrome() || !chrome.storage) return [];
+  try {
+    const r: any = await chrome.storage.sync.get(RULES_KEY);
+    return Array.isArray(r[RULES_KEY]) ? r[RULES_KEY] : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function writeRules(rules: Rule[]): Promise<boolean> {
+  if (!hasChrome() || !chrome.storage) return false;
+  try {
+    await chrome.storage.sync.set({ [RULES_KEY]: rules });
+    return true;
+  } catch {
+    return false; // sync quota exceeded
+  }
 }
 
 export async function importPresetsText(text: string): Promise<{ count: number; error?: string }> {
