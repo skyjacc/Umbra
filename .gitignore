@@ -25,3 +25,6 @@ Thumbs.db
 
 # Store package output
 release/
+
+# Store marketing assets (generated, for upload)
+store-assets/
