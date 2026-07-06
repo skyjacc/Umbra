@@ -93,7 +93,7 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
     const cols: Array<[number, number]> = [];
     for (let i = 1; i < fft.length; i++) {
       const freq = (i * sampleRate) / (fft.length * 2);
-      if (freq < 20) continue;
+      if (freq < 5) continue; // per-bin resolution — no flat band, so start near the axis min
       const x = freqToX(freq);
       if (x > EQ_W) break;
       const v = fft[i];

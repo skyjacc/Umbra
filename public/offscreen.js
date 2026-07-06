@@ -418,7 +418,7 @@ function handleFFT(sendResponse) {
   if (!analyzer) {
     analyzer = audioContext.createAnalyser();
     analyzer.fftSize = 8192;
-    analyzer.smoothingTimeConstant = 0.5;
+    analyzer.smoothingTimeConstant = 0.7; // smoother frame-to-frame motion for the visualizer
     postGain.connect(analyzer);
   }
   lastAnalyzerUse = performance.now();

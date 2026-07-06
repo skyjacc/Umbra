@@ -180,24 +180,27 @@ export function useEngine() {
       return;
     }
     if (!io.hasChrome()) {
-      // Dev preview (no engine): a static synthetic spectrum so the overlay is visible.
-      setFft(Array.from({ length: 1024 }, (_, i) => -100 + 78 * Math.exp(-((i - 46) ** 2) / 1600) + 34 * Math.exp(-i / 240) * (0.6 + 0.4 * Math.sin(i))));
+      // Dev preview (no engine): a static synthetic spectrum (4096 bins, like the real
+      // analyser's frequencyBinCount for fftSize 8192) so the overlay looks accurate.
+      setFft(Array.from({ length: 4096 }, (_, i) => -100 + 82 * Math.exp(-((i - 40) ** 2) / 1400) + 40 * Math.exp(-i / 500) * (0.6 + 0.4 * Math.sin(i / 2))));
       return;
     }
     let alive = true;
-    let timer: ReturnType<typeof setTimeout>;
+    let raf = 0;
+    // requestAnimationFrame-driven: request the next FFT only after the previous reply
+    // lands, synced to the display refresh (~60fps) — smoother than a fixed 30fps timer.
     const tick = () => {
       if (!alive) return;
       io.toOffscreen('getFFT', {}, (resp: any) => {
         if (!alive) return;
         if (resp && resp.fft) setFft(resp.fft);
-        timer = setTimeout(tick, 1000 / 30);
+        raf = requestAnimationFrame(tick);
       });
     };
-    tick();
+    raf = requestAnimationFrame(tick);
     return () => {
       alive = false;
-      clearTimeout(timer);
+      cancelAnimationFrame(raf);
     };
   }, [spectrum]);
 
