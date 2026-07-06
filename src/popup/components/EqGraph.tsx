@@ -2,10 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import {
   EQ_W,
   EQ_H,
-  GAIN_W,
   DB_TOP,
   DB_BOTTOM,
-  MASTER_DB_MAX,
   AXIS_MAX_FREQ,
   DEFAULT_FREQUENCIES,
   DEFAULT_Q,
@@ -19,21 +17,15 @@ import {
   clampQ,
   clampX,
   clampY,
-  clampMasterGain,
-  masterGainToDb,
-  dbToMasterGain,
-  gainDbText,
   filterType,
   curvePoints
 } from '@/lib/audio';
 
 interface Props {
   bands: Band[];
-  gain: number; // linear master gain
   sampleRate: number;
   fft?: number[] | null; // spectrum data (offscreen FFT), when the visualizer is on
   onBands: (b: Band[]) => void; // live, during drag
-  onGain: (g: number) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
 }
 
@@ -51,11 +43,9 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommit }: Props) {
+export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
-  const gainRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
-  const gainDrag = useRef(false);
   const [hover, setHover] = useState<number | null>(null);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
@@ -163,36 +153,7 @@ export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommi
     onCommit();
   }
 
-  // ---- Drag: master volume ----
-  const zeroY = dbToY(0);
-  const gainY = clampY(dbToY(masterGainToDb(clampMasterGain(gain))));
-  const topY = dbToY(MASTER_DB_MAX);
-  const botY = dbToY(DB_BOTTOM);
-  const gx = 3;
-  const gw = GAIN_W - 6;
-
-  function gainDown(e: React.PointerEvent) {
-    e.preventDefault();
-    gainDrag.current = true;
-    try {
-      gainRef.current?.setPointerCapture(e.pointerId);
-    } catch {
-      /* capture is best-effort */
-    }
-  }
-  function gainMove(e: React.PointerEvent) {
-    if (!gainDrag.current) return;
-    const rect = gainRef.current!.getBoundingClientRect();
-    let ly = e.clientY - rect.top;
-    ly = Math.max(topY, Math.min(botY, ly));
-    onGain(dbToMasterGain(yToDb(ly)));
-  }
-  function gainUp() {
-    if (gainDrag.current) {
-      gainDrag.current = false;
-      onCommit();
-    }
-  }
+  const zeroY = dbToY(0); // 0 dB baseline for the graph
 
   return (
     <div
@@ -202,74 +163,6 @@ export function EqGraph({ bands, gain, sampleRate, fft, onBands, onGain, onCommi
         boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
       }}
     >
-      {/* master volume — glass fader */}
-      <svg
-        ref={gainRef}
-        width={GAIN_W}
-        height={EQ_H}
-        className="touch-none rounded-lg"
-        style={{ background: 'rgba(0,0,0,.32)' }}
-        onPointerMove={gainMove}
-        onPointerUp={gainUp}
-        onPointerCancel={gainUp}
-      >
-        <defs>
-          <linearGradient id="umbraVol" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" style={{ stopColor: G('peak'), stopOpacity: 0.6 }} />
-            <stop offset="1" style={{ stopColor: G('peak'), stopOpacity: 0.14 }} />
-          </linearGradient>
-        </defs>
-
-        {/* dB readout chip */}
-        <rect x={2} y={topY - 24} width={GAIN_W - 4} height={16} rx={5} fill="#000" fillOpacity={0.35} stroke="#fff" strokeOpacity={0.06} />
-        <text
-          x={GAIN_W / 2}
-          y={topY - 15.5}
-          textAnchor="middle"
-          fontSize={10}
-          fill={G('grab')}
-          dominantBaseline="middle"
-          style={{ fontFamily: 'ui-monospace, monospace' }}
-        >
-          {gainDbText(gain)}
-        </text>
-
-        {/* frosted track */}
-        <rect x={gx} y={topY} width={gw} height={botY - topY} rx={gw / 2} fill="#000" fillOpacity={0.4} />
-        <rect x={gx} y={topY} width={gw} height={botY - topY} rx={gw / 2} fill="none" stroke="#fff" strokeOpacity={0.07} />
-        <line x1={gx + 2} y1={zeroY} x2={gx + gw - 2} y2={zeroY} stroke={G('text')} strokeOpacity={0.3} strokeDasharray="1 2" />
-
-        {/* level fill */}
-        <rect
-          x={gx}
-          y={Math.min(gainY, zeroY)}
-          width={gw}
-          height={Math.abs(zeroY - gainY)}
-          rx={gw / 2}
-          fill={gainY <= zeroY ? 'url(#umbraVol)' : G('viz')}
-          fillOpacity={gainY <= zeroY ? 1 : 0.4}
-        />
-
-        <text x={GAIN_W / 2} y={botY + 15} textAnchor="middle" fontSize={7} fill={G('text')} fillOpacity={0.45} letterSpacing="0.16em">
-          VOL
-        </text>
-
-        {/* thumb with grip line */}
-        <rect
-          x={gx - 2}
-          y={gainY - 6}
-          width={gw + 4}
-          height={12}
-          rx={5}
-          fill={G('peak')}
-          stroke={G('screen')}
-          strokeWidth={1.5}
-          className="cursor-ns-resize"
-          onPointerDown={gainDown}
-        />
-        <line x1={gx + 2} y1={gainY} x2={gx + gw - 2} y2={gainY} stroke={G('screen')} strokeOpacity={0.45} strokeWidth={1} pointerEvents="none" />
-      </svg>
-
       {/* EQ curve */}
       <svg
         ref={eqRef}

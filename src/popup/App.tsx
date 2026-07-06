@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
+import { VolumeSlider } from './components/VolumeSlider';
 import { BottomNav, type ViewId } from './components/BottomNav';
 import { useEngine } from './useEngine';
 import { hasChrome } from '@/lib/engine-io';
@@ -90,13 +91,13 @@ export default function App() {
 
           <EqGraph
             bands={eng.bands}
-            gain={eng.gain}
             sampleRate={eng.sampleRate}
             fft={eng.fft}
             onBands={eng.onBandsLive}
-            onGain={eng.onGainLive}
             onCommit={eng.onCommit}
           />
+
+          <VolumeSlider gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} />
 
           <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground/70">
             <TriangleAlert className="size-3.5 opacity-70" />
