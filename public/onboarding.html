@@ -22,14 +22,23 @@
         radial-gradient(120% 90% at -10% 110%, #2a1263 0%, transparent 55%),
         var(--bg);
       min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px;
-      -webkit-font-smoothing: antialiased;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
     }
     .wrap { width: 100%; max-width: 640px; }
     .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-    .mark { width: 34px; height: 34px; color: var(--acc2); filter: drop-shadow(0 0 8px rgba(139,147,198,.5)); }
+    /* soft, layered glow on the crescent — gentle breathing pulse */
+    .mark { width: 34px; height: 34px; color: var(--acc2); animation: breathe 5.5s ease-in-out infinite; }
+    @keyframes breathe {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(139,147,198,.5)) drop-shadow(0 0 22px rgba(139,147,198,.22)); }
+      50%      { filter: drop-shadow(0 0 13px rgba(166,173,218,.7)) drop-shadow(0 0 30px rgba(139,147,198,.32)); }
+    }
+    @media (prefers-reduced-motion: reduce) { .mark { animation: none; filter: drop-shadow(0 0 10px rgba(139,147,198,.55)); } }
     .name { font-size: 24px; font-weight: 800; letter-spacing: .01em; }
     .name b { background: linear-gradient(90deg, var(--acc), var(--acc2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
     .ver { font-family: 'GeistUmbra', monospace; font-size: 12px; color: var(--faint); align-self: flex-end; margin-bottom: 4px; }
+    .lang { margin-left: auto; display: flex; gap: 2px; background: rgba(0,0,0,.25); border-radius: 9px; padding: 2px; }
+    .lang button { font-family: inherit; font-size: 11px; font-weight: 700; color: var(--dim); cursor: pointer; border: none; background: none; border-radius: 7px; padding: 4px 9px; }
+    .lang button.on { background: rgba(139,147,198,.25); color: var(--ink); }
     .tag { color: var(--dim); font-size: 14px; margin: 0 0 26px 46px; }
     .card {
       background: var(--glass); border: 1px solid var(--gbrd); border-radius: 18px; padding: 24px;
@@ -55,7 +64,7 @@
     .foot a { color: var(--dim); font-size: 13px; text-decoration: none; }
     .foot a:hover { color: var(--acc2); }
     .foot .sp { flex: 1; }
-    .priv { margin-top: 18px; text-align: center; font-size: 12px; color: var(--faint); }
+    .priv { margin-top: 18px; text-align: center; font-size: 12px; color: var(--faint); line-height: 1.5; }
     .priv b { color: var(--dim); }
     @media (max-width: 520px) { .tips { grid-template-columns: 1fr; } }
   </style>
@@ -70,32 +79,38 @@
       </svg>
       <span class="name">Umbra<b>&nbsp;EQ</b></span>
       <span class="ver" id="ver"></span>
+      <div class="lang">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="ru">RU</button>
+      </div>
     </div>
-    <p class="tag">A live 11-band equalizer &amp; bass boost for any browser tab — 100% local, no tracking.</p>
+    <p class="tag" data-i18n="tag">A live 11-band equalizer &amp; bass boost for any browser tab — 100% local, no tracking.</p>
 
     <div class="card">
-      <div class="lab">Quick start</div>
+      <div class="lab" data-i18n="quickstart">Quick start</div>
       <div class="steps">
-        <div class="step"><span class="num">1</span><div><h3>Play some audio</h3><p>Open any tab with sound — music, video, a stream or a call.</p></div></div>
-        <div class="step"><span class="num">2</span><div><h3>Open Umbra EQ</h3><p>Click the Umbra EQ icon in the toolbar, then press <b>EQ This Tab</b>. That tab is now equalized.</p></div></div>
-        <div class="step"><span class="num">3</span><div><h3>Shape the sound</h3><p>Drag the dots on the curve to boost or cut any frequency, live. The strip on the left is master volume.</p></div></div>
+        <div class="step"><span class="num">1</span><div><h3 data-i18n="s1h">Play some audio</h3><p data-i18n="s1p">Open any tab with sound — music, a video, a stream or a call.</p></div></div>
+        <div class="step"><span class="num">2</span><div><h3 data-i18n="s2h">Turn it on</h3><p data-i18n-html="s2p">Click the Umbra EQ icon in the toolbar, then press <b>EQ This Tab</b>. That tab is now equalized.</p></div></div>
+        <div class="step"><span class="num">3</span><div><h3 data-i18n="s3h">Shape the sound</h3><p data-i18n="s3p">Drag the dots on the curve to boost or cut any frequency, live. The strip on the left is master volume.</p></div></div>
       </div>
 
       <div class="tips">
-        <div class="tip"><b>Shift-drag</b> a dot = change width (Q)</div>
-        <div class="tip"><b>Double-click</b> a dot = reset that band</div>
-        <div class="tip"><b>Presets</b> tab = save / apply / import</div>
-        <div class="tip"><b>Spectrum</b> = live analyzer (visual only)</div>
-      </div>
-
-      <div class="foot">
-        <button class="btn" id="closeBtn">Got it</button>
-        <span class="sp"></span>
-        <a href="https://github.com/skyjacc/umbra-eq/issues" target="_blank" rel="noreferrer">Questions / feedback →</a>
+        <div class="tip" data-i18n-html="tip1"><b>Shift-drag</b> a dot = change width</div>
+        <div class="tip" data-i18n-html="tip2"><b>Double-click</b> a dot = reset it</div>
+        <div class="tip" data-i18n-html="tip3"><b>Presets</b> — save, apply &amp; share by code</div>
+        <div class="tip" data-i18n-html="tip4"><b>Rules</b> — auto-apply your sound per site</div>
+        <div class="tip" data-i18n-html="tip5"><b>Every tab</b> keeps its own EQ</div>
+        <div class="tip" data-i18n-html="tip6"><b>Spectrum</b> — see what you're hearing</div>
       </div>
     </div>
 
-    <p class="priv"><b>Private by design.</b> All audio is processed on your device and never recorded, stored, or sent anywhere.</p>
+    <p class="priv" data-i18n-html="priv"><b>Your audio never leaves your computer.</b> Umbra processes sound on your device and never records, stores, or sends it anywhere — no account, no ads, no tracking.</p>
+
+    <div class="foot">
+      <button class="btn" id="closeBtn" data-i18n="gotit">Got it</button>
+      <span class="sp"></span>
+      <a href="https://github.com/skyjacc/umbra-eq/issues" target="_blank" rel="noreferrer" data-i18n="feedback">Questions / feedback →</a>
+    </div>
   </div>
   <script src="onboarding.js"></script>
 </body>
