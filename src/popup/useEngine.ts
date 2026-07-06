@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
 import { matchRule, type Rule } from '@/lib/rules';
+import { t } from './i18n';
 import * as io from '@/lib/engine-io';
 
 export interface TabInfo {
@@ -173,7 +174,7 @@ export function useEngine() {
         if (/active stream|already|in use/i.test(e)) {
           io.toOffscreen('getStatus', {}, (resp: any) => resp && resp.type === 'workspaceStatus' && handleStatus(resp));
         } else {
-          showNotice('Could not EQ this tab: ' + e);
+          showNotice(t('note.couldNotEq', { err: e }));
         }
       }
     };
@@ -305,7 +306,7 @@ export function useEngine() {
     setActivePreset('');
     io.toOffscreen('resetAllTabs');
     setSavedHosts([]);
-    showNotice('Reset all tabs and cleared remembered sites.');
+    showNotice(t('note.resetAll'));
   }, [showNotice]);
 
   const setAutoDomain = useCallback((on: boolean) => {
@@ -317,7 +318,7 @@ export function useEngine() {
     (host: string) => {
       io.toOffscreen('forgetHost', { host });
       setSavedHosts((hs) => hs.filter((h) => h.host !== host));
-      showNotice('Forgot "' + host + '".');
+      showNotice(t('note.forgot', { host }));
     },
     [showNotice]
   );
@@ -326,7 +327,7 @@ export function useEngine() {
   const persistRules = useCallback((next: Rule[]) => {
     setRules(next);
     io.writeRules(next).then((ok) => {
-      if (!ok) showNotice('Rules save failed (sync storage full?).');
+      if (!ok) showNotice(t('note.rulesSaveFailed'));
     });
   }, [showNotice]);
 
@@ -343,7 +344,7 @@ export function useEngine() {
     (scope: 'exact' | 'anyTld' | 'anySub') => {
       const host = (activeHostRef.current || '').replace(/^www\./, '');
       if (!host) {
-        showNotice('No site to add a rule for.');
+        showNotice(t('note.noSite'));
         return;
       }
       const labels = host.split('.');
@@ -359,7 +360,7 @@ export function useEngine() {
         enabled: true
       };
       persistRules([...rulesRef.current, rule]);
-      showNotice('Added rule "' + pattern + '".');
+      showNotice(t('note.ruleAdded', { pattern }));
     },
     [persistRules, showNotice]
   );
@@ -375,15 +376,15 @@ export function useEngine() {
         p = fresh[name];
       }
       if (!p) {
-        showNotice('Preset "' + name + '" not found.');
+        showNotice(t('note.notFound', { name }));
         return;
       }
       const nb = io.presetToBands(p);
       setBands(nb);
       setActivePreset(name);
       const id = activeIdRef.current;
-      if (id != null && tabsRef.current.some((t) => t.id === id)) io.toOffscreen('applyPreset', { tabId: id, preset: name });
-      else showNotice('Press "EQ This Tab" to hear this preset.');
+      if (id != null && tabsRef.current.some((tb) => tb.id === id)) io.toOffscreen('applyPreset', { tabId: id, preset: name });
+      else showNotice(t('note.pressEq'));
     },
     [showNotice]
   );
@@ -391,19 +392,19 @@ export function useEngine() {
   const savePreset = useCallback(
     async (name: string) => {
       const id = activeIdRef.current;
-      if (id != null && tabsRef.current.some((t) => t.id === id)) {
+      if (id != null && tabsRef.current.some((tb) => tb.id === id)) {
         io.toOffscreen('savePreset', { tabId: id, preset: name });
       } else {
         try {
           await io.savePreset(name, bandsRef.current);
         } catch {
-          showNotice('Save failed (sync storage unavailable).');
+          showNotice(t('note.saveFailed'));
           return;
         }
       }
       setActivePreset(name);
       setPresets(await io.refreshPresets());
-      showNotice('Saved preset "' + name + '".');
+      showNotice(t('note.saved', { name }));
     },
     [showNotice]
   );
@@ -417,7 +418,7 @@ export function useEngine() {
       }
       if (activeRef.current === name) setActivePreset('');
       setPresets(await io.refreshPresets());
-      showNotice('Deleted "' + name + '".');
+      showNotice(t('note.deleted', { name }));
     },
     [showNotice]
   );
@@ -426,11 +427,11 @@ export function useEngine() {
     async (text: string) => {
       const res = await io.importPresetsText(text);
       if (res.error) {
-        showNotice('Import failed: ' + res.error + '.');
+        showNotice(t('note.importFailed', { err: res.error }));
         return;
       }
       setPresets(await io.refreshPresets());
-      showNotice('Imported ' + res.count + ' preset' + (res.count > 1 ? 's' : '') + '.');
+      showNotice(t('note.imported', { n: res.count }));
     },
     [showNotice]
   );

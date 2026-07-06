@@ -6,12 +6,18 @@ import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
 import { BottomNav, type ViewId } from './components/BottomNav';
 import { useEngine } from './useEngine';
+import { useT, useLang } from './i18n';
 import { hasChrome } from '@/lib/engine-io';
 
 const THEMES = ['eclipse', 'nocturne', 'aurora', 'solar'] as const;
 
+// Render our own "**bold**" markers (only in-house i18n strings pass through here).
+const boldMd = (s: string) => s.replace(/\*\*(.+?)\*\*/g, '<b class="text-foreground font-semibold">$1</b>');
+
 export default function App() {
   const eng = useEngine();
+  const tr = useT();
+  const { lang, setLang } = useLang();
   const [view, setView] = useState<ViewId>('eq');
   const [presetName, setPresetName] = useState('');
   const [theme, setTheme] = useState<string>('eclipse');
@@ -43,13 +49,13 @@ export default function App() {
   useEffect(() => setPresetName(eng.activePreset), [eng.activePreset]);
 
   const names = Object.keys(eng.presets).sort();
-  const saveLabel = presetName && eng.presets[presetName] ? `Update "${presetName}"` : '+ Save';
+  const saveLabel = presetName && eng.presets[presetName] ? tr('presets.update', { name: presetName }) : tr('presets.save');
   const fsHref = hasChrome() ? chrome.runtime.getURL('src/popup/index.html') : '#';
 
   const doSave = () => {
     const n = presetName.trim();
     if (!n) {
-      eng.showNotice('Type a name in the box, then Save.');
+      eng.showNotice(tr('note.typeName'));
       return;
     }
     eng.savePreset(n);
@@ -91,7 +97,7 @@ export default function App() {
               }
             >
               <Activity className="size-3.5" />
-              Spectrum
+              {tr('eq.spectrum')}
               <span className={'size-1.5 rounded-full ' + (eng.spectrum ? 'bg-accent' : 'bg-muted-foreground/40')} />
             </button>
           </header>
@@ -116,7 +122,7 @@ export default function App() {
 
           <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground/70">
             <TriangleAlert className="size-3.5 opacity-70" />
-            Loud audio can harm hearing — keep it sensible
+            {tr('eq.loud')}
           </div>
 
           <div className="flex gap-2">
@@ -131,25 +137,25 @@ export default function App() {
               }
             >
               <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
-              <span>{eng.capturing ? 'Stop EQing' : 'EQ This Tab'}</span>
+              <span>{eng.capturing ? tr('eq.stop') : tr('eq.eqThisTab')}</span>
               {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
             </Button>
             <Button variant="outline" className="h-10 rounded-xl backdrop-blur-md" onClick={eng.resetAll}>
               <RotateCcw />
-              Reset
+              {tr('eq.reset')}
             </Button>
           </div>
         </section>
 
         {/* ================= PRESETS ================= */}
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('presets')}>
-          <h1 className="text-[15px] font-semibold">Presets</h1>
+          <h1 className="text-[15px] font-semibold">{tr('presets.title')}</h1>
           <div className="flex gap-2">
             <input
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && doSave()}
-              placeholder="Name a preset…"
+              placeholder={tr('presets.placeholder')}
               className="flex-1 rounded-xl border border-border bg-black/25 px-3 py-2 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
             />
             <Button variant="secondary" className="rounded-xl" onClick={doSave}>
@@ -158,7 +164,7 @@ export default function App() {
           </div>
 
           {names.length === 0 ? (
-            <p className="px-1 text-[12px] text-muted-foreground/70 text-pretty">No presets yet. Shape the EQ, type a name, then Save.</p>
+            <p className="px-1 text-[12px] text-muted-foreground/70 text-pretty">{tr('presets.none')}</p>
           ) : (
             <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
               {names.map((n) => (
@@ -174,7 +180,7 @@ export default function App() {
                   </button>
                   <button
                     className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/70 hover:bg-destructive/20 hover:text-destructive"
-                    title={`Delete "${n}"`}
+                    title={tr('presets.deleteTitle', { name: n })}
                     onClick={() => eng.deletePreset(n)}
                   >
                     <Trash2 className="size-3" />
@@ -187,11 +193,11 @@ export default function App() {
           <div className="mt-1 flex gap-2">
             <Button variant="outline" className="flex-1 rounded-xl" onClick={eng.exportPresets}>
               <Download />
-              Export
+              {tr('presets.export')}
             </Button>
             <Button variant="outline" className="flex-1 rounded-xl" onClick={() => fileRef.current?.click()}>
               <Upload />
-              Import
+              {tr('presets.import')}
             </Button>
             <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={onFile} />
           </div>
@@ -213,9 +219,9 @@ export default function App() {
 
         {/* ================= TABS ================= */}
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('tabs')}>
-          <h1 className="text-[15px] font-semibold">Active tabs</h1>
+          <h1 className="text-[15px] font-semibold">{tr('tabs.title')}</h1>
           {eng.streams.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground text-pretty">No tabs are being EQ'd. Start with EQ This Tab.</p>
+            <p className="text-[12.5px] text-muted-foreground text-pretty">{tr('tabs.none')}</p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {eng.streams.map((t) => (
@@ -236,22 +242,22 @@ export default function App() {
                       {t.title || '(untitled)'}
                     </span>
                     <span className="truncate text-[10.5px] text-muted-foreground/80">
-                      {t.host || 'local'}
+                      {t.host || tr('tabs.local')}
                       {t.activePreset ? ' · ' + t.activePreset : ''}
                     </span>
                   </div>
                   <button
                     className="rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground transition-[color,scale] duration-150 active:scale-[0.96] hover:text-foreground"
-                    title="Reset this tab & forget its saved EQ"
+                    title={tr('tabs.resetTitle')}
                     onClick={() => eng.resetTabById(t.id)}
                   >
-                    Reset
+                    {tr('tabs.reset')}
                   </button>
                   <button
                     className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[10.5px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
                     onClick={() => eng.stopTab(t.id)}
                   >
-                    Stop
+                    {tr('tabs.stop')}
                   </button>
                 </div>
               ))}
@@ -261,18 +267,18 @@ export default function App() {
 
         {/* ================= MORE ================= */}
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
-          <h1 className="text-[15px] font-semibold">More</h1>
+          <h1 className="text-[15px] font-semibold">{tr('more.title')}</h1>
 
           {/* Sticky-EQ: auto-apply a site's saved curve on capture */}
           <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
-              <span className="text-[13px] font-semibold">Remember EQ per site</span>
-              <span className="text-[11px] text-muted-foreground text-pretty">Auto-apply a site's saved curve when you EQ its tab</span>
+              <span className="text-[13px] font-semibold">{tr('more.rememberTitle')}</span>
+              <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.rememberDesc')}</span>
             </div>
             <button
               role="switch"
               aria-checked={eng.autoDomain}
-              aria-label="Remember EQ per site"
+              aria-label={tr('more.rememberTitle')}
               onClick={() => eng.setAutoDomain(!eng.autoDomain)}
               className={'relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150 ' + (eng.autoDomain ? 'bg-primary/70' : 'bg-white/15')}
             >
@@ -283,15 +289,15 @@ export default function App() {
           {/* Remembered sites — the per-domain memory store */}
           <div className="rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[13px] font-semibold">Remembered sites</span>
+              <span className="text-[13px] font-semibold">{tr('more.remembered')}</span>
               {eng.savedHosts.length > 0 && (
                 <button onClick={eng.resetEverything} className="text-[11px] text-muted-foreground transition-colors hover:text-destructive">
-                  Clear all
+                  {tr('more.clearAll')}
                 </button>
               )}
             </div>
             {eng.savedHosts.length === 0 ? (
-              <p className="text-[11.5px] text-muted-foreground/70 text-pretty">Sites you EQ are saved here and re-applied automatically next time.</p>
+              <p className="text-[11.5px] text-muted-foreground/70 text-pretty">{tr('more.noRemembered')}</p>
             ) : (
               <div className="flex max-h-[150px] flex-col gap-1 overflow-y-auto">
                 {eng.savedHosts.map((h) => (
@@ -301,7 +307,7 @@ export default function App() {
                     </span>
                     {h.preset && <span className="shrink-0 rounded-full bg-white/[.06] px-2 py-0.5 text-[10px] text-muted-foreground">{h.preset}</span>}
                     <button
-                      title={'Forget ' + h.host}
+                      title={tr('more.forgetTitle', { host: h.host })}
                       onClick={() => eng.forgetHost(h.host)}
                       className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
                     >
@@ -313,10 +319,33 @@ export default function App() {
             )}
           </div>
 
+          {/* Language */}
           <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
-              <span className="text-[13px] font-semibold">Theme</span>
-              <span className="text-[11px] text-muted-foreground text-pretty">Color of the graph and accents</span>
+              <span className="text-[13px] font-semibold">{tr('more.language')}</span>
+              <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.languageDesc')}</span>
+            </div>
+            <div className="flex gap-0.5 rounded-lg bg-black/25 p-0.5">
+              {(['en', 'ru'] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLang(l)}
+                  aria-pressed={lang === l}
+                  className={
+                    'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ' +
+                    (lang === l ? 'bg-primary/25 text-foreground' : 'text-muted-foreground hover:text-foreground')
+                  }
+                >
+                  {l === 'en' ? 'EN' : 'RU'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+            <div className="flex flex-col">
+              <span className="text-[13px] font-semibold">{tr('more.theme')}</span>
+              <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.themeDesc')}</span>
             </div>
             <div className="flex gap-1">
               {THEMES.map((t) => (
@@ -339,21 +368,21 @@ export default function App() {
             className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 transition-[box-shadow] duration-150 [box-shadow:var(--shadow-border)] hover:[box-shadow:var(--shadow-border-hover)]"
           >
             <div className="flex flex-col">
-              <span className="text-[13px] font-semibold">Full window</span>
-              <span className="text-[11px] text-muted-foreground">Open the equalizer in its own tab</span>
+              <span className="text-[13px] font-semibold">{tr('more.fullWindow')}</span>
+              <span className="text-[11px] text-muted-foreground">{tr('more.fullWindowDesc')}</span>
             </div>
             <Maximize2 className="size-4 text-muted-foreground" />
           </a>
 
           <div className="px-1">
-            <h3 className="mb-1.5 text-[10px] uppercase tracking-[0.13em] text-accent">Shape the sound</h3>
-            <p className="text-[12px] leading-relaxed text-muted-foreground text-pretty">
-              Drag a dot: left/right = frequency, up/down = boost/cut. <b className="text-foreground">Shift-drag</b> = width (Q).{' '}
-              <b className="text-foreground">Double-click</b> resets a band. The strip on the left is master volume.
-            </p>
+            <h3 className="mb-1.5 text-[10px] uppercase tracking-[0.13em] text-accent">{tr('more.shapeTitle')}</h3>
+            <p
+              className="text-[12px] leading-relaxed text-muted-foreground text-pretty"
+              dangerouslySetInnerHTML={{ __html: boldMd(tr('more.shapeDesc')) }}
+            />
           </div>
 
-          <div className="pt-1 text-center text-[10.5px] text-muted-foreground/60">Umbra EQ · engine: {eng.engineStatus}</div>
+          <div className="pt-1 text-center text-[10.5px] text-muted-foreground/60">{tr('more.engine', { status: eng.engineStatus })}</div>
         </section>
       </div>
 

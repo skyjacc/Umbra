@@ -22,11 +22,16 @@ All notable changes to Umbra EQ are documented here. The format follows
   inline guide and a one-click "rule for this site". Rules sync across the user's
   browsers. Matcher is unit-tested (14 cases); multi-part TLDs (.co.uk) match
   approximately (no public-suffix list).
+- **Russian & English UI** — full RU/EN localization with an in-app **Language** switch
+  (More → Language), defaulting to the browser language. The Rules guide is written in
+  plain, jargon-free language (no "TLD"/"hostname" wording).
 - **Reset scope** — **Reset** (EQ view) flattens the current tab and forgets its saved
   curve; each row in **Tabs** has its own **Reset**; **Clear all** (More) flattens every
   live tab and wipes all remembered sites.
 
 ### Changed
+- Native `<select>` dropdowns replaced with a themed glass dropdown that matches the dark
+  UI (the browser-gray popup couldn't be styled).
 - The EQ graph and volume fader are read-only until the active tab is captured (dots and
   handle dim) — edits target a live per-tab chain.
 - Live-drag no longer triggers a full status broadcast, and per-domain writes are

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { EQ_H, MASTER_DB_MAX, MASTER_DB_MIN, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
+import { useT } from '../i18n';
 
 const RANGE = MASTER_DB_MAX - MASTER_DB_MIN;
 const FRAC0 = (0 - MASTER_DB_MIN) / RANGE; // fraction (from bottom) of the 0 dB line
@@ -17,6 +18,7 @@ export function VerticalVolume({
   onCommit: () => void;
   editable?: boolean;
 }) {
+  const tr = useT();
   const colRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -66,7 +68,7 @@ export function VerticalVolume({
         onPointerCancel={up}
         className={'relative flex w-full flex-1 touch-none justify-center ' + (editable ? 'cursor-ns-resize' : 'cursor-default')}
         role="slider"
-        aria-label="Master volume"
+        aria-label={tr('vol.master')}
         aria-valuetext={gainDbText(gain) + ' dB'}
       >
         {/* 0 dB marker */}
@@ -83,7 +85,7 @@ export function VerticalVolume({
           />
         </div>
       </div>
-      <span className="text-[8px] tracking-[0.18em] text-muted-foreground/60">VOL</span>
+      <span className="text-[8px] tracking-[0.18em] text-muted-foreground/60">{tr('vol.vol')}</span>
     </div>
   );
 }
