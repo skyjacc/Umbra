@@ -57,11 +57,14 @@ export function useEngine() {
     noticeTimer.current = setTimeout(() => setNoticeState(''), 5000);
   }, []);
 
-  const maybeAutoCapture = useCallback(() => {
+  const maybeAutoCapture = useCallback((streams?: TabInfo[]) => {
     if (autoTried.current) return;
     if (tabIdRef.current == null || !gotFirstStatus.current) return;
     autoTried.current = true;
-    if (streamsRef.current.some((s) => s.id === tabIdRef.current)) return;
+    // Use the freshly-received streams when available — streamsRef lags a render, and
+    // reading it stale here re-captures an already-captured tab ("active stream").
+    const list = streams ?? streamsRef.current;
+    if (list.some((s) => s.id === tabIdRef.current)) return;
     io.toBackground('toggleCapture', { on: true });
   }, []);
 
@@ -95,7 +98,7 @@ export function useEngine() {
       if (Object.keys(incoming).length) setPresets(incoming);
       if (msg.activePreset !== undefined) setActivePreset(msg.activePreset || '');
       setEngineStatus('connected');
-      maybeAutoCapture();
+      maybeAutoCapture(clean.streams as TabInfo[]);
     },
     [maybeAutoCapture]
   );
@@ -125,7 +128,16 @@ export function useEngine() {
     const onMsg = (m: any) => {
       if (m.type === 'workspaceStatus') handleStatus(m);
       else if (m.type === 'engineError') setEngineStatus('engine ERROR');
-      else if (m.type === 'captureError') showNotice('Could not EQ this tab: ' + m.error);
+      else if (m.type === 'captureError') {
+        const e = String(m.error || '');
+        if (/active stream|already|in use/i.test(e)) {
+          // The tab already has a live capture (usually ours from a prior popup
+          // session). Treat it as "already EQ'd" and refresh, don't alarm the user.
+          io.toOffscreen('getStatus', {}, (resp: any) => resp && resp.type === 'workspaceStatus' && handleStatus(resp));
+        } else {
+          showNotice('Could not EQ this tab: ' + e);
+        }
+      }
     };
     const onChanged = (changes: any, area: string) => {
       if (area === 'sync' && Object.keys(changes).some((k) => k.startsWith(io.PRESET_PREFIX))) {
