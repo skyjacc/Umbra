@@ -12,8 +12,8 @@ Umbra EQ — Equalizer & Bass Boost
 
 ## Summary / short description (≤ 132 chars)
 
-Live 11-band EQ & bass boost for any tab. Per-tab sound, per-site memory, presets.
-Crank bass, tame highs — real time. No ads, no tracking.
+Give every tab its own equalizer. Boost bass, fix harsh audio, save presets. Each
+tab keeps its own sound and remembers it per site.
 
 ## Category
 
@@ -26,7 +26,7 @@ playing in their browser tabs in real time.
 
 ## Detailed description
 
-Umbra EQ turns any browser tab into a studio-grade equalizer.
+Umbra EQ adds a real equalizer to any browser tab.
 
 • 11-band parametric EQ — drag the response curve to boost or cut any frequency,
   live, while the audio plays, with a spectrum analyzer behind it so you see exactly
@@ -42,7 +42,8 @@ Umbra EQ turns any browser tab into a studio-grade equalizer.
 • Master volume boost — go past 100% when a video is too quiet. One-click Bass Boost.
 • Русский and English interface, four themes and a custom accent color.
 • Works on any tab with sound: music, video, streams, calls.
-• 100% local. No account, no ads, no tracking — your audio never leaves your device.
+• Everything runs on your computer. Umbra doesn't record or send your audio, and
+  there is no account to sign up for.
 
 How to use:
 1. Play audio in a tab.

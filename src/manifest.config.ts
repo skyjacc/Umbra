@@ -7,7 +7,7 @@ export default defineManifest({
   name: 'Umbra EQ — Equalizer & Bass Boost',
   short_name: 'Umbra EQ',
   description:
-    'Live 11-band parametric equalizer and bass boost for any browser tab. No ads, no tracking, works fully offline.',
+    'Give any tab its own equalizer. Boost bass, tame harsh audio, and save presets. Everything stays on your computer.',
   version: '2.1.0',
   author: 'skyjacc',
   homepage_url: 'https://github.com/skyjacc/Umbra',

@@ -6,11 +6,12 @@
 [![Edge](https://img.shields.io/badge/Edge-supported-success)](#install)
 [![Opera](https://img.shields.io/badge/Opera-supported-success)](#install)
 
-A live **11-band parametric equalizer and bass boost** for any browser tab. Shape the
-sound of music, video, streams and calls in real time — right from the toolbar.
-100% local, no account, no ads, no tracking. Your audio never leaves your device.
+An **11-band equalizer and bass boost** for any browser tab, right from the toolbar.
+Boost the bass, fix harsh audio, or make a quiet video louder. Each tab keeps its own
+sound, and Umbra remembers your settings for every site you visit. Everything runs on
+your computer.
 
-> A free, open-source, privacy-first alternative to closed-source tab equalizers.
+> A free and open-source tab equalizer.
 
 ## Features
 
