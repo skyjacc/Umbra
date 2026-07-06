@@ -14,7 +14,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'nav.more': 'More',
 
     'eq.spectrum': 'Spectrum',
-    'eq.loud': 'Loud audio can harm hearing — keep it sensible',
+    'eq.loud': 'Loud audio can harm your hearing, so keep it sensible',
     'eq.eqThisTab': 'EQ This Tab',
     'eq.stop': 'Stop EQing',
     'eq.reset': 'Reset',
@@ -62,13 +62,13 @@ const DICT: Record<Lang, Record<string, string>> = {
     'howto.title': 'How to use Umbra EQ',
     'howto.eq.h': 'The graph',
     'howto.eq.p':
-      'Each dot is a filter. Drag it left/right to pick a frequency (bass on the left, treble on the right) and up/down to boost or cut it. The two end dots are shelves — they lift or drop everything below/above them; the middle dots are bells. Shift-drag a dot to make its effect wider or narrower. Double-click a dot to reset it. Press "EQ This Tab" first — the graph is read-only until a tab is captured.',
+      'Each dot is a filter. Drag it left/right to pick a frequency (bass on the left, treble on the right) and up/down to boost or cut it. The two end dots are shelves that lift or drop everything below or above them; the middle dots are bells. Shift-drag a dot to make its effect wider or narrower, and double-click a dot to reset it. The graph is read-only until you press "EQ This Tab".',
     'howto.vol.h': 'Volume',
     'howto.vol.p':
       'The strip on the left is master volume for the tab. Pull it up past 0 to make a quiet tab louder, or down to soften it. It snaps to 0 (unchanged) in the middle.',
     'howto.spectrum.h': 'Spectrum',
     'howto.spectrum.p':
-      'The icon button in the top-right toggles a live spectrum behind the curve — it shows what you are hearing (bass on the left, treble on the right; louder = taller). It is a visual aid only and does not change the sound.',
+      'The icon button in the top-right toggles a live spectrum behind the curve. It shows what you are hearing (bass on the left, treble on the right; louder = taller), and it is a visual aid only that does not change the sound.',
     'howto.presets.h': 'Presets',
     'howto.presets.p':
       'Shape a curve, type a name and Save to keep it. Tap a preset to apply it. Export/Import moves presets as a file, or use Copy code / Paste code to share them as text. Presets sync across your browsers.',
@@ -80,7 +80,7 @@ const DICT: Record<Lang, Record<string, string>> = {
       'Every captured tab has its own EQ, so a film tab and a music tab can sound different at the same time. The Tabs list shows what is running; each row can be reset or stopped.',
     'howto.privacy.h': 'Private by design',
     'howto.privacy.p':
-      'All audio is processed on your device. Umbra never records, stores, or sends your audio anywhere — no account, no ads, no tracking.',
+      'Everything happens on your computer. Umbra never records your audio or sends it anywhere, and there is no account to sign up for.',
 
     'vol.vol': 'VOL',
     'vol.master': 'Master volume',
@@ -205,7 +205,7 @@ const DICT: Record<Lang, Record<string, string>> = {
       'У каждой захваченной вкладки свой эквалайзер, поэтому вкладка с фильмом и вкладка с музыкой могут звучать по-разному одновременно. Список «Вкладки» показывает активные; каждую можно сбросить или остановить.',
     'howto.privacy.h': 'Приватность в основе',
     'howto.privacy.p':
-      'Весь звук обрабатывается на твоём устройстве. Umbra ничего не записывает, не хранит и никуда не отправляет — без аккаунта, рекламы и слежки.',
+      'Всё происходит на твоём компьютере. Umbra не записывает звук и никуда его не отправляет, и никакой аккаунт не нужен.',
 
     'vol.vol': 'ГРОМ',
     'vol.master': 'Общая громкость',
