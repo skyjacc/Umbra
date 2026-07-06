@@ -90,15 +90,19 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
     const xs: number[] = [];
     const raw: number[] = [];
     for (let x = 0; x <= EQ_W; x += 3) {
+      xs.push(x);
+      // Below ~20 Hz the log axis maps a wide left band onto a single FFT bin, which
+      // painted a flat line from the corner. It's sub-audible — keep it at baseline.
+      if (xToFreq(x) < 20) {
+        raw.push(0);
+        continue;
+      }
       const fLo = xToFreq(Math.max(0, x - 1.5));
       const fHi = xToFreq(x + 1.5);
-      // Start at bin 1 — bin 0 (DC) carries a spurious offset that painted a flat
-      // horizontal band across the silent low-frequency (left) region.
       const b0 = Math.max(1, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
       const b1 = Math.max(1, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
       let db = -100;
       for (let b = b0; b <= b1; b++) if (fft[b] > db) db = fft[b];
-      xs.push(x);
       raw.push(Math.max(0, Math.min(cap, ((db + 100) / 100) * cap)));
     }
     const h = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25);

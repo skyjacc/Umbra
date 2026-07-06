@@ -122,13 +122,12 @@ export default function App() {
               variant="outline"
               onClick={eng.toggleCapture}
               className={
-                'relative h-10 flex-1 rounded-xl border text-[13px] font-semibold backdrop-blur-md transition-colors ' +
+                'h-10 flex-1 rounded-xl border text-[13px] font-semibold backdrop-blur-md transition-colors ' +
                 (eng.capturing
                   ? 'border-destructive/50 bg-destructive/10 text-foreground hover:bg-destructive/15'
                   : 'border-primary/50 bg-primary/20 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,.12)] hover:bg-primary/30')
               }
             >
-              {eng.capturing && <span className="beam-ring" aria-hidden="true" />}
               <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
               {eng.capturing ? 'Stop EQing' : 'EQ This Tab'}
             </Button>

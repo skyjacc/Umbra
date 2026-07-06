@@ -1,5 +1,4 @@
 import { useRef } from 'react';
-import NumberFlow from '@number-flow/react';
 import { EQ_H, MASTER_DB_MAX, MASTER_DB_MIN, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
 
 const RANGE = MASTER_DB_MAX - MASTER_DB_MIN;
@@ -53,8 +52,8 @@ export function VerticalVolume({
 
   return (
     <div className="flex w-10 shrink-0 select-none flex-col items-center gap-1" style={{ height: EQ_H }}>
-      <span className="flex w-full items-baseline justify-center font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
-        <NumberFlow value={Math.round(db)} format={{ signDisplay: 'exceptZero' }} />
+      <span className="w-full text-center font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+        {gainDbText(gain)}
       </span>
       <div
         ref={colRef}
