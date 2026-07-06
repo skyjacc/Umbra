@@ -25,6 +25,13 @@ All notable changes to Umbra EQ are documented here. The format follows
 - **Russian & English UI** — full RU/EN localization with an in-app **Language** switch
   (More → Language), defaulting to the browser language. The Rules guide is written in
   plain, jargon-free language (no "TLD"/"hostname" wording).
+- **Custom accent color** — a hue slider (More → Theme → Custom) alongside the four
+  presets. It's a hue picker, not raw RGB: the accent is derived at fixed OKLCH
+  lightness/chroma, so any color stays readable and equally bright.
+- **In-app Guide** — a detailed, translated "How to use" overlay (More → Guide) covering
+  the graph, volume, spectrum, presets, rules, per-tab EQ, and privacy.
+- **Share by code** — Copy code / Paste code (Presets and Rules) exchange presets and/or
+  rules as a self-contained offline base64 string — no server, no link.
 - **Reset scope** — **Reset** (EQ view) flattens the current tab and forgets its saved
   curve; each row in **Tabs** has its own **Reset**; **Clear all** (More) flattens every
   live tab and wipes all remembered sites.
@@ -32,6 +39,10 @@ All notable changes to Umbra EQ are documented here. The format follows
 ### Changed
 - Native `<select>` dropdowns replaced with a themed glass dropdown that matches the dark
   UI (the browser-gray popup couldn't be styled).
+- Popup housekeeping: the Spectrum toggle is now an icon-only button; the "Remember EQ
+  per site" switch moved from More to the Rules tab; the Remembered-sites list and the
+  engine-status footer were removed; Full window is a compact button; the EQ view is
+  non-selectable so text can't be highlighted by accident.
 - The EQ graph and volume fader are read-only until the active tab is captured (dots and
   handle dim) — edits target a live per-tab chain.
 - Live-drag no longer triggers a full status broadcast, and per-domain writes are

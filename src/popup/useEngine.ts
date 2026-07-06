@@ -367,6 +367,49 @@ export function useEngine() {
 
   const matchedRule = activeHost ? matchRule(activeHost, rules) : null;
 
+  // ---- Share by code (offline base64; presets and/or rules) ----
+  const copyPresetsCode = useCallback(() => {
+    navigator.clipboard?.writeText(io.encodeShare({ presets: presetsRef.current })).catch(() => {});
+    showNotice(t('note.codeCopied'));
+  }, [showNotice]);
+  const copyRulesCode = useCallback(() => {
+    navigator.clipboard?.writeText(io.encodeShare({ rules: rulesRef.current })).catch(() => {});
+    showNotice(t('note.codeCopied'));
+  }, [showNotice]);
+  const importShareCode = useCallback(
+    async (code: string) => {
+      const data = io.decodeShare(code);
+      if (!data) {
+        showNotice(t('note.codeInvalid'));
+        return;
+      }
+      let pCount = 0;
+      let rCount = 0;
+      if (data.presets && typeof data.presets === 'object') {
+        const res = await io.importPresetsText(JSON.stringify(data.presets));
+        if (!res.error) {
+          pCount = res.count;
+          setPresets(await io.refreshPresets());
+        }
+      }
+      if (Array.isArray(data.rules)) {
+        const valid = data.rules
+          .filter((r) => r && Array.isArray(r.patterns) && (r.mode === 'preset' || r.mode === 'curve'))
+          .map((r, i) => ({ ...r, id: 'r_' + Date.now().toString(36) + '_' + i, enabled: r.enabled !== false }));
+        if (valid.length) {
+          rCount = valid.length;
+          persistRules([...rulesRef.current, ...valid]);
+        }
+      }
+      if (!pCount && !rCount) {
+        showNotice(t('note.codeInvalid'));
+        return;
+      }
+      showNotice(t('note.codeImported', { p: pCount, r: rCount }));
+    },
+    [persistRules, showNotice]
+  );
+
   const applyPreset = useCallback(
     async (name: string) => {
       let p = presetsRef.current[name];
@@ -484,6 +527,9 @@ export function useEngine() {
     updateRule,
     deleteRule,
     quickAddRule,
+    copyPresetsCode,
+    copyRulesCode,
+    importShareCode,
     applyPreset,
     savePreset,
     deletePreset,

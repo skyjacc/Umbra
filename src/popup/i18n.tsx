@@ -53,6 +53,34 @@ const DICT: Record<Lang, Record<string, string>> = {
       'Drag a dot: left/right = frequency, up/down = boost/cut. **Shift-drag** = width. **Double-click** resets a band. The strip on the left is master volume.',
     'more.engine': 'Umbra EQ · engine: {status}',
     'more.feedback': 'Questions / feedback →',
+    'more.custom': 'Custom',
+    'more.guide': 'Guide',
+
+    'share.copyCode': 'Copy code',
+    'share.pasteCode': 'Paste code',
+
+    'howto.title': 'How to use Umbra EQ',
+    'howto.eq.h': 'The graph',
+    'howto.eq.p':
+      'Each dot is a filter. Drag it left/right to pick a frequency (bass on the left, treble on the right) and up/down to boost or cut it. The two end dots are shelves — they lift or drop everything below/above them; the middle dots are bells. Shift-drag a dot to make its effect wider or narrower. Double-click a dot to reset it. Press "EQ This Tab" first — the graph is read-only until a tab is captured.',
+    'howto.vol.h': 'Volume',
+    'howto.vol.p':
+      'The strip on the left is master volume for the tab. Pull it up past 0 to make a quiet tab louder, or down to soften it. It snaps to 0 (unchanged) in the middle.',
+    'howto.spectrum.h': 'Spectrum',
+    'howto.spectrum.p':
+      'The icon button in the top-right toggles a live spectrum behind the curve — it shows what you are hearing (bass on the left, treble on the right; louder = taller). It is a visual aid only and does not change the sound.',
+    'howto.presets.h': 'Presets',
+    'howto.presets.p':
+      'Shape a curve, type a name and Save to keep it. Tap a preset to apply it. Export/Import moves presets as a file, or use Copy code / Paste code to share them as text. Presets sync across your browsers.',
+    'howto.rules.h': 'Site rules & memory',
+    'howto.rules.p':
+      'With "Remember EQ per site" on, a tab keeps the sound you set and re-applies it next time. Rules go further: they apply a preset or curve to sites by address pattern (see the Guide inside the Rules tab). A site you tweaked by hand always wins over a rule.',
+    'howto.tabs.h': 'Many tabs at once',
+    'howto.tabs.p':
+      'Every captured tab has its own EQ, so a film tab and a music tab can sound different at the same time. The Tabs list shows what is running; each row can be reset or stopped.',
+    'howto.privacy.h': 'Private by design',
+    'howto.privacy.p':
+      'All audio is processed on your device. Umbra never records, stores, or sends your audio anywhere — no account, no ads, no tracking.',
 
     'vol.vol': 'VOL',
     'vol.master': 'Master volume',
@@ -98,7 +126,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     'note.forgot': 'Forgot "{host}".',
     'note.rulesSaveFailed': 'Rules save failed (sync storage full?).',
     'note.resetAll': 'Reset all tabs and cleared remembered sites.',
-    'note.couldNotEq': 'Could not EQ this tab: {err}'
+    'note.couldNotEq': 'Could not EQ this tab: {err}',
+    'note.codeCopied': 'Copied share code to clipboard.',
+    'note.codeImported': 'Imported from code: {p} preset(s), {r} rule(s).',
+    'note.codeInvalid': 'Clipboard has no valid Umbra code.'
   },
   ru: {
     'nav.eq': 'Эквалайзер',
@@ -147,6 +178,34 @@ const DICT: Record<Lang, Record<string, string>> = {
       'Тяни точку: влево/вправо — частота, вверх/вниз — усилить/убрать. **Shift+тяни** — ширина. **Двойной клик** — сброс точки. Полоса слева — общая громкость.',
     'more.engine': 'Umbra EQ · движок: {status}',
     'more.feedback': 'Вопросы / отзывы →',
+    'more.custom': 'Свой цвет',
+    'more.guide': 'Как пользоваться',
+
+    'share.copyCode': 'Копировать код',
+    'share.pasteCode': 'Вставить код',
+
+    'howto.title': 'Как пользоваться Umbra EQ',
+    'howto.eq.h': 'График',
+    'howto.eq.p':
+      'Каждая точка — фильтр. Тяни влево/вправо, чтобы выбрать частоту (бас слева, высокие справа), и вверх/вниз, чтобы усилить или убрать её. Две крайние точки — «полки»: поднимают или опускают всё ниже/выше себя; средние — «колокола». Shift+тяни — шире или уже действие. Двойной клик — сброс точки. Сначала нажми «Включить на вкладке» — до этого график только для чтения.',
+    'howto.vol.h': 'Громкость',
+    'howto.vol.p':
+      'Полоса слева — общая громкость вкладки. Подними выше 0, чтобы сделать тихую вкладку громче, или опусти, чтобы приглушить. В середине прилипает к 0 (без изменений).',
+    'howto.spectrum.h': 'Спектр',
+    'howto.spectrum.p':
+      'Кнопка-иконка справа сверху включает живой спектр за кривой — он показывает, что ты слышишь (бас слева, высокие справа; громче = выше). Это только визуализация, на звук не влияет.',
+    'howto.presets.h': 'Пресеты',
+    'howto.presets.p':
+      'Настрой кривую, впиши название и сохрани. Нажми на пресет, чтобы применить. Экспорт/Импорт переносит пресеты файлом, а «Копировать код» / «Вставить код» — текстом. Пресеты синхронизируются между твоими браузерами.',
+    'howto.rules.h': 'Правила сайтов и память',
+    'howto.rules.p':
+      'Если «Запоминать звук по сайтам» включено, вкладка сохраняет настроенный звук и применяет его в следующий раз. Правила идут дальше: применяют пресет или кривую к сайтам по шаблону адреса (см. Гайд во вкладке Правила). Сайт, который ты покрутил вручную, всегда важнее правила.',
+    'howto.tabs.h': 'Много вкладок сразу',
+    'howto.tabs.p':
+      'У каждой захваченной вкладки свой эквалайзер, поэтому вкладка с фильмом и вкладка с музыкой могут звучать по-разному одновременно. Список «Вкладки» показывает активные; каждую можно сбросить или остановить.',
+    'howto.privacy.h': 'Приватность в основе',
+    'howto.privacy.p':
+      'Весь звук обрабатывается на твоём устройстве. Umbra ничего не записывает, не хранит и никуда не отправляет — без аккаунта, рекламы и слежки.',
 
     'vol.vol': 'ГРОМ',
     'vol.master': 'Общая громкость',
@@ -192,7 +251,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     'note.forgot': '«{host}» забыт.',
     'note.rulesSaveFailed': 'Не удалось сохранить правила (sync-хранилище переполнено?).',
     'note.resetAll': 'Все вкладки сброшены, запомненные сайты очищены.',
-    'note.couldNotEq': 'Не удалось включить на вкладке: {err}'
+    'note.couldNotEq': 'Не удалось включить на вкладке: {err}',
+    'note.codeCopied': 'Код скопирован в буфер обмена.',
+    'note.codeImported': 'Из кода импортировано: пресетов {p}, правил {r}.',
+    'note.codeInvalid': 'В буфере нет корректного кода Umbra.'
   }
 };
 

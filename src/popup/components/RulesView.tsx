@@ -4,22 +4,40 @@ import { parsePatterns, type Rule } from '@/lib/rules';
 import type { PresetBands } from '@/lib/presets';
 import { useT } from '../i18n';
 import { Select } from './Select';
+import { ShareRow } from './ShareRow';
 
 interface Props {
   rules: Rule[];
   presets: Record<string, PresetBands>;
   activeHost: string;
   matchedRuleId: string | null;
+  autoDomain: boolean;
+  onSetAutoDomain: (on: boolean) => void;
   onAdd: (rule: Rule) => void;
   onUpdate: (id: string, patch: Partial<Rule>) => void;
   onDelete: (id: string) => void;
   onQuickAdd: (scope: 'exact' | 'anyTld' | 'anySub') => void;
+  onCopyCode: () => void;
+  onImportCode: (code: string) => void;
 }
 
 const chip =
   'flex-1 rounded-lg border border-border bg-black/20 px-2 py-1.5 text-[11px] font-semibold text-muted-foreground transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:text-foreground';
 
-export function RulesView({ rules, presets, activeHost, matchedRuleId, onAdd, onUpdate, onDelete, onQuickAdd }: Props) {
+export function RulesView({
+  rules,
+  presets,
+  activeHost,
+  matchedRuleId,
+  autoDomain,
+  onSetAutoDomain,
+  onAdd,
+  onUpdate,
+  onDelete,
+  onQuickAdd,
+  onCopyCode,
+  onImportCode
+}: Props) {
   const tr = useT();
   const [guide, setGuide] = useState(false);
   const presetNames = Object.keys(presets).sort();
@@ -36,6 +54,23 @@ export function RulesView({ rules, presets, activeHost, matchedRuleId, onAdd, on
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
           <HelpCircle className="size-3.5" /> {tr('rules.guide')}
+        </button>
+      </div>
+
+      {/* Master switch: auto-apply rules + remembered sites on capture */}
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+        <div className="flex flex-col">
+          <span className="text-[13px] font-semibold">{tr('more.rememberTitle')}</span>
+          <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.rememberDesc')}</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={autoDomain}
+          aria-label={tr('more.rememberTitle')}
+          onClick={() => onSetAutoDomain(!autoDomain)}
+          className={'relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150 ' + (autoDomain ? 'bg-primary/70' : 'bg-white/15')}
+        >
+          <span className={'absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] duration-150 ' + (autoDomain ? 'left-[22px]' : 'left-0.5')} />
         </button>
       </div>
 
@@ -75,6 +110,8 @@ export function RulesView({ rules, presets, activeHost, matchedRuleId, onAdd, on
       >
         <Plus className="size-4" /> {tr('rules.add')}
       </button>
+
+      <ShareRow onCopy={onCopyCode} onImport={onImportCode} />
     </div>
   );
 }

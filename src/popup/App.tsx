@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity } from 'lucide-react';
+import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
+import { GuideOverlay } from './components/GuideOverlay';
+import { ShareRow } from './components/ShareRow';
 import { BottomNav, type ViewId } from './components/BottomNav';
 import { useEngine } from './useEngine';
 import { useT, useLang } from './i18n';
+import { applyThemeId, applyCustomHue, type ThemeId } from './theme';
 import { hasChrome } from '@/lib/engine-io';
 
 const THEMES = ['eclipse', 'nocturne', 'aurora', 'solar'] as const;
-
-// Render our own "**bold**" markers (only in-house i18n strings pass through here).
-const boldMd = (s: string) => s.replace(/\*\*(.+?)\*\*/g, '<b class="text-foreground font-semibold">$1</b>');
 
 export default function App() {
   const eng = useEngine();
@@ -20,26 +20,43 @@ export default function App() {
   const { lang, setLang } = useLang();
   const [view, setView] = useState<ViewId>('eq');
   const [presetName, setPresetName] = useState('');
-  const [theme, setTheme] = useState<string>('eclipse');
+  const [theme, setTheme] = useState<ThemeId>('eclipse');
+  const [hue, setHueState] = useState(270);
+  const [guideOpen, setGuideOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Theme: restore + apply to <body data-theme>.
+  // Theme: restore + apply (preset via data-theme, custom via inline OKLCH vars).
   useEffect(() => {
-    let t = 'eclipse';
+    let t: ThemeId = 'eclipse';
+    let h = 270;
     try {
-      const saved = localStorage.THEME;
-      if (THEMES.includes(saved)) t = saved;
+      const s = localStorage.THEME as ThemeId;
+      if (s === 'custom' || (THEMES as readonly string[]).includes(s)) t = s;
+      const savedH = parseInt(localStorage.THEME_HUE, 10);
+      if (Number.isFinite(savedH)) h = ((savedH % 360) + 360) % 360;
     } catch {
       /* ignore */
     }
     setTheme(t);
-    document.body.dataset.theme = t;
+    setHueState(h);
+    applyThemeId(t, h);
   }, []);
-  const applyTheme = (t: string) => {
+  const applyTheme = (t: ThemeId) => {
     setTheme(t);
-    document.body.dataset.theme = t;
+    applyThemeId(t, hue);
     try {
       localStorage.THEME = t;
+    } catch {
+      /* ignore */
+    }
+  };
+  const setHue = (h: number) => {
+    setHueState(h);
+    setTheme('custom');
+    applyCustomHue(h);
+    try {
+      localStorage.THEME = 'custom';
+      localStorage.THEME_HUE = String(h);
     } catch {
       /* ignore */
     }
@@ -75,7 +92,7 @@ export default function App() {
     <div className="flex min-h-[470px] flex-col">
       <div className="flex-1">
         {/* ================= EQ ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('eq')}>
+        <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
             <svg className="h-5 w-5" style={{ color: 'hsl(var(--accent))' }} viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <mask id="umbraCut">
@@ -90,15 +107,17 @@ export default function App() {
             </span>
             <button
               onClick={eng.toggleSpectrum}
-              title="Live spectrum overlay (visual only — does not change the sound)"
+              title={tr('eq.spectrum')}
+              aria-label={tr('eq.spectrum')}
+              aria-pressed={eng.spectrum}
               className={
-                'ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.96] ' +
-                (eng.spectrum ? 'border-accent/50 bg-accent/15 text-foreground' : 'border-border text-muted-foreground hover:text-foreground')
+                'ml-auto inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                (eng.spectrum
+                  ? 'border-accent/50 bg-accent/20 text-accent'
+                  : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
               }
             >
-              <Activity className="size-3.5" />
-              {tr('eq.spectrum')}
-              <span className={'size-1.5 rounded-full ' + (eng.spectrum ? 'bg-accent' : 'bg-muted-foreground/40')} />
+              <Activity className="size-4" />
             </button>
           </header>
 
@@ -201,6 +220,7 @@ export default function App() {
             </Button>
             <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={onFile} />
           </div>
+          <ShareRow onCopy={eng.copyPresetsCode} onImport={eng.importShareCode} />
         </section>
 
         {/* ================= RULES ================= */}
@@ -210,10 +230,14 @@ export default function App() {
             presets={eng.presets}
             activeHost={eng.activeHost}
             matchedRuleId={eng.matchedRule?.id ?? null}
+            autoDomain={eng.autoDomain}
+            onSetAutoDomain={eng.setAutoDomain}
             onAdd={eng.addRule}
             onUpdate={eng.updateRule}
             onDelete={eng.deleteRule}
             onQuickAdd={eng.quickAddRule}
+            onCopyCode={eng.copyRulesCode}
+            onImportCode={eng.importShareCode}
           />
         </section>
 
@@ -269,56 +293,6 @@ export default function App() {
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
           <h1 className="text-[15px] font-semibold">{tr('more.title')}</h1>
 
-          {/* Sticky-EQ: auto-apply a site's saved curve on capture */}
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
-            <div className="flex flex-col">
-              <span className="text-[13px] font-semibold">{tr('more.rememberTitle')}</span>
-              <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.rememberDesc')}</span>
-            </div>
-            <button
-              role="switch"
-              aria-checked={eng.autoDomain}
-              aria-label={tr('more.rememberTitle')}
-              onClick={() => eng.setAutoDomain(!eng.autoDomain)}
-              className={'relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150 ' + (eng.autoDomain ? 'bg-primary/70' : 'bg-white/15')}
-            >
-              <span className={'absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] duration-150 ' + (eng.autoDomain ? 'left-[22px]' : 'left-0.5')} />
-            </button>
-          </div>
-
-          {/* Remembered sites — the per-domain memory store */}
-          <div className="rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[13px] font-semibold">{tr('more.remembered')}</span>
-              {eng.savedHosts.length > 0 && (
-                <button onClick={eng.resetEverything} className="text-[11px] text-muted-foreground transition-colors hover:text-destructive">
-                  {tr('more.clearAll')}
-                </button>
-              )}
-            </div>
-            {eng.savedHosts.length === 0 ? (
-              <p className="text-[11.5px] text-muted-foreground/70 text-pretty">{tr('more.noRemembered')}</p>
-            ) : (
-              <div className="flex max-h-[150px] flex-col gap-1 overflow-y-auto">
-                {eng.savedHosts.map((h) => (
-                  <div key={h.host} className="flex items-center gap-2 rounded-lg bg-black/20 py-1.5 pl-2.5 pr-1.5">
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-foreground" title={h.host}>
-                      {h.host}
-                    </span>
-                    {h.preset && <span className="shrink-0 rounded-full bg-white/[.06] px-2 py-0.5 text-[10px] text-muted-foreground">{h.preset}</span>}
-                    <button
-                      title={tr('more.forgetTitle', { host: h.host })}
-                      onClick={() => eng.forgetHost(h.host)}
-                      className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Language */}
           <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
@@ -342,47 +316,66 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
-            <div className="flex flex-col">
-              <span className="text-[13px] font-semibold">{tr('more.theme')}</span>
-              <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.themeDesc')}</span>
+          {/* Theme + custom color */}
+          <div className="flex flex-col gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <span className="text-[13px] font-semibold">{tr('more.theme')}</span>
+                <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.themeDesc')}</span>
+              </div>
+              <div className="flex gap-1">
+                {THEMES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => applyTheme(t)}
+                    title={t}
+                    aria-label={t}
+                    className={'size-6 rounded-full border-2 transition-transform ' + (theme === t ? 'scale-110 border-foreground' : 'border-transparent')}
+                    style={{ background: swatch(t) }}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="flex gap-1">
-              {THEMES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => applyTheme(t)}
-                  title={t}
-                  aria-label={t}
-                  className={'size-6 rounded-full border-2 transition-transform ' + (theme === t ? 'scale-110 border-foreground' : 'border-transparent')}
-                  style={{ background: swatch(t) }}
-                />
-              ))}
+            <div className="flex items-center gap-2.5">
+              <span className={'shrink-0 text-[11px] font-semibold ' + (theme === 'custom' ? 'text-foreground' : 'text-muted-foreground')}>{tr('more.custom')}</span>
+              <input
+                type="range"
+                min={0}
+                max={359}
+                value={hue}
+                onChange={(e) => setHue(+e.target.value)}
+                aria-label={tr('more.custom')}
+                className="umbra-hue h-2 flex-1 cursor-pointer appearance-none rounded-full"
+                style={{
+                  background:
+                    'linear-gradient(90deg,oklch(0.7 0.16 0),oklch(0.7 0.16 60),oklch(0.7 0.16 120),oklch(0.7 0.16 180),oklch(0.7 0.16 240),oklch(0.7 0.16 300),oklch(0.7 0.16 360))'
+                }}
+              />
+              <span
+                className="size-6 shrink-0 rounded-full border-2"
+                style={{ borderColor: theme === 'custom' ? 'var(--g-grab)' : 'transparent', background: `oklch(0.69 0.11 ${hue})` }}
+              />
             </div>
           </div>
 
-          <a
-            href={fsHref}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 transition-[box-shadow] duration-150 [box-shadow:var(--shadow-border)] hover:[box-shadow:var(--shadow-border-hover)]"
-          >
-            <div className="flex flex-col">
-              <span className="text-[13px] font-semibold">{tr('more.fullWindow')}</span>
-              <span className="text-[11px] text-muted-foreground">{tr('more.fullWindowDesc')}</span>
-            </div>
-            <Maximize2 className="size-4 text-muted-foreground" />
-          </a>
-
-          <div className="px-1">
-            <h3 className="mb-1.5 text-[10px] uppercase tracking-[0.13em] text-accent">{tr('more.shapeTitle')}</h3>
-            <p
-              className="text-[12px] leading-relaxed text-muted-foreground text-pretty"
-              dangerouslySetInnerHTML={{ __html: boldMd(tr('more.shapeDesc')) }}
-            />
+          {/* Guide + full window */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-white/[.05] py-2 text-[12px] font-semibold text-foreground transition-[color,scale] duration-150 active:scale-[0.97] hover:border-input [box-shadow:var(--shadow-border)]"
+            >
+              <BookOpen className="size-4 text-accent" /> {tr('more.guide')}
+            </button>
+            <a
+              href={fsHref}
+              target="_blank"
+              rel="noreferrer"
+              title={tr('more.fullWindowDesc')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-white/[.05] px-3 py-2 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground [box-shadow:var(--shadow-border)]"
+            >
+              <Maximize2 className="size-4" /> {tr('more.fullWindow')}
+            </a>
           </div>
-
-          <div className="pt-1 text-center text-[10.5px] text-muted-foreground/60">{tr('more.engine', { status: eng.engineStatus })}</div>
         </section>
       </div>
 
@@ -393,6 +386,8 @@ export default function App() {
           {eng.notice}
         </div>
       )}
+
+      <GuideOverlay open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

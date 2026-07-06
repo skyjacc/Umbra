@@ -242,6 +242,38 @@ export async function writeRules(rules: Rule[]): Promise<boolean> {
   }
 }
 
+// Share codes — a self-contained, offline base64 string (no server/link) that bundles
+// presets and/or rules. UTF-8 safe.
+const SHARE_PREFIX = 'UMBRA1:';
+export interface SharePayload {
+  presets?: Record<string, PresetBands>;
+  rules?: Rule[];
+}
+function b64encode(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
+}
+function b64decode(b64: string): string {
+  const bin = atob(b64);
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+export function encodeShare(payload: SharePayload): string {
+  return SHARE_PREFIX + b64encode(JSON.stringify(payload));
+}
+export function decodeShare(code: string): SharePayload | null {
+  const s = (code || '').trim();
+  const body = s.startsWith(SHARE_PREFIX) ? s.slice(SHARE_PREFIX.length) : s;
+  try {
+    const obj = JSON.parse(b64decode(body));
+    if (obj && typeof obj === 'object') return obj as SharePayload;
+  } catch {
+    /* not a valid code */
+  }
+  return null;
+}
+
 export async function importPresetsText(text: string): Promise<{ count: number; error?: string }> {
   let parsed: unknown;
   try {
