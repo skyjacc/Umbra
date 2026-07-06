@@ -424,7 +424,9 @@ function handleFFT(sendResponse) {
   lastAnalyzerUse = performance.now();
   const data = new Float32Array(analyzer.frequencyBinCount);
   analyzer.getFloatFrequencyData(data);
-  sendResponse({ fft: Array.from(data) });
+  // Clamp non-finite bins (silence gives -Infinity) to -100 so JSON doesn't turn them
+  // into null, which the popup would read as 0 dB (a full flat block).
+  sendResponse({ fft: Array.from(data, (v) => (Number.isFinite(v) ? v : -100)) });
 }
 
 // Drop the analyzer tap when the visualizer stops asking (saves CPU).

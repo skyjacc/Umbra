@@ -102,7 +102,10 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
       const b0 = Math.max(1, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
       const b1 = Math.max(1, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
       let db = -100;
-      for (let b = b0; b <= b1; b++) if (fft[b] > db) db = fft[b];
+      // Silence gives -Infinity bins; sendMessage's JSON turns those into null. Skip
+      // any non-finite value (null / -Infinity / NaN) or a silent frame paints a full
+      // flat block (null coerces to 0 dB = full height).
+      for (let b = b0; b <= b1; b++) if (Number.isFinite(fft[b]) && fft[b] > db) db = fft[b];
       raw.push(Math.max(0, Math.min(cap, ((db + 100) / 100) * cap)));
     }
     const h = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25);
