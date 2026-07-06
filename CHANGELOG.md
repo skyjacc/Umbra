@@ -4,7 +4,18 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0] — 2026-07-06
+
+Major release: the popup is rebuilt as a React + TypeScript app (Vite + CRXJS,
+Tailwind + shadcn/ui) with a dark frosted-glass interface, a horizontal-per-bin
+"Ears-style" spectrum, a thin vertical volume fader, and a bottom-tab layout. The
+audio engine (service worker + offscreen Web Audio) is unchanged. Load the **`dist/`**
+folder unpacked.
+
+### Highlights
+- Bottom-nav app (EQ / Presets / Tabs / More); glass volume fader with a 0 dB detent;
+  high-resolution spectrum (per-bin, 60fps, silence-safe); refined glass theme + 4
+  color themes; onboarding page restyled to match.
 
 ### Changed
 - **Popup migrated to React + TypeScript** (Vite + CRXJS, Tailwind + shadcn/ui). The

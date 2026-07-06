@@ -14,7 +14,7 @@ const EQ_STATE_KEY = 'EQ_STATE';
 
 // Bump on every change so the popup can detect a STALE service worker / offscreen
 // (a common trap: files updated but the SW/offscreen weren't reloaded).
-const BUILD = '1.0.1';
+const BUILD = '2.0.0';
 
 // --- Logging: ring buffer + console, so diagnostics can be exported later. ---
 const DEBUG = false; // flip to true only for local diagnostics

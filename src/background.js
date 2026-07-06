@@ -1,7 +1,7 @@
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
-const BUILD = '1.0.1'; // keep in sync with offscreen.js / popup.js
+const BUILD = '2.0.0'; // keep in sync with offscreen.js / popup.js
 
 // --- Logging: ring buffer + console, for one-click diagnostics export. ---
 const DEBUG = false; // flip to true only for local diagnostics

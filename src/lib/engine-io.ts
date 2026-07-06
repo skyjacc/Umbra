@@ -12,7 +12,7 @@ import {
 } from './audio';
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
 
-export const BUILD = '1.0.1';
+export const BUILD = '2.0.0';
 export const PRESET_PREFIX = 'PRESETS.';
 export const EQ_STATE_KEY = 'EQ_STATE';
 export const ACTIVE_PRESET_KEY = 'ACTIVE_PRESET';

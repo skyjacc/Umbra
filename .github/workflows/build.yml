@@ -18,16 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
       - name: Verify manifest version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
-          $v = (Get-Content manifest.json -Raw | ConvertFrom-Json).version
+          $v = (Get-Content dist/manifest.json -Raw | ConvertFrom-Json).version
           $tag = "${{ github.ref_name }}".TrimStart('v')
           if ($v -ne $tag) { throw "manifest version $v != tag $tag" }
           Write-Host "version $v matches tag"
 
-      - name: Build store zip
+      - name: Package store zip
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File build-zip.ps1
 
@@ -35,11 +44,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: umbra-eq-zip
-          path: dist/*.zip
+          path: release/*.zip
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: release/*.zip
           generate_release_notes: true
