@@ -135,19 +135,21 @@ async function startCaptureOnActiveTab() {
     return;
   }
   dlog('got streamId', streamId, '→ offscreen');
-  chrome.runtime.sendMessage({
-    target: 'offscreen',
-    type: 'startCapture',
-    streamId,
-    tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '' }
-  });
+  chrome.runtime
+    .sendMessage({
+      target: 'offscreen',
+      type: 'startCapture',
+      streamId,
+      tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '' }
+    })
+    .catch(() => {}); // offscreen may still be waking — benign
 }
 
 async function stopCaptureOnActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
   if (!(await hasOffscreenDocument())) return;
-  chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id });
+  chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id }).catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
