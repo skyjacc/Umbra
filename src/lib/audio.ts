@@ -10,6 +10,7 @@ export const DB_BOTTOM = -30;
 export const VIEW_DB_TOP = 60;
 export const VIEW_DB_BOTTOM = -60;
 export const MASTER_DB_MAX = 10; // master volume ceiling (10*log10(gain) scale)
+export const MASTER_DB_MIN = -25; // master volume floor — matches the engine's 0.00316 linear clamp
 export const AXIS_MAX_FREQ = 22050;
 
 export const NUM_FILTERS = 11;
@@ -43,7 +44,7 @@ export const clampFreq = (f: number) => Math.max(5, Math.min(20000, f));
 export const clampMasterGain = (g: number) => {
   const n = Number(g);
   if (!Number.isFinite(n) || n <= 0) return 1;
-  return dbToMasterGain(Math.max(DB_BOTTOM, Math.min(MASTER_DB_MAX, masterGainToDb(n))));
+  return dbToMasterGain(Math.max(MASTER_DB_MIN, Math.min(MASTER_DB_MAX, masterGainToDb(n))));
 };
 
 // Pixel clamps that neutralize NaN and keep dots inside + grabbable.

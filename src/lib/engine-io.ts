@@ -19,18 +19,33 @@ export const ACTIVE_PRESET_KEY = 'ACTIVE_PRESET';
 
 export const hasChrome = () => typeof chrome !== 'undefined' && !!chrome.runtime;
 
+// Reading chrome.runtime.lastError inside the callback swallows the benign
+// "The message port closed before a response was received" console warning that
+// fires when a receiver replies late or not at all (e.g. offscreen still waking).
 export function toOffscreen(type: string, extra: Record<string, unknown> = {}, cb?: (r: any) => void) {
   if (!hasChrome()) return;
   const msg = { target: 'offscreen', type, ...extra };
-  if (cb) chrome.runtime.sendMessage(msg, cb);
-  else chrome.runtime.sendMessage(msg).catch(() => {});
+  if (cb) {
+    chrome.runtime.sendMessage(msg, (resp: any) => {
+      void chrome.runtime.lastError;
+      cb(resp);
+    });
+  } else {
+    chrome.runtime.sendMessage(msg).catch(() => {});
+  }
 }
 
 export function toBackground(type: string, extra: Record<string, unknown> = {}, cb?: (r: any) => void) {
   if (!hasChrome()) return;
   const msg = { target: 'bg', type, ...extra };
-  if (cb) chrome.runtime.sendMessage(msg, cb);
-  else chrome.runtime.sendMessage(msg).catch(() => {});
+  if (cb) {
+    chrome.runtime.sendMessage(msg, (resp: any) => {
+      void chrome.runtime.lastError;
+      cb(resp);
+    });
+  } else {
+    chrome.runtime.sendMessage(msg).catch(() => {});
+  }
 }
 
 // Trailing-edge throttle for live-drag messages (don't flood the offscreen page).

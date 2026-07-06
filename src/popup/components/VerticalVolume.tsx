@@ -1,8 +1,8 @@
 import { useRef } from 'react';
-import { EQ_H, MASTER_DB_MAX, DB_BOTTOM, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
+import { EQ_H, MASTER_DB_MAX, MASTER_DB_MIN, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
 
-const RANGE = MASTER_DB_MAX - DB_BOTTOM;
-const FRAC0 = (0 - DB_BOTTOM) / RANGE; // fraction (from bottom) of the 0 dB line
+const RANGE = MASTER_DB_MAX - MASTER_DB_MIN;
+const FRAC0 = (0 - MASTER_DB_MIN) / RANGE; // fraction (from bottom) of the 0 dB line
 
 // Thin vertical master-volume fader (Ears-style): fixed width (no reflow jitter),
 // a visible 0 dB tick, and a detent that snaps to exactly 0. Value in dB.
@@ -19,7 +19,7 @@ export function VerticalVolume({
   const dragging = useRef(false);
 
   const db = masterGainToDb(clampMasterGain(gain));
-  const frac = Math.max(0, Math.min(1, (db - DB_BOTTOM) / RANGE));
+  const frac = Math.max(0, Math.min(1, (db - MASTER_DB_MIN) / RANGE));
   const topPct = ((1 - frac) * 100).toFixed(2) + '%';
   const fillPct = (frac * 100).toFixed(2) + '%';
   const zeroTop = ((1 - FRAC0) * 100).toFixed(2) + '%';
@@ -27,7 +27,7 @@ export function VerticalVolume({
   const setFromY = (clientY: number) => {
     const r = colRef.current!.getBoundingClientRect();
     const f = Math.max(0, Math.min(1, 1 - (clientY - r.top) / r.height));
-    let d = DB_BOTTOM + f * RANGE;
+    let d = MASTER_DB_MIN + f * RANGE;
     if (Math.abs(d) < 0.9) d = 0; // detent — easy to land on unity
     onGain(dbToMasterGain(d));
   };
