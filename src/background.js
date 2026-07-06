@@ -1,7 +1,7 @@
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
-const BUILD = '2.0.0'; // keep in sync with offscreen.js / popup.js
+const BUILD = '2.1.0'; // keep in sync with offscreen.js / popup.js
 
 // --- Logging: ring buffer + console, for one-click diagnostics export. ---
 const DEBUG = false; // flip to true only for local diagnostics
@@ -140,9 +140,24 @@ async function startCaptureOnActiveTab() {
       target: 'offscreen',
       type: 'startCapture',
       streamId,
-      tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '' }
+      // url carries the hostname the offscreen engine keys per-domain memory on.
+      tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '', url: tab.url || '' }
     })
     .catch(() => {}); // offscreen may still be waking — benign
+}
+
+// Tell the popup which tab it is looking at, so it can edit that tab's EQ and show
+// whether the site already has a saved (domain) curve.
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return { id: null, host: '', title: '', capturable: false };
+  let host = '';
+  try {
+    host = tab.url ? new URL(tab.url).hostname : '';
+  } catch (e) {
+    host = '';
+  }
+  return { id: tab.id, host, title: tab.title || '', favIconUrl: tab.favIconUrl || '', capturable: isCapturableUrl(tab.url) };
 }
 
 async function stopCaptureOnActiveTab() {
@@ -175,6 +190,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             console.error('[UmbraEQ bg] ensureOffscreen failed:', e && e.message);
             sendResponse({ ok: false, error: (e && e.message) || 'unknown' });
           });
+        return true; // async sendResponse
+      case 'getActiveTab':
+        getActiveTab()
+          .then((t) => sendResponse(t))
+          .catch(() => sendResponse({ id: null, host: '', title: '', capturable: false }));
         return true; // async sendResponse
     }
     return;

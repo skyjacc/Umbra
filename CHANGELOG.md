@@ -4,6 +4,28 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [2.1.0] — 2026-07-06
+
+### Added
+- **Per-tab EQ** — the audio engine now builds an independent filter chain for every
+  captured tab, so two tabs (e.g. a film tab and a music tab) can hold two different EQ
+  curves at the same time. The popup edits whichever tab is currently active.
+- **Per-site memory (sticky EQ)** — a tab's shaped curve is remembered under its
+  hostname and, while **Remember EQ per site** is on, re-applied automatically the next
+  time that site's tab is captured. Manage or forget saved sites in **More → Remembered
+  sites**; the popup previews a site's saved curve before you even press EQ This Tab.
+- **Reset scope** — **Reset** (EQ view) flattens the current tab and forgets its saved
+  curve; each row in **Tabs** has its own **Reset**; **Clear all** (More) flattens every
+  live tab and wipes all remembered sites.
+
+### Changed
+- The EQ graph and volume fader are read-only until the active tab is captured (dots and
+  handle dim) — edits target a live per-tab chain.
+- Live-drag no longer triggers a full status broadcast, and per-domain writes are
+  debounced (250 ms, flushed on stop), cutting messaging + storage churn during drags.
+- Service worker reports the active tab (id + hostname) to the popup; capture now carries
+  the tab URL so the engine can key per-domain memory.
+
 ## [2.0.0] — 2026-07-06
 
 Major release: the popup is rebuilt as a React + TypeScript app (Vite + CRXJS,

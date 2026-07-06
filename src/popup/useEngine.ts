@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sanitizeStatus, type Band } from '@/lib/audio';
+import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
 import * as io from '@/lib/engine-io';
 
@@ -7,18 +7,41 @@ export interface TabInfo {
   id: number;
   title: string;
   favIconUrl: string;
+  host: string;
+}
+export interface TabState extends TabInfo {
+  bands: Band[];
+  gain: number;
+  activePreset: string;
+}
+export interface SavedHost {
+  host: string;
+  preset: string;
+  updatedAt: number;
 }
 
-// The popup's engine: all state + the popup<->service-worker<->offscreen protocol.
-// Ported from popup.js; the graph and views consume this.
+// Rebuild a tab's bands from the engine's eqFilters (defensive sanitize).
+const toBands = (eqFilters: any[]): Band[] =>
+  Array.from({ length: NUM_FILTERS }, (_, i) => {
+    const f = (eqFilters && eqFilters[i]) || {};
+    return sanitizeFilter({ frequency: f.frequency, gain: f.gain, q: f.q }, i);
+  });
+
+// The popup's engine. The editable curve tracks the ACTIVE tab; each captured tab
+// holds its own EQ (offscreen), and a tab's curve is remembered per hostname.
 export function useEngine() {
+  const [tabs, setTabs] = useState<TabState[]>([]);
+  const [activeTabId, setActiveTabId] = useState<number | null>(null);
+  const [activeHost, setActiveHost] = useState('');
+  const [capturable, setCapturable] = useState(true);
+
   const [bands, setBands] = useState<Band[]>(io.flatBands);
   const [gain, setGain] = useState(1);
-  const [sampleRate, setSampleRate] = useState(44100);
-  const [streams, setStreams] = useState<TabInfo[]>([]);
-  const [presets, setPresets] = useState<Record<string, PresetBands>>({});
   const [activePreset, setActivePreset] = useState('');
-  const [tabId, setTabId] = useState<number | null>(null);
+  const [sampleRate, setSampleRate] = useState(44100);
+  const [presets, setPresets] = useState<Record<string, PresetBands>>({});
+  const [savedHosts, setSavedHosts] = useState<SavedHost[]>([]);
+  const [autoDomain, setAutoDomainState] = useState(true);
   const [engineStatus, setEngineStatus] = useState('starting…');
   const [notice, setNoticeState] = useState('');
   const [spectrum, setSpectrum] = useState<boolean>(() => {
@@ -31,25 +54,28 @@ export function useEngine() {
   const [fft, setFft] = useState<number[] | null>(null);
 
   // Refs mirror state so message-handler closures read fresh values.
+  const activeIdRef = useRef(activeTabId);
+  activeIdRef.current = activeTabId;
+  const activeHostRef = useRef(activeHost);
+  activeHostRef.current = activeHost;
   const bandsRef = useRef(bands);
   bandsRef.current = bands;
   const gainRef = useRef(gain);
   gainRef.current = gain;
-  const presetsRef = useRef(presets);
-  presetsRef.current = presets;
   const activeRef = useRef(activePreset);
   activeRef.current = activePreset;
-  const streamsRef = useRef(streams);
-  streamsRef.current = streams;
-  const tabIdRef = useRef<number | null>(tabId);
-  tabIdRef.current = tabId;
+  const presetsRef = useRef(presets);
+  presetsRef.current = presets;
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  const interacting = useRef(false); // true mid-drag — don't let a broadcast clobber the curve
   const gotFirstStatus = useRef(false);
-  const pendingRestore = useRef<{ bands: Band[]; gain: number; activePreset: string } | null>(null);
   const autoTried = useRef(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const send = useRef(io.makeThrottle(33)).current;
 
-  const capturing = tabId != null && streams.some((s) => s.id === tabId);
+  const capturing = activeTabId != null && tabs.some((t) => t.id === activeTabId);
+  const canEdit = capturing; // editing requires a live capture on the active tab
 
   const showNotice = useCallback((t: string) => {
     setNoticeState(t);
@@ -57,15 +83,12 @@ export function useEngine() {
     noticeTimer.current = setTimeout(() => setNoticeState(''), 5000);
   }, []);
 
-  const maybeAutoCapture = useCallback((streams?: TabInfo[]) => {
+  const maybeAutoCapture = useCallback((list: TabState[]) => {
     if (autoTried.current) return;
-    if (tabIdRef.current == null || !gotFirstStatus.current) return;
+    if (activeIdRef.current == null || !gotFirstStatus.current) return;
     autoTried.current = true;
-    // Use the freshly-received streams when available — streamsRef lags a render, and
-    // reading it stale here re-captures an already-captured tab ("active stream").
-    const list = streams ?? streamsRef.current;
-    if (list.some((s) => s.id === tabIdRef.current)) return;
-    io.toBackground('toggleCapture', { on: true });
+    if (list.some((t) => t.id === activeIdRef.current)) return; // already captured
+    io.toBackground('toggleCapture', { on: true }); // Ears-style: open popup = EQ the tab
   }, []);
 
   const handleStatus = useCallback(
@@ -74,52 +97,62 @@ export function useEngine() {
         setEngineStatus('STALE — reload extension');
         return;
       }
-      if (msg.initializing || !msg.eqFilters || msg.eqFilters.length === 0) {
+      if (msg.initializing) {
         setEngineStatus('initializing…');
         return;
       }
       gotFirstStatus.current = true;
-      // Boot-restore: force the engine to the curve we restored from storage, so a
-      // fresh/flat engine after a browser restart can't overwrite it with a flat one.
-      if (pendingRestore.current) {
-        const r = pendingRestore.current;
-        pendingRestore.current = null;
-        io.toOffscreen('applySettings', { eqFilters: r.bands, gain: r.gain, activePreset: r.activePreset || '' });
-        msg = { ...msg, eqFilters: r.bands, gain: r.gain };
-        if (r.activePreset) msg.activePreset = r.activePreset;
-      }
-      const clean = sanitizeStatus(msg);
-      setBands(clean.eqFilters);
-      setGain(clean.gain);
-      setSampleRate(clean.sampleRate);
-      setStreams(clean.streams as TabInfo[]);
-      // Presets are popup-owned; only adopt the engine's set when it actually has entries.
-      const incoming = msg.presets || {};
-      if (Object.keys(incoming).length) setPresets(incoming);
-      if (msg.activePreset !== undefined) setActivePreset(msg.activePreset || '');
+      const list: TabState[] = (msg.tabs || []).map((t: any) => ({
+        id: t.id,
+        title: t.title || '',
+        favIconUrl: t.favIconUrl || '',
+        host: t.host || '',
+        bands: toBands(t.eqFilters),
+        gain: typeof t.gain === 'number' ? t.gain : 1,
+        activePreset: t.activePreset || ''
+      }));
+      setTabs(list);
+      if (msg.sampleRate) setSampleRate(msg.sampleRate);
+      if (msg.presets && Object.keys(msg.presets).length) setPresets(msg.presets);
+      if (Array.isArray(msg.savedHosts)) setSavedHosts(msg.savedHosts);
+      if (typeof msg.autoDomain === 'boolean') setAutoDomainState(msg.autoDomain);
       setEngineStatus('connected');
-      maybeAutoCapture(clean.streams as TabInfo[]);
+
+      // Adopt the active tab's live curve (unless the user is mid-drag).
+      const cur = activeIdRef.current != null ? list.find((t) => t.id === activeIdRef.current) : undefined;
+      if (cur && !interacting.current) {
+        setBands(cur.bands);
+        setGain(cur.gain);
+        setActivePreset(cur.activePreset);
+      }
+      maybeAutoCapture(list);
     },
     [maybeAutoCapture]
   );
 
-  // Boot: paint from storage, wake the engine, poll until its first real status.
+  // Boot: paint presets + domain preview, learn the active tab, wake the engine.
   useEffect(() => {
     let mounted = true;
 
     io.readInitialState().then((init) => {
-      if (!mounted) return;
-      setBands(init.bands);
-      setGain(init.gain);
-      setPresets(init.presets);
-      setActivePreset(init.activePreset);
-      pendingRestore.current = { bands: init.bands, gain: init.gain, activePreset: init.activePreset };
+      if (mounted) setPresets(init.presets);
     });
 
-    if (io.hasChrome() && chrome.tabs) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs && tabs[0]) setTabId(tabs[0].id ?? null);
-        maybeAutoCapture();
+    if (io.hasChrome()) {
+      io.getActiveTab().then(async (t) => {
+        if (!mounted) return;
+        setActiveTabId(t.id);
+        setActiveHost(t.host || '');
+        setCapturable(t.capturable !== false);
+        // Preview the site's sticky curve before capture, so the graph isn't flat-then-jump.
+        if (t.host) {
+          const preview = await io.readDomainEq(t.host);
+          if (mounted && preview && !interacting.current) {
+            setBands(preview.bands);
+            setGain(preview.gain);
+          }
+        }
+        maybeAutoCapture(tabsRef.current);
       });
     } else {
       setEngineStatus('dev preview');
@@ -131,8 +164,6 @@ export function useEngine() {
       else if (m.type === 'captureError') {
         const e = String(m.error || '');
         if (/active stream|already|in use/i.test(e)) {
-          // The tab already has a live capture (usually ours from a prior popup
-          // session). Treat it as "already EQ'd" and refresh, don't alarm the user.
           io.toOffscreen('getStatus', {}, (resp: any) => resp && resp.type === 'workspaceStatus' && handleStatus(resp));
         } else {
           showNotice('Could not EQ this tab: ' + e);
@@ -173,25 +204,21 @@ export function useEngine() {
     };
   }, [handleStatus, maybeAutoCapture, showNotice]);
 
-  // Spectrum: poll the offscreen FFT ~30fps while enabled.
+  // Spectrum: poll the ACTIVE tab's FFT ~60fps while enabled.
   useEffect(() => {
     if (!spectrum) {
       setFft(null);
       return;
     }
     if (!io.hasChrome()) {
-      // Dev preview (no engine): a static synthetic spectrum (4096 bins, like the real
-      // analyser's frequencyBinCount for fftSize 8192) so the overlay looks accurate.
       setFft(Array.from({ length: 4096 }, (_, i) => -100 + 82 * Math.exp(-((i - 40) ** 2) / 1400) + 40 * Math.exp(-i / 500) * (0.6 + 0.4 * Math.sin(i / 2))));
       return;
     }
     let alive = true;
     let raf = 0;
-    // requestAnimationFrame-driven: request the next FFT only after the previous reply
-    // lands, synced to the display refresh (~60fps) — smoother than a fixed 30fps timer.
     const tick = () => {
       if (!alive) return;
-      io.toOffscreen('getFFT', {}, (resp: any) => {
+      io.toOffscreen('getFFT', { tabId: activeIdRef.current }, (resp: any) => {
         if (!alive) return;
         if (resp && resp.fft) setFft(resp.fft);
         raf = requestAnimationFrame(tick);
@@ -216,39 +243,75 @@ export function useEngine() {
     });
   }, []);
 
-  // ---- Actions ----
+  // ---- Editing (targets the active tab; no-op until it's captured) ----
   const onBandsLive = useCallback(
     (nb: Band[]) => {
+      interacting.current = true;
       setBands(nb);
       setActivePreset('');
-      send(() => io.toOffscreen('applySettings', { eqFilters: nb, gain: gainRef.current, activePreset: '' }));
+      const id = activeIdRef.current;
+      if (id == null) return;
+      send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: '' }));
     },
     [send]
   );
   const onGainLive = useCallback(
     (g: number) => {
+      interacting.current = true;
       setGain(g);
       setActivePreset('');
-      send(() => io.toOffscreen('modifyGain', { gain: g, activePreset: '' }));
+      const id = activeIdRef.current;
+      if (id == null) return;
+      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: '' }));
     },
     [send]
   );
   const onCommit = useCallback(() => {
-    io.persistEqState(bandsRef.current, gainRef.current, '');
-    io.toOffscreen('applySettings', { eqFilters: bandsRef.current, gain: gainRef.current, activePreset: '' });
+    interacting.current = false;
+    const id = activeIdRef.current;
+    if (id == null) return;
+    io.toOffscreen('applySettings', { tabId: id, eqFilters: bandsRef.current, gain: gainRef.current, activePreset: activeRef.current || '' });
   }, []);
 
   const toggleCapture = useCallback(() => io.toBackground('toggleCapture', { on: !capturing }), [capturing]);
   const stopTab = useCallback((id: number) => io.toOffscreen('disconnectTab', { tabId: id }), []);
+  // Reset one specific tab (from the Tabs view) — flat + forget its domain curve.
+  const resetTabById = useCallback((id: number) => io.toOffscreen('resetTab', { tabId: id }), []);
+
+  // Reset the current tab to flat AND forget its saved (domain) curve.
   const resetAll = useCallback(() => {
-    const nb = io.flatBands();
-    setBands(nb);
+    setBands(io.flatBands());
     setGain(1);
     setActivePreset('');
-    io.persistEqState(nb, 1, '');
-    io.toOffscreen('applySettings', { eqFilters: nb, gain: 1, activePreset: '' });
-    io.toOffscreen('resetFilters');
+    interacting.current = false;
+    const id = activeIdRef.current;
+    if (id != null && tabsRef.current.some((t) => t.id === id)) io.toOffscreen('resetTab', { tabId: id });
+    else if (activeHostRef.current) io.toOffscreen('forgetHost', { host: activeHostRef.current });
   }, []);
+
+  // Reset EVERYTHING: flatten every live tab and wipe all remembered sites.
+  const resetEverything = useCallback(() => {
+    setBands(io.flatBands());
+    setGain(1);
+    setActivePreset('');
+    io.toOffscreen('resetAllTabs');
+    setSavedHosts([]);
+    showNotice('Reset all tabs and cleared remembered sites.');
+  }, [showNotice]);
+
+  const setAutoDomain = useCallback((on: boolean) => {
+    setAutoDomainState(on);
+    io.toOffscreen('setAuto', { on });
+  }, []);
+
+  const forgetHost = useCallback(
+    (host: string) => {
+      io.toOffscreen('forgetHost', { host });
+      setSavedHosts((hs) => hs.filter((h) => h.host !== host));
+      showNotice('Forgot "' + host + '".');
+    },
+    [showNotice]
+  );
 
   const applyPreset = useCallback(
     async (name: string) => {
@@ -265,23 +328,27 @@ export function useEngine() {
       const nb = io.presetToBands(p);
       setBands(nb);
       setActivePreset(name);
-      io.persistEqState(nb, gainRef.current, name);
-      io.toOffscreen('applySettings', { eqFilters: nb, gain: gainRef.current, activePreset: name });
+      const id = activeIdRef.current;
+      if (id != null && tabsRef.current.some((t) => t.id === id)) io.toOffscreen('applyPreset', { tabId: id, preset: name });
+      else showNotice('Press "EQ This Tab" to hear this preset.');
     },
     [showNotice]
   );
 
   const savePreset = useCallback(
     async (name: string) => {
-      try {
-        await io.savePreset(name, bandsRef.current);
-      } catch {
-        showNotice('Save failed (sync storage unavailable).');
-        return;
+      const id = activeIdRef.current;
+      if (id != null && tabsRef.current.some((t) => t.id === id)) {
+        io.toOffscreen('savePreset', { tabId: id, preset: name });
+      } else {
+        try {
+          await io.savePreset(name, bandsRef.current);
+        } catch {
+          showNotice('Save failed (sync storage unavailable).');
+          return;
+        }
       }
       setActivePreset(name);
-      io.persistEqState(bandsRef.current, gainRef.current, name);
-      io.toOffscreen('setActivePreset', { activePreset: name });
       setPresets(await io.refreshPresets());
       showNotice('Saved preset "' + name + '".');
     },
@@ -295,11 +362,7 @@ export function useEngine() {
       } catch {
         /* ignore */
       }
-      if (activeRef.current === name) {
-        setActivePreset('');
-        io.persistEqState(bandsRef.current, gainRef.current, '');
-        io.toOffscreen('setActivePreset', { activePreset: '' });
-      }
+      if (activeRef.current === name) setActivePreset('');
       setPresets(await io.refreshPresets());
       showNotice('Deleted "' + name + '".');
     },
@@ -314,7 +377,6 @@ export function useEngine() {
         return;
       }
       setPresets(await io.refreshPresets());
-      io.toOffscreen('getStatus');
       showNotice('Imported ' + res.count + ' preset' + (res.count > 1 ? 's' : '') + '.');
     },
     [showNotice]
@@ -330,24 +392,38 @@ export function useEngine() {
   }, []);
 
   return {
+    // active-tab curve
     bands,
     gain,
-    sampleRate,
-    streams,
-    presets,
     activePreset,
+    sampleRate,
+    // per-tab + domain state
+    tabs,
+    streams: tabs, // alias: the Tabs view renders the captured-tab list
+    activeTabId,
+    activeHost,
+    capturable,
+    savedHosts,
+    autoDomain,
+    presets,
     engineStatus,
     notice,
     capturing,
+    canEdit,
     spectrum,
     fft,
+    // actions
     toggleSpectrum,
     onBandsLive,
     onGainLive,
     onCommit,
     toggleCapture,
     stopTab,
+    resetTabById,
     resetAll,
+    resetEverything,
+    setAutoDomain,
+    forgetHost,
     applyPreset,
     savePreset,
     deletePreset,

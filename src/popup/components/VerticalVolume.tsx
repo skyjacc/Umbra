@@ -9,11 +9,13 @@ const FRAC0 = (0 - MASTER_DB_MIN) / RANGE; // fraction (from bottom) of the 0 dB
 export function VerticalVolume({
   gain,
   onGain,
-  onCommit
+  onCommit,
+  editable = true
 }: {
   gain: number;
   onGain: (g: number) => void;
   onCommit: () => void;
+  editable?: boolean;
 }) {
   const colRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -32,6 +34,7 @@ export function VerticalVolume({
     onGain(dbToMasterGain(d));
   };
   const down = (e: React.PointerEvent) => {
+    if (!editable) return;
     dragging.current = true;
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -61,7 +64,7 @@ export function VerticalVolume({
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
-        className="relative flex w-full flex-1 cursor-ns-resize touch-none justify-center"
+        className={'relative flex w-full flex-1 touch-none justify-center ' + (editable ? 'cursor-ns-resize' : 'cursor-default')}
         role="slider"
         aria-label="Master volume"
         aria-valuetext={gainDbText(gain) + ' dB'}
@@ -76,7 +79,7 @@ export function VerticalVolume({
           <div className="absolute inset-x-0 bottom-0 rounded-full bg-gradient-to-t from-primary/40 to-accent" style={{ height: fillPct }} />
           <div
             className="absolute left-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2 ring-white/25"
-            style={{ top: topPct }}
+            style={{ top: topPct, opacity: editable ? 1 : 0.5 }}
           />
         </div>
       </div>

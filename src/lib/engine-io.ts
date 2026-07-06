@@ -12,12 +12,51 @@ import {
 } from './audio';
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
 
-export const BUILD = '2.0.0';
+export const BUILD = '2.1.0';
 export const PRESET_PREFIX = 'PRESETS.';
+export const DEQ_PREFIX = 'DEQ.'; // per-hostname saved EQ (mirrors offscreen.js)
 export const EQ_STATE_KEY = 'EQ_STATE';
 export const ACTIVE_PRESET_KEY = 'ACTIVE_PRESET';
 
 export const hasChrome = () => typeof chrome !== 'undefined' && !!chrome.runtime;
+
+export interface ActiveTab {
+  id: number | null;
+  host: string;
+  title: string;
+  favIconUrl?: string;
+  capturable: boolean;
+}
+
+// Which tab the popup is looking at (so it edits that tab's EQ). Answered by the
+// service worker from chrome.tabs.query({active,currentWindow}).
+export function getActiveTab(): Promise<ActiveTab> {
+  return new Promise((resolve) => {
+    if (!hasChrome()) {
+      resolve({ id: null, host: '', title: '', capturable: false });
+      return;
+    }
+    toBackground('getActiveTab', {}, (r: any) => resolve(r || { id: null, host: '', title: '', capturable: false }));
+  });
+}
+
+// Read a hostname's saved (domain) curve straight from storage, so the popup can
+// PREVIEW a site's sticky EQ before the tab is even captured.
+export async function readDomainEq(host: string): Promise<{ bands: Band[]; gain: number } | null> {
+  if (!hasChrome() || !chrome.storage || !host) return null;
+  try {
+    const key = DEQ_PREFIX + host;
+    const r: any = await chrome.storage.local.get(key);
+    const v = r[key];
+    if (v && Array.isArray(v.filters) && v.filters.length === NUM_FILTERS) {
+      const bands = v.filters.map((b: any, i: number) => sanitizeFilter({ frequency: b.f, gain: b.g, q: b.q }, i));
+      return { bands, gain: clampMasterGain(v.gain ?? 1) };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
 
 // Reading chrome.runtime.lastError inside the callback swallows the benign
 // "The message port closed before a response was received" console warning that

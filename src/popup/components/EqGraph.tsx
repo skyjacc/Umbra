@@ -27,6 +27,7 @@ interface Props {
   fft?: number[] | null; // spectrum data (offscreen FFT), when the visualizer is on
   onBands: (b: Band[]) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
+  editable?: boolean; // dots draggable only when the active tab is captured
 }
 
 const G = (v: string) => `var(--g-${v})`;
@@ -43,7 +44,7 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
+export function EqGraph({ bands, sampleRate, fft, onBands, onCommit, editable = true }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -119,6 +120,7 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
 
   // ---- Drag: filter dots ----
   function dotDown(i: number, e: React.PointerEvent) {
+    if (!editable) return; // no live capture on the active tab — read-only
     e.preventDefault();
     dragIdx.current = i;
     setHover(i);
@@ -157,6 +159,7 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
     setHover(null);
   }
   function resetBand(i: number) {
+    if (!editable) return;
     const nb = bands.slice();
     nb[i] = { frequency: DEFAULT_FREQUENCIES[i], gain: 0, q: DEFAULT_Q, type: filterType(i) };
     onBands(nb);
@@ -253,9 +256,10 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
                 cy={d.y}
                 r={on ? 7.5 : 6.5}
                 fill={d.color}
+                fillOpacity={editable ? 1 : 0.45}
                 stroke={G('screen')}
                 strokeWidth={2.5}
-                className="cursor-grab"
+                className={editable ? 'cursor-grab' : 'cursor-default'}
                 onPointerDown={(e) => dotDown(i, e)}
                 onPointerEnter={() => dragIdx.current == null && setHover(i)}
                 onPointerLeave={() => dragIdx.current == null && setHover(null)}

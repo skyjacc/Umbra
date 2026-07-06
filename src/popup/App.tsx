@@ -102,13 +102,14 @@ export default function App() {
               boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
             }}
           >
-            <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} />
+            <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
             <EqGraph
               bands={eng.bands}
               sampleRate={eng.sampleRate}
               fft={eng.fft}
               onBands={eng.onBandsLive}
               onCommit={eng.onCommit}
+              editable={eng.canEdit}
             />
           </div>
 
@@ -129,7 +130,8 @@ export default function App() {
               }
             >
               <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
-              {eng.capturing ? 'Stop EQing' : 'EQ This Tab'}
+              <span>{eng.capturing ? 'Stop EQing' : 'EQ This Tab'}</span>
+              {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
             </Button>
             <Button variant="outline" className="h-10 rounded-xl backdrop-blur-md" onClick={eng.resetAll}>
               <RotateCcw />
@@ -202,17 +204,36 @@ export default function App() {
           ) : (
             <div className="flex flex-col gap-1.5">
               {eng.streams.map((t) => (
-                <div key={t.id} className="flex items-center gap-2.5 rounded-xl bg-white/[.05] py-2 pl-3 pr-2 [box-shadow:var(--shadow-border)]">
+                <div
+                  key={t.id}
+                  className={
+                    'flex items-center gap-2.5 rounded-xl py-2 pl-3 pr-2 [box-shadow:var(--shadow-border)] ' +
+                    (t.id === eng.activeTabId ? 'bg-primary/10' : 'bg-white/[.05]')
+                  }
+                >
                   {/^(https?:|data:)/.test(t.favIconUrl) ? (
                     <img src={t.favIconUrl} alt="" className="size-[17px] rounded" />
                   ) : (
                     <span className="text-[13px]">🌐</span>
                   )}
-                  <span className="flex-1 truncate text-[12.5px] text-foreground" title={t.title}>
-                    {t.title || '(untitled)'}
-                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[12.5px] text-foreground" title={t.title}>
+                      {t.title || '(untitled)'}
+                    </span>
+                    <span className="truncate text-[10.5px] text-muted-foreground/80">
+                      {t.host || 'local'}
+                      {t.activePreset ? ' · ' + t.activePreset : ''}
+                    </span>
+                  </div>
                   <button
-                    className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[10.5px] font-semibold text-destructive hover:bg-destructive/20"
+                    className="rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground transition-[color,scale] duration-150 active:scale-[0.96] hover:text-foreground"
+                    title="Reset this tab & forget its saved EQ"
+                    onClick={() => eng.resetTabById(t.id)}
+                  >
+                    Reset
+                  </button>
+                  <button
+                    className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[10.5px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
                     onClick={() => eng.stopTab(t.id)}
                   >
                     Stop
@@ -226,6 +247,57 @@ export default function App() {
         {/* ================= MORE ================= */}
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
           <h1 className="text-[15px] font-semibold">More</h1>
+
+          {/* Sticky-EQ: auto-apply a site's saved curve on capture */}
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+            <div className="flex flex-col">
+              <span className="text-[13px] font-semibold">Remember EQ per site</span>
+              <span className="text-[11px] text-muted-foreground text-pretty">Auto-apply a site's saved curve when you EQ its tab</span>
+            </div>
+            <button
+              role="switch"
+              aria-checked={eng.autoDomain}
+              aria-label="Remember EQ per site"
+              onClick={() => eng.setAutoDomain(!eng.autoDomain)}
+              className={'relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150 ' + (eng.autoDomain ? 'bg-primary/70' : 'bg-white/15')}
+            >
+              <span className={'absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] duration-150 ' + (eng.autoDomain ? 'left-[22px]' : 'left-0.5')} />
+            </button>
+          </div>
+
+          {/* Remembered sites — the per-domain memory store */}
+          <div className="rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[13px] font-semibold">Remembered sites</span>
+              {eng.savedHosts.length > 0 && (
+                <button onClick={eng.resetEverything} className="text-[11px] text-muted-foreground transition-colors hover:text-destructive">
+                  Clear all
+                </button>
+              )}
+            </div>
+            {eng.savedHosts.length === 0 ? (
+              <p className="text-[11.5px] text-muted-foreground/70 text-pretty">Sites you EQ are saved here and re-applied automatically next time.</p>
+            ) : (
+              <div className="flex max-h-[150px] flex-col gap-1 overflow-y-auto">
+                {eng.savedHosts.map((h) => (
+                  <div key={h.host} className="flex items-center gap-2 rounded-lg bg-black/20 py-1.5 pl-2.5 pr-1.5">
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-foreground" title={h.host}>
+                      {h.host}
+                    </span>
+                    {h.preset && <span className="shrink-0 rounded-full bg-white/[.06] px-2 py-0.5 text-[10px] text-muted-foreground">{h.preset}</span>}
+                    <button
+                      title={'Forget ' + h.host}
+                      onClick={() => eng.forgetHost(h.host)}
+                      className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
               <span className="text-[13px] font-semibold">Theme</span>
