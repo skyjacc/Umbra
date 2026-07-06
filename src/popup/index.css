@@ -4,24 +4,24 @@
 
 /* Dark, muted, glass tokens (shadcn-style HSL variables). No neon. */
 :root {
-  --background: 228 14% 6%;
-  --foreground: 230 20% 92%;
-  --card: 230 16% 10%;
-  --card-foreground: 230 20% 92%;
-  --muted: 232 16% 13%;
-  --muted-foreground: 228 8% 62%;
-  --primary: 231 33% 66%;
-  --primary-foreground: 228 33% 8%;
-  --secondary: 232 16% 15%;
-  --secondary-foreground: 230 20% 92%;
-  --accent: 231 33% 70%;
-  --accent-foreground: 228 33% 8%;
-  --destructive: 342 37% 64%;
-  --destructive-foreground: 230 20% 96%;
-  --border: 230 12% 20%;
-  --input: 230 12% 20%;
-  --ring: 231 33% 66%;
-  --radius: 0.75rem;
+  --background: 228 16% 5%;
+  --foreground: 228 24% 94%;
+  --card: 228 15% 9%;
+  --card-foreground: 228 24% 94%;
+  --muted: 228 14% 13%;
+  --muted-foreground: 228 10% 60%;
+  --primary: 232 40% 67%;
+  --primary-foreground: 228 40% 7%;
+  --secondary: 228 14% 14%;
+  --secondary-foreground: 228 24% 94%;
+  --accent: 232 42% 72%;
+  --accent-foreground: 228 40% 7%;
+  --destructive: 350 45% 62%;
+  --destructive-foreground: 228 24% 96%;
+  --border: 228 12% 19%;
+  --input: 228 12% 19%;
+  --ring: 232 40% 67%;
+  --radius: 0.8rem;
 
   /* EQ graph colors (muted, no neon) — consumed by the SVG graph component. */
   --g-screen: #0e0f16;
@@ -65,6 +65,39 @@ body[data-theme='solar'] {
   }
   body {
     @apply text-foreground;
+  }
+}
+
+/* Border beam — a muted arc travelling the button's border while capturing. */
+@property --umbra-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes umbra-beam {
+  to {
+    --umbra-angle: 360deg;
+  }
+}
+.beam-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  background: conic-gradient(from var(--umbra-angle), transparent 0 60%, hsl(var(--accent)) 80%, transparent 92%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: umbra-beam 3.2s linear infinite;
+  opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+  .beam-ring {
+    animation: none;
+    opacity: 0.5;
   }
 }
 
