@@ -105,15 +105,19 @@ export default function App() {
 
           <div className="flex gap-2.5">
             <Button
-              className="flex-1 rounded-xl py-6 text-[13.5px]"
-              variant={eng.capturing ? 'outline' : 'default'}
+              variant="outline"
               onClick={eng.toggleCapture}
-              style={eng.capturing ? { borderColor: 'hsl(var(--destructive))' } : undefined}
+              className={
+                'flex-1 rounded-xl border py-6 text-[13.5px] font-semibold backdrop-blur-md transition-colors ' +
+                (eng.capturing
+                  ? 'border-destructive/50 bg-destructive/10 text-foreground hover:bg-destructive/15'
+                  : 'border-primary/50 bg-primary/20 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,.12)] hover:bg-primary/30')
+              }
             >
-              <Power className={eng.capturing ? 'text-destructive' : ''} />
+              <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
               {eng.capturing ? 'Stop EQing' : 'EQ This Tab'}
             </Button>
-            <Button variant="outline" className="rounded-xl py-6" onClick={eng.resetAll}>
+            <Button variant="outline" className="rounded-xl py-6 backdrop-blur-md" onClick={eng.resetAll}>
               <RotateCcw />
               Reset
             </Button>

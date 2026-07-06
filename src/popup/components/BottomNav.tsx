@@ -21,7 +21,7 @@ export function BottomNav({ view, onView }: { view: ViewId; onView: (v: ViewId) 
   }, [view]);
 
   return (
-    <nav ref={ref} className="relative flex border-t border-border" style={{ background: 'rgba(255,255,255,.035)' }}>
+    <nav ref={ref} className="relative flex border-t border-white/10 backdrop-blur-md" style={{ background: 'rgba(255,255,255,.04)' }}>
       <span
         aria-hidden
         className="absolute top-0 h-0.5 rounded bg-accent/80 transition-[left] duration-300 [transition-timing-function:cubic-bezier(.22,1,.36,1)]"
