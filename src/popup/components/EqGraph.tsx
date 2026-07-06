@@ -181,6 +181,14 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
             <stop offset="0" style={{ stopColor: G('viz'), stopOpacity: 0.4 }} />
             <stop offset="1" style={{ stopColor: G('viz'), stopOpacity: 0 }} />
           </linearGradient>
+          <linearGradient id="umbraCurve" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" style={{ stopColor: G('peak') }} />
+            <stop offset="1" style={{ stopColor: G('shelf') }} />
+          </linearGradient>
+          <linearGradient id="umbraFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style={{ stopColor: G('peak'), stopOpacity: 0.14 }} />
+            <stop offset="1" style={{ stopColor: G('peak'), stopOpacity: 0 }} />
+          </linearGradient>
         </defs>
         {/* grid */}
         {freqTicks.map((t, i) => (
@@ -206,32 +214,57 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
           </g>
         )}
 
-        {/* ghost per-band curves */}
-        {ghosts.map((d, i) => (
-          <path key={'g' + i} d={d} fill="none" stroke={G('viz')} strokeOpacity={0.4} strokeWidth={1} pointerEvents="none" />
-        ))}
+        {/* combined curve — subtle fill first so it sits UNDER the per-band curves and
+            never washes them out; the hero stroke sits above the ghosts */}
+        <path d={combined} fill="url(#umbraFill)" stroke="none" pointerEvents="none" />
 
-        {/* combined curve: fill + stroke */}
-        <path d={combined} fill={G('peak')} fillOpacity={0.16} stroke="none" pointerEvents="none" />
-        <path d={combinedStroke} fill="none" stroke={G('peak')} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+        {/* ghost per-band curves — colored by band type, hover-highlighted so it's
+            obvious which dot drives which bell */}
+        {ghosts.map((d, i) => {
+          const on = hover === i;
+          const c = bands[i].type === 'peaking' ? G('peak') : G('shelf');
+          return (
+            <path
+              key={'g' + i}
+              d={d}
+              fill="none"
+              stroke={c}
+              strokeOpacity={on ? 0.85 : 0.42}
+              strokeWidth={on ? 2 : 1.25}
+              strokeLinejoin="round"
+              strokeDasharray={on ? undefined : '3 3'}
+              pointerEvents="none"
+            />
+          );
+        })}
 
-        {/* filter dots */}
-        {dots.map((d, i) => (
-          <circle
-            key={'dot' + i}
-            cx={d.x}
-            cy={d.y}
-            r={6}
-            fill={d.color}
-            stroke={G('screen')}
-            strokeWidth={1.5}
-            className="cursor-grab"
-            onPointerDown={(e) => dotDown(i, e)}
-            onPointerEnter={() => dragIdx.current == null && setHover(i)}
-            onPointerLeave={() => dragIdx.current == null && setHover(null)}
-            onDoubleClick={() => resetBand(i)}
-          />
-        ))}
+        {/* combined curve — hero stroke (gradient peak->shelf), above the ghosts */}
+        <path d={combinedStroke} fill="none" stroke="url(#umbraCurve)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+
+        {/* filter dots — a dark knockout ring separates each dot from the curve and
+            neighbours; the hovered dot grows + gets a soft accent halo */}
+        {dots.map((d, i) => {
+          const on = hover === i;
+          return (
+            <g key={'dot' + i}>
+              {on && <circle cx={d.x} cy={d.y} r={11} fill={d.color} fillOpacity={0.18} pointerEvents="none" />}
+              <circle
+                cx={d.x}
+                cy={d.y}
+                r={on ? 7.5 : 6.5}
+                fill={d.color}
+                stroke={G('screen')}
+                strokeWidth={2.5}
+                className="cursor-grab"
+                onPointerDown={(e) => dotDown(i, e)}
+                onPointerEnter={() => dragIdx.current == null && setHover(i)}
+                onPointerLeave={() => dragIdx.current == null && setHover(null)}
+                onDoubleClick={() => resetBand(i)}
+              />
+              <circle cx={d.x} cy={d.y} r={2} fill={G('grab')} fillOpacity={0.9} pointerEvents="none" />
+            </g>
+          );
+        })}
 
         {/* readout tooltip for the hovered / dragged band */}
         {hover != null &&
