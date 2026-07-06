@@ -85,26 +85,26 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
   // to nothing at the baseline, so it reads as a clean glass "energy" ghost that
   // never fights the axis labels or the curve.
   const spectrum = useMemo(() => {
-    if (!fft || !fft.length) return null;
+    if (!fft || !fft.length) return '';
     const cap = EQ_H * 0.4;
     const xs: number[] = [];
     const raw: number[] = [];
     for (let x = 0; x <= EQ_W; x += 3) {
       const fLo = xToFreq(Math.max(0, x - 1.5));
       const fHi = xToFreq(x + 1.5);
-      const b0 = Math.max(0, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
-      const b1 = Math.max(0, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
+      // Start at bin 1 — bin 0 (DC) carries a spurious offset that painted a flat
+      // horizontal band across the silent low-frequency (left) region.
+      const b0 = Math.max(1, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
+      const b1 = Math.max(1, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
       let db = -100;
       for (let b = b0; b <= b1; b++) if (fft[b] > db) db = fft[b];
       xs.push(x);
       raw.push(Math.max(0, Math.min(cap, ((db + 100) / 100) * cap)));
     }
     const h = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25);
-    const top = xs.map((x, i) => `${x} ${(EQ_H - 1 - h[i]).toFixed(1)}`);
-    return {
-      area: `0,${EQ_H} ${xs.map((x, i) => `${x},${(EQ_H - 1 - h[i]).toFixed(1)}`).join(' ')} ${EQ_W},${EQ_H}`,
-      line: 'M' + top.join(' L')
-    };
+    // Area only (no top stroke) — a soft gradient that fades to nothing where it's
+    // quiet, so the left/low region reads as empty instead of a flat line.
+    return `0,${EQ_H} ${xs.map((x, i) => `${x},${(EQ_H - 1 - h[i]).toFixed(1)}`).join(' ')} ${EQ_W},${EQ_H}`;
   }, [fft, sampleRate]);
 
   // ---- Drag: filter dots ----
@@ -188,13 +188,8 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
           </text>
         ))}
 
-        {/* spectrum ghost — soft gradient fading to the baseline, behind everything */}
-        {spectrum && (
-          <g pointerEvents="none">
-            <polygon points={spectrum.area} fill="url(#umbraSpec)" />
-            <path d={spectrum.line} fill="none" stroke={G('viz')} strokeOpacity={0.4} strokeWidth={1} />
-          </g>
-        )}
+        {/* spectrum ghost — soft gradient area (no top stroke), behind everything */}
+        {spectrum && <polygon points={spectrum} fill="url(#umbraSpec)" pointerEvents="none" />}
 
         {/* ghost per-band curves */}
         {ghosts.map((d, i) => (
