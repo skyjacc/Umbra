@@ -43,7 +43,7 @@ All audio processing and all settings stay on your own device.
 ## Contact
 
 Questions, bug reports, or privacy concerns: open an issue at
-<https://github.com/skyjacc/umbra-eq/issues>.
+<https://github.com/skyjacc/Umbra/issues>.
 
 ## Changes
 

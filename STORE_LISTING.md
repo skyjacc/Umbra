@@ -61,9 +61,9 @@ How to use:
 
 ## Privacy
 
-- Privacy policy URL: https://github.com/skyjacc/umbra-eq/blob/main/PRIVACY.md
+- Privacy policy URL: https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md
   (or host it on GitHub Pages and use that URL).
-- Support contact: https://github.com/skyjacc/umbra-eq/issues
+- Support contact: https://github.com/skyjacc/Umbra/issues
 - Data usage disclosures: does NOT collect or use any user data. Check "I do not
   collect user data" where applicable (audio is processed locally and never sent).
 

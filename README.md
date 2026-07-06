@@ -95,7 +95,7 @@ network requests and contains no analytics. See [`PRIVACY.md`](PRIVACY.md).
 ## Contributing & support
 
 Issues and pull requests are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
-Questions or bug reports: <https://github.com/skyjacc/umbra-eq/issues>.
+Questions or bug reports: <https://github.com/skyjacc/Umbra/issues>.
 
 ## Credits & licenses
 

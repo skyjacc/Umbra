@@ -20,7 +20,7 @@ The popup is a React + TypeScript app (Vite + CRXJS); the audio engine is vanill
 - [ ] `DEBUG` is `false` in `src/background.js` and `public/offscreen.js` (default).
 - [ ] Toolbar icons are the Umbra crescent (`public/icon{16,32,48,128}.png`) — done.
 - [ ] Privacy policy is reachable at a public URL for the store forms — the repo file
-      `https://github.com/skyjacc/umbra-eq/blob/main/PRIVACY.md` works (or GitHub Pages).
+      `https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md` works (or GitHub Pages).
 - [ ] Contact is the GitHub Issues link (already in `PRIVACY.md`).
 - [ ] Verify "Umbra EQ" is free / untrademarked on each store.
 - [ ] Screenshots at 1280×800 (or 640×400), 1–5 images (see `store-assets/`).

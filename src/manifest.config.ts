@@ -10,7 +10,7 @@ export default defineManifest({
     'Live 11-band parametric equalizer and bass boost for any browser tab. No ads, no tracking, works fully offline.',
   version: '2.1.0',
   author: 'skyjacc',
-  homepage_url: 'https://github.com/skyjacc/umbra-eq',
+  homepage_url: 'https://github.com/skyjacc/Umbra',
   minimum_chrome_version: '116',
   icons: {
     '16': 'icon16.png',
