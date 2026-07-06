@@ -85,33 +85,36 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
   // to nothing at the baseline, so it reads as a clean glass "energy" ghost that
   // never fights the axis labels or the curve.
   const spectrum = useMemo(() => {
-    if (!fft || !fft.length) return '';
-    const cap = EQ_H * 0.4;
-    const xs: number[] = [];
-    const raw: number[] = [];
-    for (let x = 0; x <= EQ_W; x += 3) {
-      xs.push(x);
-      // Below ~20 Hz the log axis maps a wide left band onto a single FFT bin, which
-      // painted a flat line from the corner. It's sub-audible — keep it at baseline.
-      if (xToFreq(x) < 20) {
-        raw.push(0);
-        continue;
+    if (!fft || !fft.length) return null;
+    const cap = EQ_H * 0.55;
+    // Ears-style: walk every FFT bin, place it by its own frequency, peak-hold within
+    // 2px. Gives a high-resolution jagged line (a thin stroke + a soft fill) instead of
+    // a smoothed blob. Non-finite bins (silence -> -Infinity -> JSON null) are skipped.
+    const cols: Array<[number, number]> = [];
+    for (let i = 1; i < fft.length; i++) {
+      const freq = (i * sampleRate) / (fft.length * 2);
+      if (freq < 20) continue;
+      const x = freqToX(freq);
+      if (x > EQ_W) break;
+      const v = fft[i];
+      if (!Number.isFinite(v)) continue;
+      const h = Math.max(0, Math.min(cap, ((v + 100) / 100) * cap));
+      const last = cols[cols.length - 1];
+      if (last && x - last[0] < 2) {
+        if (h > last[1]) last[1] = h;
+      } else {
+        cols.push([x, h]);
       }
-      const fLo = xToFreq(Math.max(0, x - 1.5));
-      const fHi = xToFreq(x + 1.5);
-      const b0 = Math.max(1, Math.min(fft.length - 1, Math.floor((fLo * fft.length * 2) / sampleRate)));
-      const b1 = Math.max(1, Math.min(fft.length - 1, Math.ceil((fHi * fft.length * 2) / sampleRate)));
-      let db = -100;
-      // Silence gives -Infinity bins; sendMessage's JSON turns those into null. Skip
-      // any non-finite value (null / -Infinity / NaN) or a silent frame paints a full
-      // flat block (null coerces to 0 dB = full height).
-      for (let b = b0; b <= b1; b++) if (Number.isFinite(fft[b]) && fft[b] > db) db = fft[b];
-      raw.push(Math.max(0, Math.min(cap, ((db + 100) / 100) * cap)));
     }
-    const h = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25);
-    // Area only (no top stroke) — a soft gradient that fades to nothing where it's
-    // quiet, so the left/low region reads as empty instead of a flat line.
-    return `0,${EQ_H} ${xs.map((x, i) => `${x},${(EQ_H - 1 - h[i]).toFixed(1)}`).join(' ')} ${EQ_W},${EQ_H}`;
+    if (cols.length < 2) return null;
+    let maxH = 0;
+    for (const c of cols) if (c[1] > maxH) maxH = c[1];
+    if (maxH < 2) return null; // near-silence: draw nothing (no flat baseline line)
+    const pts = cols.map(([x, h]) => `${x.toFixed(1)} ${(EQ_H - 1 - h).toFixed(1)}`);
+    return {
+      line: 'M' + pts.join(' L'),
+      area: `${cols[0][0].toFixed(1)},${EQ_H} ${cols.map(([x, h]) => `${x.toFixed(1)},${(EQ_H - 1 - h).toFixed(1)}`).join(' ')} ${cols[cols.length - 1][0].toFixed(1)},${EQ_H}`
+    };
   }, [fft, sampleRate]);
 
   // ---- Drag: filter dots ----
@@ -195,8 +198,13 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
           </text>
         ))}
 
-        {/* spectrum ghost — soft gradient area (no top stroke), behind everything */}
-        {spectrum && <polygon points={spectrum} fill="url(#umbraSpec)" pointerEvents="none" />}
+        {/* spectrum — high-res thin line + soft gradient fill, behind everything */}
+        {spectrum && (
+          <g pointerEvents="none">
+            <polygon points={spectrum.area} fill="url(#umbraSpec)" fillOpacity={0.55} />
+            <path d={spectrum.line} fill="none" stroke={G('viz')} strokeWidth={1} strokeOpacity={0.6} strokeLinejoin="round" />
+          </g>
+        )}
 
         {/* ghost per-band curves */}
         {ghosts.map((d, i) => (
