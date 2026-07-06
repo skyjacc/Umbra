@@ -80,7 +80,9 @@ export function useEngine() {
   const send = useRef(io.makeThrottle(33)).current;
 
   const capturing = activeTabId != null && tabs.some((t) => t.id === activeTabId);
-  const canEdit = capturing; // editing requires a live capture on the active tab
+  // Editing needs a live capture on the active tab. In the standalone dev preview
+  // (no extension APIs) the graph stays interactive so it can be demoed/screenshotted.
+  const canEdit = capturing || !io.hasChrome();
 
   const showNotice = useCallback((t: string) => {
     setNoticeState(t);
