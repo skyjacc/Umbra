@@ -5,7 +5,7 @@
 
 const DICT = {
   en: {
-    tag: 'A live 11-band equalizer & bass boost for any browser tab — 100% local, no tracking.',
+    tag: 'Shape the sound of any tab. Boost the bass, tame harsh highs, or make a quiet video louder.',
     quickstart: 'Quick start',
     s1h: 'Play some audio',
     s1p: 'Open any tab with sound — music, a video, a stream or a call.',
@@ -19,12 +19,12 @@ const DICT = {
     tip4: '<b>Rules</b> — auto-apply your sound per site',
     tip5: '<b>Every tab</b> keeps its own EQ',
     tip6: "<b>Spectrum</b> — see what you're hearing",
-    priv: '<b>Your audio never leaves your computer.</b> Umbra processes sound on your device and never records, stores, or sends it anywhere — no account, no ads, no tracking.',
+    priv: '<b>Everything happens on your computer.</b> Umbra never records your audio or sends it anywhere, and there is no account to sign up for.',
     gotit: 'Got it',
     feedback: 'Questions / feedback →'
   },
   ru: {
-    tag: 'Живой 11-полосный эквалайзер и усиление баса для любой вкладки — 100% локально, без слежки.',
+    tag: 'Настрой звук любой вкладки. Добавь баса, убери резкие верхи или сделай тихое видео громче.',
     quickstart: 'Быстрый старт',
     s1h: 'Включи звук',
     s1p: 'Открой любую вкладку со звуком — музыка, видео, стрим или звонок.',
@@ -38,7 +38,7 @@ const DICT = {
     tip4: '<b>Правила</b> — авто-звук по сайтам',
     tip5: '<b>Каждая вкладка</b> хранит свой EQ',
     tip6: '<b>Спектр</b> — видно, что слышишь',
-    priv: '<b>Твой звук не покидает компьютер.</b> Umbra обрабатывает его на устройстве — ничего не записывает, не хранит и никуда не отправляет. Без аккаунта, рекламы и слежки.',
+    priv: '<b>Всё происходит на твоём компьютере.</b> Umbra не записывает звук и никуда его не отправляет, и никакой аккаунт не нужен.',
     gotit: 'Понятно',
     feedback: 'Вопросы / отзывы →'
   }
