@@ -23,14 +23,23 @@
   --ring: 232 40% 67%;
   --radius: 0.8rem;
 
-  /* EQ graph colors (muted, no neon) — consumed by the SVG graph component. */
-  --g-screen: #0e0f16;
-  --g-axis: #2b2e3a;
-  --g-peak: #8b93c6;
-  --g-shelf: #79a0a3;
-  --g-viz: #4c5170;
-  --g-grab: #edeff5;
-  --g-text: #767a88;
+  /* Depth ring for cards/buttons — "shadows over borders" (dark mode = one white
+     ring; layered depth shadows are invisible on dark grounds). Pure white, not a
+     tinted neutral, so it never reads as dirt on the surface edge. */
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
+
+  /* EQ graph colors — OKLCH (perceptually uniform). Accent trio (peak/shelf/viz)
+     is pinned to constant lightness across every theme (L 0.69 / 0.47) so no theme
+     reads brighter than another; only hue + chroma change. Hex ancestors kept in
+     git history. */
+  --g-screen: oklch(0.171 0.015 278.37);
+  --g-axis: oklch(0.303 0.022 274.02);
+  --g-peak: oklch(0.69 0.076 277.26);
+  --g-shelf: oklch(0.69 0.043 202.09);
+  --g-viz: oklch(0.47 0.051 277.01);
+  --g-grab: oklch(0.952 0.008 271.33);
+  --g-text: oklch(0.581 0.022 273.02);
 }
 
 /* Four muted themes (no neon). Eclipse = the :root defaults above. */
@@ -38,25 +47,25 @@ body[data-theme='nocturne'] {
   --primary: 213 40% 62%;
   --accent: 213 40% 66%;
   --ring: 213 40% 62%;
-  --g-peak: #7f93bd;
-  --g-shelf: #6f9ab2;
-  --g-viz: #46587a;
+  --g-peak: oklch(0.69 0.067 264.81);
+  --g-shelf: oklch(0.69 0.059 233.26);
+  --g-viz: oklch(0.47 0.06 262.71);
 }
 body[data-theme='aurora'] {
   --primary: 152 30% 60%;
   --accent: 152 30% 64%;
   --ring: 152 30% 60%;
-  --g-peak: #7fae97;
-  --g-shelf: #9ab585;
-  --g-viz: #4a6a5c;
+  --g-peak: oklch(0.69 0.061 163.18);
+  --g-shelf: oklch(0.69 0.073 131.87);
+  --g-viz: oklch(0.47 0.044 165.75);
 }
 body[data-theme='solar'] {
   --primary: 38 42% 59%;
   --accent: 38 42% 63%;
   --ring: 38 42% 59%;
-  --g-peak: #c2a06a;
-  --g-shelf: #c78f7a;
-  --g-viz: #6e5a44;
+  --g-peak: oklch(0.69 0.082 78.49);
+  --g-shelf: oklch(0.69 0.075 41.43);
+  --g-viz: oklch(0.47 0.042 69.22);
 }
 
 @layer base {
@@ -75,9 +84,10 @@ body {
 }
 body {
   background:
-    radial-gradient(135% 90% at 50% -12%, hsl(230 16% 13%) 0, transparent 52%),
-    radial-gradient(120% 90% at 0% 108%, hsl(230 16% 10%) 0, transparent 50%),
+    radial-gradient(135% 90% at 50% -12%, oklch(0.236 0.017 276.14) 0, transparent 52%),
+    radial-gradient(120% 90% at 0% 108%, oklch(0.205 0.014 276.24) 0, transparent 50%),
     hsl(var(--background));
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

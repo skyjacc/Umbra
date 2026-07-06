@@ -85,7 +85,7 @@ export default function App() {
               onClick={eng.toggleSpectrum}
               title="Live spectrum overlay (visual only — does not change the sound)"
               className={
-                'ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ' +
+                'ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.96] ' +
                 (eng.spectrum ? 'border-accent/50 bg-accent/15 text-foreground' : 'border-border text-muted-foreground hover:text-foreground')
               }
             >
@@ -155,7 +155,7 @@ export default function App() {
           </div>
 
           {names.length === 0 ? (
-            <p className="px-1 text-[12px] text-muted-foreground/70">No presets yet. Shape the EQ, type a name, then Save.</p>
+            <p className="px-1 text-[12px] text-muted-foreground/70 text-pretty">No presets yet. Shape the EQ, type a name, then Save.</p>
           ) : (
             <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
               {names.map((n) => (
@@ -198,11 +198,11 @@ export default function App() {
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('tabs')}>
           <h1 className="text-[15px] font-semibold">Active tabs</h1>
           {eng.streams.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground">No tabs are being EQ'd. Start with EQ This Tab.</p>
+            <p className="text-[12.5px] text-muted-foreground text-pretty">No tabs are being EQ'd. Start with EQ This Tab.</p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {eng.streams.map((t) => (
-                <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-white/[.05] py-2 pl-3 pr-2">
+                <div key={t.id} className="flex items-center gap-2.5 rounded-xl bg-white/[.05] py-2 pl-3 pr-2 [box-shadow:var(--shadow-border)]">
                   {/^(https?:|data:)/.test(t.favIconUrl) ? (
                     <img src={t.favIconUrl} alt="" className="size-[17px] rounded" />
                   ) : (
@@ -226,10 +226,10 @@ export default function App() {
         {/* ================= MORE ================= */}
         <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
           <h1 className="text-[15px] font-semibold">More</h1>
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/[.05] p-3">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
               <span className="text-[13px] font-semibold">Theme</span>
-              <span className="text-[11px] text-muted-foreground">Color of the graph and accents</span>
+              <span className="text-[11px] text-muted-foreground text-pretty">Color of the graph and accents</span>
             </div>
             <div className="flex gap-1">
               {THEMES.map((t) => (
@@ -249,7 +249,7 @@ export default function App() {
             href={fsHref}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/[.05] p-3 hover:border-input"
+            className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 transition-[box-shadow] duration-150 [box-shadow:var(--shadow-border)] hover:[box-shadow:var(--shadow-border-hover)]"
           >
             <div className="flex flex-col">
               <span className="text-[13px] font-semibold">Full window</span>
@@ -260,7 +260,7 @@ export default function App() {
 
           <div className="px-1">
             <h3 className="mb-1.5 text-[10px] uppercase tracking-[0.13em] text-accent">Shape the sound</h3>
-            <p className="text-[12px] leading-relaxed text-muted-foreground">
+            <p className="text-[12px] leading-relaxed text-muted-foreground text-pretty">
               Drag a dot: left/right = frequency, up/down = boost/cut. <b className="text-foreground">Shift-drag</b> = width (Q).{' '}
               <b className="text-foreground">Double-click</b> resets a band. The strip on the left is master volume.
             </p>
@@ -282,14 +282,16 @@ export default function App() {
 }
 
 function swatch(t: string) {
+  // OKLCH, same lightness as the graph accents so each swatch previews the theme's
+  // true brightness (all equal) rather than an eyeballed hex that drifted per theme.
   switch (t) {
     case 'nocturne':
-      return 'linear-gradient(135deg, #7f93bd, #6f9ab2)';
+      return 'linear-gradient(135deg, oklch(0.69 0.067 264.81), oklch(0.69 0.059 233.26))';
     case 'aurora':
-      return 'linear-gradient(135deg, #7fae97, #9ab585)';
+      return 'linear-gradient(135deg, oklch(0.69 0.061 163.18), oklch(0.69 0.073 131.87))';
     case 'solar':
-      return 'linear-gradient(135deg, #c2a06a, #c78f7a)';
+      return 'linear-gradient(135deg, oklch(0.69 0.082 78.49), oklch(0.69 0.075 41.43))';
     default:
-      return 'linear-gradient(135deg, #8b93c6, #79a0a3)';
+      return 'linear-gradient(135deg, oklch(0.69 0.076 277.26), oklch(0.69 0.043 202.09))';
   }
 }

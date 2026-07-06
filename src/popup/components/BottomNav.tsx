@@ -36,7 +36,7 @@ export function BottomNav({ view, onView }: { view: ViewId; onView: (v: ViewId) 
             onClick={() => onView(t.id)}
             aria-selected={on}
             className={
-              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold transition-colors ' +
+              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold transition-[color,scale] duration-150 ease-out active:scale-[0.96] ' +
               (on ? 'text-accent' : 'text-muted-foreground/60 hover:text-muted-foreground')
             }
           >

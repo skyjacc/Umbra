@@ -277,7 +277,7 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit }: Props) {
             return (
               <g pointerEvents="none">
                 <rect x={tx - 59} y={ty - 11} width={118} height={16} rx={5} fill={G('screen')} fillOpacity={0.92} stroke={dots[hover].color} strokeOpacity={0.5} />
-                <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle">
+                <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {label}
                 </text>
               </g>
