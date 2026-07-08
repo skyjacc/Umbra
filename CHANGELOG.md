@@ -4,6 +4,52 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [2.2.0] — 2026-07-08
+
+Umbra now works like one sound system: a single EQ plays on **every** tab, and rules override
+it for the sites you choose. This replaces the old per-site "sticky EQ" memory — you just edit
+what you hear, and it goes to the right place.
+
+### Added
+- **One global sound on every tab** — set the EQ once and it plays everywhere. On a site with
+  a rule you edit that rule; everywhere else you edit the global sound.
+- **Built-in presets** — **Bass Boost**, **Vocal**, **Movie**, and **Warm** ship in the Presets
+  tab, so there's a good sound with zero setup. Dismiss one with ×; bring them back with
+  **Restore built-ins**.
+- **Full window is now a global-sound editor** — open it to shape the sound-everywhere profile
+  on a bigger graph; changes apply to every tab you have EQ on.
+- **Band guide** — a toggle next to Spectrum labels each dot's zone (Bass / Mids / Treble /
+  Air) so it's clear what you're dragging.
+- **Active preset** is shown in the EQ header.
+- **Output limiter** — an automatic brick-wall limiter on each tab keeps big boosts loud but
+  clean instead of clipping into crackle.
+
+### Changed
+- **Rules and the global sound take effect live** — change one and every EQ'd tab updates right
+  away, instead of only on the next capture.
+- **www sites** — `www.youtube.com` and `youtube.com` count as the same site, so a rule made on
+  a `www.` tab actually matches it (two of the three quick-add scopes used to miss).
+- **Bass Boost** is louder and cleaner — low shelf moved to 90 Hz (was 340 Hz).
+- **Share-code import** is hardened: patterns coerced to text, curves validated, malformed
+  rules dropped — a bad pasted code can't break the popup.
+- Rule ids now use `crypto.randomUUID()` (no same-millisecond id collisions).
+
+### Removed
+- **Per-site "sticky EQ" memory** and the **Remember EQ per site** toggle — replaced by the
+  global sound + rules. (Any old saved data is left in place, unused.)
+- The **Default sound** card and the **Remembered sites** list in **More**.
+
+### Fixed
+- **Applying a preset** changes the sound immediately (it used to update the graph but leave
+  the audio flat until you nudged a band by hand).
+- **Save preset** — a just-saved preset no longer occasionally vanished from the list.
+- **Full window** opens as a centered, framed panel and no longer jumps when you switch views.
+
+### Internal
+- The audio engine is now a thin applier: the popup resolves each tab's sound (rule → global →
+  flat) and pushes it, so all rule/preset logic lives in one place. Removed the dead per-site
+  memory + in-engine resolver code. `npm run typecheck` runs in CI; share-code round-trip tests.
+
 ## [2.1.0] — 2026-07-06
 
 ### Added

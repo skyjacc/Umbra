@@ -20,15 +20,22 @@ import {
   filterType,
   curvePoints
 } from '@/lib/audio';
+import { t } from '../i18n';
 
 interface Props {
   bands: Band[];
   sampleRate: number;
   fft?: number[] | null; // spectrum data (offscreen FFT), when the visualizer is on
+  showRoles?: boolean; // overlay a zone icon over each dot (a "what does this do" guide)
   onBands: (b: Band[]) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
   editable?: boolean; // dots draggable only when the active tab is captured
 }
+
+// The rough zone each band sits in (11 fixed bands, low → high), shown as a small text
+// label when the band guide is on: bass / mids / treble / air.
+const bandZone = (i: number) =>
+  i <= 2 ? t('eq.zoneBass') : i <= 6 ? t('eq.zoneMid') : i <= 8 ? t('eq.zoneTreble') : t('eq.zoneAir');
 
 const G = (v: string) => `var(--g-${v})`;
 const openPath = (pts: Array<[number, number]>) =>
@@ -44,7 +51,7 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, fft, onBands, onCommit, editable = true }: Props) {
+export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, onCommit, editable = true }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -269,6 +276,24 @@ export function EqGraph({ bands, sampleRate, fft, onBands, onCommit, editable = 
             </g>
           );
         })}
+
+        {/* band guide — a per-dot zone label (bass/mids/treble/air) for newcomers, opt-in */}
+        {showRoles &&
+          dots.map((d, i) => (
+            <text
+              key={'role' + i}
+              x={d.x}
+              y={Math.max(10, d.y - 13)}
+              textAnchor="middle"
+              fontSize={7.5}
+              fill={G('text')}
+              fillOpacity={0.7}
+              pointerEvents="none"
+              style={{ letterSpacing: '.02em' }}
+            >
+              {bandZone(i)}
+            </text>
+          ))}
 
         {/* readout tooltip for the hovered / dragged band */}
         {hover != null &&

@@ -1,7 +1,7 @@
 {
   "name": "umbra-eq",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "description": "Umbra EQ — 11-band parametric equalizer & bass boost (MV3 extension, React build)",
   "scripts": {

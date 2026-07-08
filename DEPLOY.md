@@ -4,6 +4,26 @@ The popup is a React + TypeScript app (Vite + CRXJS); the audio engine is vanill
 (service worker + offscreen Web Audio). The loadable/uploadable extension is the
 **`dist/`** folder produced by `npm run build`.
 
+## Version bump (do this first — all in lock-step)
+
+The version string lives in **six** places and they MUST match. The popup compares its
+own `BUILD` against the engine's on every status; if they drift it shows **"STALE —
+reload extension"** and stops working. Bump all of them together:
+
+- [ ] `package.json` → `"version"`
+- [ ] `src/manifest.config.ts` → `version`
+- [ ] `src/background.js` → `const BUILD`
+- [ ] `public/offscreen.js` → `const BUILD`
+- [ ] `src/lib/engine-io.ts` → `export const BUILD`
+- [ ] `CHANGELOG.md` → new `## [x.y.z] — <date>` section
+
+Chrome Web Store rejects an upload whose version isn't **higher** than the last one.
+Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`.0`).
+
+- [ ] Update the Obsidian vault (`C:\Users\oblako\Documents\Umbra`): the version in
+      `Umbra EQ.md`, plus `Fixes & Findings.md` / affected notes (see the vault's
+      `Maintenance.md`). Mirror the fix log in `docs/AUDIT.md`.
+
 ## Pre-submit
 
 - [ ] `npm ci && npm test && npm run build`, then load **`dist/`** unpacked
@@ -11,12 +31,16 @@ The popup is a React + TypeScript app (Vite + CRXJS); the audio engine is vanill
       audio tab:
   - [ ] EQ This Tab / Stop, drag dots, Shift-drag (Q), double-click reset, master volume.
   - [ ] Two tabs at once hold two different curves (per-tab EQ).
-  - [ ] Sticky per-site: shape a site, reopen it → the curve comes back.
-  - [ ] Rules: add `youtube.` / `film. kino.`, confirm matching + priority (a hand
-        tweak beats a rule).
+  - [ ] Global sound: shape a curve on an un-ruled site → it plays on every EQ'd tab, and
+        switching tabs keeps it (no reset).
+  - [ ] Rules: add `youtube.` / `film. kino.`, confirm a matching site plays the rule's
+        sound (rule overrides the global sound) and applies live.
+  - [ ] Full window (More) edits the global sound: drag → a captured tab changes; Reset zeroes it.
+  - [ ] Band-guide toggle labels the zones; the active preset shows in the EQ header.
+  - [ ] Stop a tab, reopen the popup → it stays un-EQ'd.
   - [ ] Presets save/apply/delete, Export/Import file, Copy code / Paste code.
   - [ ] Spectrum toggle, Guide overlay, EN/RU switch, theme + custom color.
-- [ ] `manifest.json` version is correct and bumped since the last upload (now `2.1.0`).
+- [ ] Version bumped in all six places (see **Version bump** above; now `2.2.0`).
 - [ ] `DEBUG` is `false` in `src/background.js` and `public/offscreen.js` (default).
 - [ ] Toolbar icons are the Umbra crescent (`public/icon{16,32,48,128}.png`) — done.
 - [ ] Privacy policy is reachable at a public URL for the store forms — the repo file

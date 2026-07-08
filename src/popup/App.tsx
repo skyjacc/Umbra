@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, BookOpen } from 'lucide-react';
+import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, Tags, Globe, BookOpen, X, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { VerticalVolume } from './components/VerticalVolume';
@@ -11,6 +11,7 @@ import { useEngine } from './useEngine';
 import { useT, useLang } from './i18n';
 import { applyThemeId, applyCustomHue, type ThemeId } from './theme';
 import { hasChrome } from '@/lib/engine-io';
+import { BUILTIN_ORDER } from '@/lib/builtins';
 
 const THEMES = ['eclipse', 'nocturne', 'aurora', 'solar'] as const;
 
@@ -23,6 +24,13 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [hiddenBuiltins, setHiddenBuiltins] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.HIDDEN_BUILTINS || '[]');
+    } catch {
+      return [];
+    }
+  });
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Theme: restore + apply (preset via data-theme, custom via inline OKLCH vars).
@@ -66,6 +74,26 @@ export default function App() {
   useEffect(() => setPresetName(eng.activePreset), [eng.activePreset]);
 
   const names = Object.keys(eng.presets).sort();
+  // Built-ins shown first; a user preset of the same name shadows its built-in.
+  const visibleBuiltins = BUILTIN_ORDER.filter((n) => !hiddenBuiltins.includes(n) && !eng.presets[n]);
+  const hideBuiltin = (n: string) =>
+    setHiddenBuiltins((h) => {
+      const nx = [...h, n];
+      try {
+        localStorage.HIDDEN_BUILTINS = JSON.stringify(nx);
+      } catch {
+        /* ignore */
+      }
+      return nx;
+    });
+  const restoreBuiltins = () => {
+    setHiddenBuiltins([]);
+    try {
+      localStorage.removeItem('HIDDEN_BUILTINS');
+    } catch {
+      /* ignore */
+    }
+  };
   const saveLabel = presetName && eng.presets[presetName] ? tr('presets.update', { name: presetName }) : tr('presets.save');
   const fsHref = hasChrome() ? chrome.runtime.getURL('src/popup/index.html') : '#';
 
@@ -89,7 +117,7 @@ export default function App() {
   const hide = (v: ViewId) => (view === v ? '' : 'hidden');
 
   return (
-    <div className="flex min-h-[470px] flex-col">
+    <div className="flex min-h-[500px] flex-col">
       <div className="flex-1">
         {/* ================= EQ ================= */}
         <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
@@ -105,20 +133,39 @@ export default function App() {
             <span className="text-[15px] font-bold">
               Umbra<span className="text-primary">EQ</span>
             </span>
-            <button
-              onClick={eng.toggleSpectrum}
-              title={tr('eq.spectrum')}
-              aria-label={tr('eq.spectrum')}
-              aria-pressed={eng.spectrum}
-              className={
-                'ml-auto inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
-                (eng.spectrum
-                  ? 'border-accent/50 bg-accent/20 text-accent'
-                  : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
-              }
-            >
-              <Activity className="size-4" />
-            </button>
+            <span className="ml-2 min-w-0 truncate text-[11px] text-muted-foreground" title={tr('eq.preset')}>
+              {tr('eq.preset')}: <span className="font-medium text-foreground/80">{eng.activePreset || tr('eq.presetNone')}</span>
+            </span>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={eng.toggleRoles}
+                title={tr('eq.roles')}
+                aria-label={tr('eq.roles')}
+                aria-pressed={eng.showRoles}
+                className={
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                  (eng.showRoles
+                    ? 'border-accent/50 bg-accent/20 text-accent'
+                    : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
+                }
+              >
+                <Tags className="size-4" />
+              </button>
+              <button
+                onClick={eng.toggleSpectrum}
+                title={tr('eq.spectrum')}
+                aria-label={tr('eq.spectrum')}
+                aria-pressed={eng.spectrum}
+                className={
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                  (eng.spectrum
+                    ? 'border-accent/50 bg-accent/20 text-accent'
+                    : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
+                }
+              >
+                <Activity className="size-4" />
+              </button>
+            </div>
           </header>
 
           <div
@@ -133,6 +180,7 @@ export default function App() {
               bands={eng.bands}
               sampleRate={eng.sampleRate}
               fft={eng.fft}
+              showRoles={eng.showRoles}
               onBands={eng.onBandsLive}
               onCommit={eng.onCommit}
               editable={eng.canEdit}
@@ -145,21 +193,35 @@ export default function App() {
           </div>
 
           <div className="flex gap-2">
+            {eng.globalEditor ? (
+              // Full window edits the sound-everywhere profile, not a real tab — so there's
+              // nothing to capture/stop here; show what you're editing instead.
+              <div className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 text-[13px] font-semibold text-foreground">
+                <Globe className="size-4 text-accent" />
+                <span>{tr('eq.globalProfile')}</span>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={eng.toggleCapture}
+                className={
+                  'h-10 flex-1 rounded-xl border text-[13px] font-semibold backdrop-blur-md transition-colors ' +
+                  (eng.capturing
+                    ? 'border-destructive/50 bg-destructive/10 text-foreground hover:bg-destructive/15'
+                    : 'border-primary/50 bg-primary/20 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,.12)] hover:bg-primary/30')
+                }
+              >
+                <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
+                <span>{eng.capturing ? tr('eq.stop') : tr('eq.eqThisTab')}</span>
+                {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
+              </Button>
+            )}
             <Button
               variant="outline"
-              onClick={eng.toggleCapture}
-              className={
-                'h-10 flex-1 rounded-xl border text-[13px] font-semibold backdrop-blur-md transition-colors ' +
-                (eng.capturing
-                  ? 'border-destructive/50 bg-destructive/10 text-foreground hover:bg-destructive/15'
-                  : 'border-primary/50 bg-primary/20 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,.12)] hover:bg-primary/30')
-              }
+              title={eng.globalEditor ? tr('eq.resetGlobalTitle') : tr('eq.resetTitle')}
+              className="h-10 rounded-xl backdrop-blur-md"
+              onClick={eng.resetAll}
             >
-              <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
-              <span>{eng.capturing ? tr('eq.stop') : tr('eq.eqThisTab')}</span>
-              {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
-            </Button>
-            <Button variant="outline" className="h-10 rounded-xl backdrop-blur-md" onClick={eng.resetAll}>
               <RotateCcw />
               {tr('eq.reset')}
             </Button>
@@ -182,10 +244,32 @@ export default function App() {
             </Button>
           </div>
 
-          {names.length === 0 ? (
+          {visibleBuiltins.length === 0 && names.length === 0 ? (
             <p className="px-1 text-[12px] text-muted-foreground/70 text-pretty">{tr('presets.none')}</p>
           ) : (
             <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
+              {/* built-in presets — accent-tinted, dismissible (recoverable) */}
+              {visibleBuiltins.map((n) => (
+                <span
+                  key={'b:' + n}
+                  className={
+                    'inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
+                    (n === eng.activePreset ? 'border-primary bg-accent/15' : 'border-accent/30 bg-accent/[.08] hover:border-accent/50')
+                  }
+                >
+                  <button className="text-foreground" onClick={() => eng.applyPreset(n)}>
+                    {n}
+                  </button>
+                  <button
+                    className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-white/10 hover:text-foreground"
+                    title={tr('presets.hideTitle')}
+                    onClick={() => hideBuiltin(n)}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+              {/* user presets — deletable */}
               {names.map((n) => (
                 <span
                   key={n}
@@ -206,6 +290,14 @@ export default function App() {
                   </button>
                 </span>
               ))}
+              {hiddenBuiltins.length > 0 && (
+                <button
+                  onClick={restoreBuiltins}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white/[.04] px-3 py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Undo2 className="size-3.5" /> {tr('presets.restore')}
+                </button>
+              )}
             </div>
           )}
 
@@ -230,8 +322,6 @@ export default function App() {
             presets={eng.presets}
             activeHost={eng.activeHost}
             matchedRuleId={eng.matchedRule?.id ?? null}
-            autoDomain={eng.autoDomain}
-            onSetAutoDomain={eng.setAutoDomain}
             onAdd={eng.addRule}
             onUpdate={eng.updateRule}
             onDelete={eng.deleteRule}
@@ -259,7 +349,7 @@ export default function App() {
                   {/^(https?:|data:)/.test(t.favIconUrl) ? (
                     <img src={t.favIconUrl} alt="" className="size-[17px] rounded" />
                   ) : (
-                    <span className="text-[13px]">🌐</span>
+                    <Globe className="size-[17px] text-muted-foreground" aria-hidden />
                   )}
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[12.5px] text-foreground" title={t.title}>
@@ -270,13 +360,6 @@ export default function App() {
                       {t.activePreset ? ' · ' + t.activePreset : ''}
                     </span>
                   </div>
-                  <button
-                    className="rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground transition-[color,scale] duration-150 active:scale-[0.96] hover:text-foreground"
-                    title={tr('tabs.resetTitle')}
-                    onClick={() => eng.resetTabById(t.id)}
-                  >
-                    {tr('tabs.reset')}
-                  </button>
                   <button
                     className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[10.5px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
                     onClick={() => eng.stopTab(t.id)}

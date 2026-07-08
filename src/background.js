@@ -1,7 +1,7 @@
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
-const BUILD = '2.1.0'; // keep in sync with offscreen.js / popup.js
+const BUILD = '2.2.0'; // keep in sync with offscreen.js / popup.js
 
 // --- Logging: ring buffer + console, for one-click diagnostics export. ---
 const DEBUG = false; // flip to true only for local diagnostics
@@ -24,11 +24,11 @@ self.addEventListener('unhandledrejection', (e) => dlog('UNHANDLED_REJECTION', e
 
 const OFFSCREEN_PATH = 'offscreen.html';
 
+// Tabs the user explicitly Stopped — auto-capture (open popup = EQ the tab) must NOT re-EQ
+// these, or Stop would be undone every time the popup reopens. Cleared on manual EQ / navigate.
+const stoppedTabs = new Set();
+
 async function hasOffscreenDocument() {
-  if (!chrome.runtime.getContexts) {
-    dlog('chrome.runtime.getContexts unavailable (Chrome < 116?)');
-    return false;
-  }
   const contexts = await chrome.runtime.getContexts({
     contextTypes: ['OFFSCREEN_DOCUMENT'],
     documentUrls: [chrome.runtime.getURL(OFFSCREEN_PATH)]
@@ -111,13 +111,18 @@ function isCapturableUrl(url) {
   );
 }
 
-async function startCaptureOnActiveTab() {
+async function startCaptureOnActiveTab(auto) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  dlog('startCapture: tab', tab && tab.id, 'url', tab && tab.url);
+  dlog('startCapture: tab', tab && tab.id, 'url', tab && tab.url, auto ? '(auto)' : '(manual)');
   if (!tab || !isCapturableUrl(tab.url)) {
     dlog('tab not capturable, aborting');
     return;
   }
+  if (auto && stoppedTabs.has(tab.id)) {
+    dlog('auto-capture skipped — user stopped this tab', tab.id);
+    return;
+  }
+  stoppedTabs.delete(tab.id); // manual EQ (or a fresh auto) re-arms it
 
   await ensureOffscreenDocument();
 
@@ -153,7 +158,7 @@ async function getActiveTab() {
   if (!tab) return { id: null, host: '', title: '', capturable: false };
   let host = '';
   try {
-    host = tab.url ? new URL(tab.url).hostname : '';
+    host = tab.url ? new URL(tab.url).hostname.replace(/^www\./, '') : '';
   } catch (e) {
     host = '';
   }
@@ -163,9 +168,16 @@ async function getActiveTab() {
 async function stopCaptureOnActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
+  stoppedTabs.add(tab.id); // remember: don't auto-re-capture until the user manually EQs again
   if (!(await hasOffscreenDocument())) return;
   chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id }).catch(() => {});
 }
+
+// A navigation is a fresh page — forget the stopped flag so auto-capture works there again.
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.url) stoppedTabs.delete(tabId);
+});
+chrome.tabs.onRemoved.addListener((tabId) => stoppedTabs.delete(tabId));
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target === 'bg') {
@@ -179,7 +191,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           .catch(() => sendResponse({ build: BUILD, log: LOG.slice(), state: {} }));
         return true;
       case 'toggleCapture':
-        (message.on ? startCaptureOnActiveTab() : stopCaptureOnActiveTab()).catch((e) => {
+        (message.on ? startCaptureOnActiveTab(message.auto) : stopCaptureOnActiveTab()).catch((e) => {
           dlog('toggleCapture failed:', e && e.message);
         });
         break;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { freqToX, xToFreq, dbToY, yToDb, biquadCoefficients, filterType, gainDbText } from './audio';
 import { normalizePresets, coerceBands } from './presets';
+import { BUILTIN_PRESETS, BUILTIN_ORDER } from './builtins';
 
 describe('coordinate transforms', () => {
   for (const f of [20, 200, 2000, 20000]) {
@@ -13,7 +14,7 @@ describe('coordinate transforms', () => {
 
 describe('biquad', () => {
   it('coeffs finite', () => {
-    const c = biquadCoefficients('peaking', 1000, 0.7071, 6, 44100) as Record<string, number>;
+    const c = biquadCoefficients('peaking', 1000, 0.7071, 6, 44100) as unknown as Record<string, number>;
     for (const k of ['b0', 'b1', 'b2', 'a1', 'a2']) expect(Number.isFinite(c[k])).toBe(true);
   });
 });
@@ -27,6 +28,19 @@ describe('filterType', () => {
 describe('gainDbText', () => {
   it('unity', () => expect(gainDbText(1)).toBe('0'));
   it('boost', () => expect(gainDbText(Math.pow(10, 4 / 10))).toBe('+4'));
+});
+
+describe('builtin presets', () => {
+  it('each has 11 valid bands', () => {
+    for (const name of BUILTIN_ORDER) {
+      const p = BUILTIN_PRESETS[name];
+      expect(p, name).toBeTruthy();
+      expect(p.frequencies.length).toBe(11);
+      expect(p.gains.length).toBe(11);
+      expect(p.qs.length).toBe(11);
+      expect(coerceBands(p)).not.toBeNull();
+    }
+  });
 });
 
 describe('presets', () => {

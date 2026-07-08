@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trash2, Plus, HelpCircle } from 'lucide-react';
-import { parsePatterns, type Rule } from '@/lib/rules';
+import { parsePatterns, newRuleId, type Rule } from '@/lib/rules';
+import { BUILTIN_ORDER } from '@/lib/builtins';
 import type { PresetBands } from '@/lib/presets';
 import { useT } from '../i18n';
 import { Select } from './Select';
@@ -11,8 +12,6 @@ interface Props {
   presets: Record<string, PresetBands>;
   activeHost: string;
   matchedRuleId: string | null;
-  autoDomain: boolean;
-  onSetAutoDomain: (on: boolean) => void;
   onAdd: (rule: Rule) => void;
   onUpdate: (id: string, patch: Partial<Rule>) => void;
   onDelete: (id: string) => void;
@@ -29,8 +28,6 @@ export function RulesView({
   presets,
   activeHost,
   matchedRuleId,
-  autoDomain,
-  onSetAutoDomain,
   onAdd,
   onUpdate,
   onDelete,
@@ -43,7 +40,7 @@ export function RulesView({
   const presetNames = Object.keys(presets).sort();
 
   const addBlank = () =>
-    onAdd({ id: 'r_' + Date.now().toString(36), patterns: [], mode: 'preset', preset: presetNames[0] || 'bassBoost', enabled: true });
+    onAdd({ id: newRuleId(), patterns: [], mode: 'preset', preset: presetNames[0] || BUILTIN_ORDER[0], enabled: true });
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -54,23 +51,6 @@ export function RulesView({
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
           <HelpCircle className="size-3.5" /> {tr('rules.guide')}
-        </button>
-      </div>
-
-      {/* Master switch: auto-apply rules + remembered sites on capture */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
-        <div className="flex flex-col">
-          <span className="text-[13px] font-semibold">{tr('more.rememberTitle')}</span>
-          <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.rememberDesc')}</span>
-        </div>
-        <button
-          role="switch"
-          aria-checked={autoDomain}
-          aria-label={tr('more.rememberTitle')}
-          onClick={() => onSetAutoDomain(!autoDomain)}
-          className={'relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150 ' + (autoDomain ? 'bg-primary/70' : 'bg-white/15')}
-        >
-          <span className={'absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] duration-150 ' + (autoDomain ? 'left-[22px]' : 'left-0.5')} />
         </button>
       </div>
 
@@ -132,7 +112,11 @@ function RuleCard({
   const tr = useT();
   const [patText, setPatText] = useState(r.patterns.join(' '));
 
-  const presetOptions = [{ value: 'bassBoost', label: tr('rules.bassBoost') }, ...presetNames.map((n) => ({ value: n, label: n }))];
+  // Built-ins first (skip any shadowed by a same-name user preset), then user presets.
+  const presetOptions = [
+    ...BUILTIN_ORDER.filter((n) => !presetNames.includes(n)).map((n) => ({ value: n, label: n })),
+    ...presetNames.map((n) => ({ value: n, label: n }))
+  ];
 
   return (
     <div className={'rounded-xl p-3 [box-shadow:var(--shadow-border)] ' + (matched ? 'bg-primary/10' : 'bg-white/[.05]')}>

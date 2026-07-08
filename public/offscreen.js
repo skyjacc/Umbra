@@ -1,24 +1,23 @@
 // Audio engine — PER-TAB chains. Every captured tab gets its own
-//   MediaStreamSource(tab) -> preGain -> [11 biquad filters] -> postGain -> speakers
+//   MediaStreamSource(tab) -> preGain -> [11 biquad filters] -> postGain -> limiter -> speakers
 // so two tabs can hold two different EQ curves at the same time (a film tab and a
 // music tab, each shaped independently).
 //
-// Per-domain memory: the shaped curve for a tab is saved under its HOSTNAME in
-// chrome.storage.local (DEQ.<host>). When AUTO_DOMAIN is on, capturing a tab whose
-// hostname has a saved curve applies it instantly — a "sticky EQ" per site.
-//
-// Named presets still live in chrome.storage.sync (synced across the user's browsers).
+// Model v2: the engine is a DUMB APPLIER. The offscreen document has no reliable
+// chrome.storage, so it does NOT resolve a tab's sound. The POPUP is the source of truth —
+// it holds the global profile + rules, resolves each tab (rule -> global -> flat), and
+// pushes the bands here via 'applySettings'. This script only builds/holds per-tab chains
+// and reports status + FFT back to the popup. Named presets (sync storage) are read here
+// solely to echo them back in status.
 
 const NUM_FILTERS = 11;
 const DEFAULT_FREQUENCIES = [20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240, 20480];
 const DEFAULT_Q = 0.7071; // Butterworth
+
 const PRESET_PREFIX = 'PRESETS.';
-const DEQ_PREFIX = 'DEQ.'; // per-hostname saved EQ, e.g. DEQ.music.youtube.com
-const RULES_KEY = 'RULES'; // sync: ordered array of domain rules (patterns -> preset/curve)
-const AUTO_KEY = 'AUTO_DOMAIN'; // bool — auto-apply a domain's saved curve on capture
 
 // Bump on every change so the popup can detect a STALE service worker / offscreen.
-const BUILD = '2.1.0';
+const BUILD = '2.2.0';
 
 // --- Logging: ring buffer + console, so diagnostics can be exported later. ---
 const DEBUG = false; // flip to true only for local diagnostics
@@ -40,9 +39,8 @@ self.addEventListener('error', (e) => dlog('UNCAUGHT', e.message, e.filename + '
 self.addEventListener('unhandledrejection', (e) => dlog('UNHANDLED_REJECTION', e.reason && (e.reason.message || e.reason)));
 
 let audioContext = null;
-let autoDomain = true;
-// tabId -> { stream, source, preGain, filters[11], postGain, analyzer, lastAnalyzerUse,
-//            host, tab, bands[11], gain, presetName }
+// tabId -> { stream, source, preGain, filters[11], postGain, limiter, analyzer,
+//            lastAnalyzerUse, host, tab, bands[11], gain, presetName }
 const streams = {};
 
 // ---------------------------------------------------------------------------
@@ -56,114 +54,19 @@ const clampMasterGain = (g) => Math.max(0.00316, Math.min(10, Number(g) || 1));
 const typeOf = (i) => (i === 0 ? 'lowshelf' : i === NUM_FILTERS - 1 ? 'highshelf' : 'peaking');
 const flatBands = () => DEFAULT_FREQUENCIES.map((f) => ({ f, g: 0, q: DEFAULT_Q }));
 function hostOf(url) {
+  // Strip a leading www. so per-domain rules treat www.site and site as one.
   try {
-    return new URL(url).hostname || '';
+    return (new URL(url).hostname || '').replace(/^www\./, '');
   } catch (e) {
     return '';
   }
 }
 
 // ---------------------------------------------------------------------------
-// Storage
+// Storage — the engine only READS named presets (sync) to echo them in status. All
+// resolution + persistence (global profile, rules, presets) is owned by the popup.
 
 const _stg = (area) => (typeof chrome !== 'undefined' && chrome.storage && chrome.storage[area]) || null;
-
-async function loadAuto() {
-  const s = _stg('local');
-  if (!s) return;
-  try {
-    const r = await s.get(AUTO_KEY);
-    autoDomain = r[AUTO_KEY] !== false; // default ON
-  } catch (e) {
-    dlog('loadAuto failed:', e && e.message);
-  }
-}
-
-async function setAuto(on) {
-  autoDomain = !!on;
-  const s = _stg('local');
-  if (s) await s.set({ [AUTO_KEY]: autoDomain });
-  broadcastStatus();
-}
-
-// Read a hostname's saved curve, or null.
-async function loadDomainEq(host) {
-  if (!host) return null;
-  const s = _stg('local');
-  if (!s) return null;
-  try {
-    const r = await s.get(DEQ_PREFIX + host);
-    const v = r[DEQ_PREFIX + host];
-    if (v && Array.isArray(v.filters) && v.filters.length === NUM_FILTERS) return v;
-  } catch (e) {
-    dlog('loadDomainEq failed:', e && e.message);
-  }
-  return null;
-}
-
-// Persist a tab's live curve under its hostname (the "sticky EQ" write path).
-function saveDomainEq(entry) {
-  const s = _stg('local');
-  if (!s || !entry || !entry.host) return;
-  s.set({
-    [DEQ_PREFIX + entry.host]: {
-      v: 1,
-      filters: entry.bands.map((b) => ({ f: clampFrequency(b.f), g: clampFilterGain(b.g), q: clampQ(b.q) })),
-      gain: clampMasterGain(entry.gain),
-      preset: entry.presetName || '',
-      updatedAt: Date.now()
-    }
-  }).catch?.((e) => dlog('saveDomainEq failed:', e && e.message));
-}
-
-// Coalesce the per-domain writes: a drag mutates ~30x/s, but the site's saved curve
-// only needs the settled value. Debounce per tab; flush on stop so a quick edit isn't lost.
-const _saveTimers = {};
-function queueSaveDomainEq(entry) {
-  if (!entry || !entry.host) return;
-  const id = entry.tab.id;
-  if (_saveTimers[id]) clearTimeout(_saveTimers[id]);
-  _saveTimers[id] = setTimeout(() => {
-    delete _saveTimers[id];
-    saveDomainEq(entry);
-  }, 250);
-}
-function flushSaveDomainEq(tabId) {
-  if (_saveTimers[tabId]) {
-    clearTimeout(_saveTimers[tabId]);
-    delete _saveTimers[tabId];
-    if (streams[tabId]) saveDomainEq(streams[tabId]);
-  }
-}
-
-async function forgetHost(host) {
-  const s = _stg('local');
-  if (s && host) await s.remove(DEQ_PREFIX + host);
-  broadcastStatus();
-}
-
-async function forgetAllHosts() {
-  const s = _stg('local');
-  if (!s) return;
-  const all = await s.get(null);
-  const keys = Object.keys(all).filter((k) => k.startsWith(DEQ_PREFIX));
-  if (keys.length) await s.remove(keys);
-}
-
-async function listSavedHosts() {
-  const s = _stg('local');
-  if (!s) return [];
-  const all = await s.get(null);
-  const out = [];
-  for (const k in all) {
-    if (k.startsWith(DEQ_PREFIX)) {
-      const v = all[k] || {};
-      out.push({ host: k.slice(DEQ_PREFIX.length), preset: v.preset || '', updatedAt: v.updatedAt || 0 });
-    }
-  }
-  out.sort((a, b) => b.updatedAt - a.updatedAt);
-  return out;
-}
 
 // null-proto accumulator so a preset literally named "__proto__" becomes an own
 // property instead of reassigning the object's prototype.
@@ -179,78 +82,6 @@ async function getPresets() {
 }
 
 // ---------------------------------------------------------------------------
-// Domain rules — pattern -> preset/curve. Mirror of src/lib/rules.ts (kept in sync
-// by the popup which owns rule CRUD; the engine only reads + matches at capture time).
-
-function normHostPat(h) {
-  return (h || '').toLowerCase().replace(/\.+$/, '');
-}
-function hostMatchesPattern(host, pattern) {
-  const h = normHostPat(host);
-  if (!h) return false;
-  const p = (pattern || '').trim().toLowerCase();
-  if (!p) return false;
-  let lead = p.startsWith('.');
-  let trail = p.endsWith('.');
-  const core = p.replace(/^\.+/, '').replace(/\.+$/, '');
-  if (!core) return false;
-  if (!lead && !trail && !core.includes('.')) trail = true;
-  const hl = h.split('.');
-  const cl = core.split('.');
-  if (!lead && !trail) return h === core;
-  if (trail && !lead) return hl.length === cl.length + 1 && hl.slice(0, cl.length).join('.') === core;
-  if (lead && !trail) return h === core || h.endsWith('.' + core);
-  for (let i = 0; i + cl.length <= hl.length; i++) {
-    if (hl.slice(i, i + cl.length).join('.') === core) return true;
-  }
-  return false;
-}
-function matchRule(host, rules) {
-  for (const r of rules || []) {
-    if (r && r.enabled !== false && (r.patterns || []).some((p) => hostMatchesPattern(host, p))) return r;
-  }
-  return null;
-}
-async function getRules() {
-  const s = _stg('sync');
-  if (!s) return [];
-  try {
-    const r = await s.get(RULES_KEY);
-    return Array.isArray(r[RULES_KEY]) ? r[RULES_KEY] : [];
-  } catch (e) {
-    dlog('getRules failed:', e && e.message);
-    return [];
-  }
-}
-// Resolve a rule to { bands, gain, presetName } or null.
-async function bandsFromRule(rule) {
-  if (!rule) return null;
-  if (rule.mode === 'curve' && rule.curve && Array.isArray(rule.curve.frequencies)) {
-    const c = rule.curve;
-    return {
-      bands: DEFAULT_FREQUENCIES.map((_, i) => ({ f: c.frequencies[i], g: c.gains[i], q: c.qs[i] })),
-      gain: rule.gain != null ? rule.gain : 1,
-      presetName: rule.preset || ''
-    };
-  }
-  if (rule.mode === 'preset' && rule.preset) {
-    let preset;
-    if (rule.preset === 'bassBoost') {
-      preset = { frequencies: [340, ...DEFAULT_FREQUENCIES.slice(1)], gains: [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], qs: Array(NUM_FILTERS).fill(DEFAULT_Q) };
-    } else {
-      preset = (await getPresets())[rule.preset];
-    }
-    if (!preset) return null;
-    return {
-      bands: DEFAULT_FREQUENCIES.map((_, i) => ({ f: preset.frequencies[i], g: preset.gains[i], q: preset.qs[i] })),
-      gain: 1,
-      presetName: rule.preset
-    };
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // Engine bootstrap — just the context now; chains are built per captured tab.
 
 async function setupAudioNodes() {
@@ -258,7 +89,6 @@ async function setupAudioNodes() {
   if (!Ctx) throw new Error('AudioContext unavailable in offscreen document');
   audioContext = new Ctx({ latencyHint: 'playback' });
   audioContext.suspend(); // resume only while something is captured
-  await loadAuto();
 }
 
 // Build a fresh chain for one tab from a bands[] + master gain.
@@ -285,11 +115,22 @@ function buildChain(entry, bands, gain) {
     node = f;
   }
   node.connect(post);
-  post.connect(audioContext.destination);
+  // Output limiter — catches the peaks that big EQ boosts (or master gain) create, so loud
+  // curves stay clean instead of hard-clipping into crackle/harshness. Near-transparent at
+  // sane levels; a brick wall just below 0 dBFS.
+  const limiter = audioContext.createDynamicsCompressor();
+  limiter.threshold.value = -1.5;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.25;
+  post.connect(limiter);
+  limiter.connect(audioContext.destination);
   post.__t = post.gain.value;
 
   entry.preGain = pre;
   entry.postGain = post;
+  entry.limiter = limiter;
   entry.filters = filters;
 }
 
@@ -311,34 +152,10 @@ async function startCapture(streamId, tab) {
   if (Object.keys(streams).length === 0) audioContext.resume();
 
   const host = hostOf(tab.url);
-  // Auto-apply resolution (when the toggle is on): an exact-host tweak beats a matching
-  // domain rule beats flat. That's why a hand-tweaked film.gg keeps its own curve while
-  // every other film.* still follows the rule.
-  let bands = null;
-  let gain = 1;
-  let presetName = '';
-  if (autoDomain) {
-    const saved = await loadDomainEq(host);
-    if (saved) {
-      bands = saved.filters.map((b) => ({ f: b.f, g: b.g, q: b.q }));
-      gain = saved.gain ?? 1;
-      presetName = saved.preset || '';
-      dlog('applied host memory for', host);
-    } else {
-      const fromRule = await bandsFromRule(matchRule(host, await getRules()));
-      if (fromRule) {
-        bands = fromRule.bands;
-        gain = fromRule.gain;
-        presetName = fromRule.presetName;
-        dlog('applied domain rule for', host);
-      }
-    }
-  }
-  if (!bands) {
-    bands = flatBands();
-    gain = 1;
-    presetName = '';
-  }
+  // The engine can't resolve (no storage) — start flat. The popup pushes this tab's real
+  // bands via 'applySettings' as soon as it sees the capture in the next status broadcast.
+  const bands = flatBands();
+  const gain = 1;
 
   const source = audioContext.createMediaStreamSource(stream);
   const entry = {
@@ -348,7 +165,7 @@ async function startCapture(streamId, tab) {
     tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '', url: tab.url || '' },
     bands,
     gain,
-    presetName,
+    presetName: '',
     analyzer: null,
     lastAnalyzerUse: 0
   };
@@ -366,13 +183,12 @@ async function startCapture(streamId, tab) {
 function stopStream(tabId) {
   const e = streams[tabId];
   if (!e) return;
-  flushSaveDomainEq(tabId); // persist a just-made edit before tearing the chain down
   try {
     e.stream.getTracks().forEach((t) => t.stop());
   } catch (x) {
     /* ignore */
   }
-  for (const node of [e.source, e.preGain, ...(e.filters || []), e.postGain, e.analyzer]) {
+  for (const node of [e.source, e.preGain, ...(e.filters || []), e.postGain, e.limiter, e.analyzer]) {
     if (node) {
       try {
         node.disconnect();
@@ -405,23 +221,8 @@ function setParamSmooth(param, value) {
   param.setTargetAtTime(value, t, PARAM_TC);
 }
 
-function modifyFilter(m) {
-  const e = streams[m.tabId];
-  if (!e) return;
-  const filter = e.filters[m.index];
-  if (!filter) return;
-  if (m.activePreset !== undefined) e.presetName = m.activePreset || '';
-  const g = clampFilterGain(m.gain);
-  const f = clampFrequency(m.frequency);
-  const qq = clampQ(m.q);
-  setParamSmooth(filter.gain, g);
-  setParamSmooth(filter.frequency, f);
-  setParamSmooth(filter.Q, qq);
-  filter.__t = { f, g, q: qq };
-  e.bands[m.index] = { f, g, q: qq };
-  queueSaveDomainEq(e);
-}
-
+// Live master-gain drag (the popup's onGainLive). Bands + preset changes come through
+// applySettings; gain gets its own message so a volume drag doesn't resend 11 bands.
 function modifyGain(m) {
   const e = streams[m.tabId];
   if (!e) return;
@@ -430,12 +231,10 @@ function modifyGain(m) {
   setParamSmooth(e.postGain.gain, g);
   e.postGain.__t = g;
   e.gain = g;
-  queueSaveDomainEq(e);
 }
 
-// Core: write a whole bands list + gain into one tab's chain. `save` controls whether
-// it persists to the domain (reset uses save:false so it can forget instead).
-function applyToEntry(e, list, gain, presetName, save) {
+// Core: write a whole bands list + gain into one tab's chain.
+function applyToEntry(e, list, gain, presetName) {
   if (presetName !== undefined) e.presetName = presetName || '';
   const arr = Array.isArray(list) ? list : [];
   for (let i = 0; i < NUM_FILTERS; i++) {
@@ -457,113 +256,19 @@ function applyToEntry(e, list, gain, presetName, save) {
     e.postGain.__t = master;
     e.gain = master;
   }
-  if (save) queueSaveDomainEq(e);
 }
 
 // Live-drag + commit path. Deliberately does NOT broadcast: it fires up to ~30x/s
-// during a drag, and a broadcast reads all storage (getPresets + listSavedHosts)
-// every time. The popup holds the active tab's curve optimistically, so it needs no
-// echo here; discrete actions (capture, preset, reset) broadcast instead.
+// during a drag, and a broadcast reads all storage (getPresets) every time. The popup
+// holds the active tab's curve optimistically, so it needs no echo here; discrete
+// actions (capture) broadcast instead.
 function applySettings(m) {
   const e = streams[m.tabId];
-  if (!e) return;
-  applyToEntry(e, m.eqFilters, m.gain, m.activePreset, true);
-}
-
-function resetFilter(m) {
-  const e = streams[m.tabId];
-  if (!e) return;
-  modifyFilter({ tabId: m.tabId, index: m.index, frequency: DEFAULT_FREQUENCIES[m.index], gain: 0, q: DEFAULT_Q, activePreset: '' });
-}
-
-// Reset ONE tab to flat AND forget its domain memory ("reset this page from its preset").
-async function resetTab(tabId) {
-  const e = streams[tabId];
-  if (e) {
-    // Cancel any pending debounced save so it can't re-create the key we're forgetting.
-    if (_saveTimers[tabId]) {
-      clearTimeout(_saveTimers[tabId]);
-      delete _saveTimers[tabId];
-    }
-    applyToEntry(e, flatBands(), 1, '', false);
-    await forgetHost(e.host);
+  if (!e) {
+    dlog('applySettings: NO stream for tab', m.tabId);
+    return;
   }
-  broadcastStatus();
-}
-
-// Reset EVERYTHING: flatten every live tab and wipe all domain memory.
-async function resetAllTabs() {
-  for (const id in _saveTimers) {
-    clearTimeout(_saveTimers[id]);
-    delete _saveTimers[id];
-  }
-  for (const id in streams) applyToEntry(streams[id], flatBands(), 1, '', false);
-  await forgetAllHosts();
-  broadcastStatus();
-}
-
-// ---------------------------------------------------------------------------
-// Presets
-
-async function applyPreset(m) {
-  const e = streams[m.tabId];
-  if (!e) return;
-  const name = m.preset;
-  let preset;
-  if (name === 'bassBoost') {
-    preset = {
-      frequencies: [340, ...DEFAULT_FREQUENCIES.slice(1)],
-      gains: [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      qs: Array(NUM_FILTERS).fill(DEFAULT_Q)
-    };
-  } else {
-    preset = (await getPresets())[name];
-  }
-  if (!preset) return;
-  const eqFilters = [];
-  for (let i = 0; i < NUM_FILTERS; i++) {
-    eqFilters.push({ frequency: preset.frequencies[i], gain: preset.gains[i], q: preset.qs[i] });
-  }
-  applyToEntry(e, eqFilters, undefined, name, true);
-  broadcastStatus();
-}
-
-async function saveCurrentAsPreset(m) {
-  const e = streams[m.tabId];
-  if (!e) return;
-  const preset = {
-    frequencies: e.bands.map((b) => b.f),
-    gains: e.bands.map((b) => b.g),
-    qs: e.bands.map((b) => b.q)
-  };
-  e.presetName = m.preset || '';
-  const s = _stg('sync');
-  if (s) await s.set({ [PRESET_PREFIX + m.preset]: preset });
-  saveDomainEq(e); // keep the domain's preset tag in sync
-  broadcastStatus();
-}
-
-async function deletePreset(name) {
-  const s = _stg('sync');
-  if (s) await s.remove(PRESET_PREFIX + name);
-  broadcastStatus();
-}
-
-const UNSAFE_PRESET_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
-
-async function importPresets(presets) {
-  if (!presets || typeof presets !== 'object') return;
-  const toSet = {};
-  for (const name of Object.keys(presets)) {
-    if (UNSAFE_PRESET_NAMES.has(name)) continue;
-    const p = presets[name];
-    if (p && Array.isArray(p.frequencies) && Array.isArray(p.gains) && Array.isArray(p.qs)) {
-      toSet[PRESET_PREFIX + name] = p;
-    }
-  }
-  const s = _stg('sync');
-  if (s) await s.set(toSet);
-  broadcastStatus();
+  applyToEntry(e, m.eqFilters, m.gain, m.activePreset);
 }
 
 // ---------------------------------------------------------------------------
@@ -576,13 +281,6 @@ async function buildStatus() {
   } catch (e) {
     dlog('getPresets failed:', e && e.message);
   }
-  let savedHosts = [];
-  try {
-    savedHosts = await listSavedHosts();
-  } catch (e) {
-    dlog('listSavedHosts failed:', e && e.message);
-  }
-
   const tabs = Object.values(streams).map((e) => ({
     id: e.tab.id,
     title: e.tab.title,
@@ -599,8 +297,6 @@ async function buildStatus() {
     initializing: !audioContext,
     sampleRate: audioContext ? audioContext.sampleRate : 44100,
     presets,
-    autoDomain,
-    savedHosts,
     tabs
   };
 }
@@ -669,7 +365,7 @@ const ready = withTimeout(setupAudioNodes(), 5000, 'setupAudioNodes')
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== 'offscreen') return;
-  dlog('recv', message.type);
+  if (message.type !== 'getFFT') dlog('recv', message.type); // getFFT fires ~30x/s — keep it out of the ring buffer
 
   if (message.type === 'getLogs') {
     sendResponse({
@@ -679,7 +375,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         hasAudioContext: !!audioContext,
         contextState: audioContext && audioContext.state,
         sampleRate: audioContext && audioContext.sampleRate,
-        autoDomain,
         streams: Object.keys(streams)
       }
     });
@@ -709,42 +404,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'disconnectTab':
         disconnectTab(message.tabId);
         break;
-      case 'modifyFilter':
-        modifyFilter(message);
-        break;
       case 'modifyGain':
         modifyGain(message);
         break;
       case 'applySettings':
         applySettings(message);
-        break;
-      case 'resetFilter':
-        resetFilter(message);
-        broadcastStatus();
-        break;
-      case 'resetTab':
-        await resetTab(message.tabId);
-        break;
-      case 'resetAllTabs':
-        await resetAllTabs();
-        break;
-      case 'applyPreset':
-        await applyPreset(message);
-        break;
-      case 'savePreset':
-        await saveCurrentAsPreset(message);
-        break;
-      case 'deletePreset':
-        await deletePreset(message.preset);
-        break;
-      case 'importPresets':
-        await importPresets(message.presets);
-        break;
-      case 'setAuto':
-        await setAuto(message.on);
-        break;
-      case 'forgetHost':
-        await forgetHost(message.host);
         break;
     }
   };
