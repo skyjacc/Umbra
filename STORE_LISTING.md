@@ -12,8 +12,8 @@ Umbra EQ — Equalizer & Bass Boost
 
 ## Summary / short description (≤ 132 chars)
 
-Give every tab its own equalizer. Boost bass, fix harsh audio, save presets. Each
-tab keeps its own sound and remembers it per site.
+One EQ on every tab — boost bass, fix harsh audio, save presets. Rules override the
+sound per site. Works on Netflix & Spotify.
 
 ## Category
 
@@ -31,12 +31,14 @@ Umbra EQ adds a real equalizer to any browser tab.
 • 11-band parametric EQ — drag the response curve to boost or cut any frequency,
   live, while the audio plays, with a spectrum analyzer behind it so you see exactly
   what you are shaping.
-• Per-tab EQ — every tab gets its own equalizer, so a movie tab and a music tab can
-  sound different at the same time.
-• Remembers your sound per website and re-applies it automatically the next time you
-  open that site.
-• Site rules — assign a preset to sites by an address pattern (for example, one rule
-  that covers a movie site and all of its mirrors).
+• One sound on every tab — set the EQ once and it plays on every tab you turn it on for.
+  You just edit what you hear.
+• Site rules — override the global sound on the sites you choose, by an address pattern
+  (for example, one rule that covers a movie site and all of its mirrors).
+• Per-tab EQ — each tab still gets its own chain, so a movie tab and a music tab can sound
+  different at the same time.
+• Works on Netflix, Spotify, and other streaming sites where audio EQ extensions often go
+  silent.
 • Presets — save your own, and share your presets or rules with a single copy-paste
   code (or an export file).
 • Master volume boost — go past 100% when a video is too quiet. One-click Bass Boost.
@@ -50,8 +52,8 @@ How to use:
 2. Click the Umbra EQ icon, then "EQ This Tab".
 3. Drag the dots: left/right = frequency, up/down = boost/cut. Shift-drag changes the
    width (Q). Double-click a dot to reset it.
-4. Open the same site again and your sound comes back automatically. Add pattern rules
-   in the Rules tab to cover a whole site (e.g. youtube.) or several at once.
+4. Your EQ plays on every tab. To give a specific site a different sound, add a rule in the
+   Rules tab (e.g. youtube.) — one rule can cover a whole site or several at once.
 
 ## Permission justifications (paste into the review form)
 

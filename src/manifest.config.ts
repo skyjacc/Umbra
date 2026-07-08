@@ -8,8 +8,7 @@ export default defineManifest({
   short_name: 'Umbra EQ',
   description:
     'Give any tab its own equalizer. Boost bass, tame harsh audio, and save presets. Everything stays on your computer.',
-  version: '2.1.0',
-  author: 'skyjacc',
+  version: '2.2.0',
   homepage_url: 'https://github.com/skyjacc/Umbra',
   minimum_chrome_version: '116',
   icons: {

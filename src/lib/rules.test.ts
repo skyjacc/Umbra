@@ -7,6 +7,13 @@ describe('hostMatchesPattern', () => {
     expect(hostMatchesPattern('youtube.com', 'music.youtube.com')).toBe(false);
   });
 
+  it('ignores a leading www. on the host', () => {
+    expect(hostMatchesPattern('www.youtube.com', 'youtube.com')).toBe(true);
+    expect(hostMatchesPattern('www.youtube.com', 'youtube.')).toBe(true);
+    expect(hostMatchesPattern('www.youtube.com', '.youtube.')).toBe(true);
+    expect(hostMatchesPattern('www.youtube.com', '.youtube.com')).toBe(true);
+  });
+
   it('trailing dot — name + any tld, no subdomains', () => {
     expect(hostMatchesPattern('youtube.com', 'youtube.')).toBe(true);
     expect(hostMatchesPattern('youtube.gg', 'youtube.')).toBe(true);

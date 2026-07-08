@@ -31,9 +31,10 @@ The Chrome Web Store listing is on the way. Until then it installs in about a mi
 ## Features
 
 - **11-band equalizer.** Drag the response curve to boost or cut any frequency while the audio plays.
-- **Per-tab sound.** Every captured tab gets its own equalizer, so a film tab and a music tab can sound different at the same time.
-- **Remembers each site.** A tab's curve is saved by site and comes back automatically the next time you open it.
-- **Site rules.** Point a preset or a saved curve at sites by address pattern, for example one rule that covers a video site and all of its mirrors.
+- **One sound on every tab.** Set the EQ once and it plays on every tab you turn it on for — you just edit what you hear.
+- **Site rules.** Override the global sound on chosen sites by address pattern, for example one rule that covers a video site and all of its mirrors.
+- **Per-tab chains.** Each captured tab still gets its own filter chain, so a film tab and a music tab can sound different at the same time.
+- **Works on Netflix and Spotify**, and other streaming sites where audio EQ extensions often go silent.
 - **Presets.** Save your own, move them as a file, or share your presets and rules with a copy-paste code.
 - **Bass boost and volume.** One-click bass boost, plus a master volume that goes past 100% for quiet videos.
 - **Live spectrum.** A visual analyzer behind the curve that shows what you are hearing. It never changes the sound.
@@ -45,8 +46,8 @@ The Chrome Web Store listing is on the way. Until then it installs in about a mi
 1. Play audio in a tab.
 2. Click the Umbra EQ icon, then **EQ This Tab**.
 3. Drag a dot: left and right is frequency, up and down is boost or cut. Shift-drag changes the width, double-click resets a band. The strip on the left is master volume.
-4. Keep **Remember EQ per site** on (Rules tab) so a site's sound sticks, and add pattern rules like `youtube.` or `film. kino.` to apply a preset per site automatically.
-5. Each captured tab keeps its own EQ. Manage or reset them under **Tabs**.
+4. Your EQ plays on every tab. To give a site a different sound, add a rule in the **Rules** tab like `youtube.` or `film. kino.` — it overrides the global sound there.
+5. Each captured tab keeps its own EQ; stop any of them under **Tabs**. Open **Full window** (More) to edit the global sound on a bigger graph.
 
 The in-app **Guide** (More tab) explains all of this, in Russian or English.
 

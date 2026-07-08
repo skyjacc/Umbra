@@ -77,10 +77,15 @@ body[data-theme='solar'] {
   }
 }
 
-html,
+html {
+  margin: 0;
+  /* Full-width dark ground so the "Full window" tab isn't the 620px app stuck in a corner. */
+  background: hsl(var(--background));
+}
 body {
   width: 620px;
-  margin: 0;
+  /* Centered in a wide tab; a no-op in the content-sized popup (viewport == 620). */
+  margin: 0 auto;
 }
 body {
   background:
@@ -90,6 +95,35 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* "Full window" (opened in a real tab, not the popup): center the fixed-width panel as
+   a framed card on the dark ground, so it reads as an intentional window rather than the
+   popup dropped into a void. The popup (< 700px tall — Chrome caps popups at 600) is
+   unaffected. `safe center` keeps the top reachable if a long view outgrows the viewport. */
+@media (min-height: 700px) {
+  html {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start; /* top-anchored → card doesn't jump when a view changes height */
+    justify-content: center;
+    padding: 48px 0;
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+      0 24px 70px -20px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+  /* The bottom nav uses backdrop-filter, which Chrome does NOT clip to the card's rounded
+     corners (a square pokes out). Round its own bottom corners so the card reads clean. */
+  #root nav {
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+  }
 }
 
 /* Custom-color hue slider thumb (range input can't be themed with utilities). */

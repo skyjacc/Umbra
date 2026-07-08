@@ -25,7 +25,14 @@ export interface Rule {
   enabled: boolean;
 }
 
-export const normHost = (host: string): string => (host || '').toLowerCase().replace(/\.+$/, '');
+// Leading `www.` is stripped so www.youtube.com and youtube.com are one site for
+// matching — otherwise an "exact address" / "any ending" rule made on a www. tab
+// would never fire on that very tab (its host carries the www.).
+export const normHost = (host: string): string =>
+  (host || '')
+    .toLowerCase()
+    .replace(/\.+$/, '')
+    .replace(/^www\./, '');
 
 // Split a raw textarea/string of patterns into individual patterns.
 export const parsePatterns = (raw: string): string[] =>
@@ -78,6 +85,5 @@ export function matchRule(host: string, rules: Rule[]): Rule | null {
   return null;
 }
 
-// Deterministic-ish id without Date.now()/Math.random (banned in some contexts):
-// caller passes a seed (e.g. an incrementing counter or a hostname).
-export const makeRuleId = (seed: string): string => 'r_' + seed.replace(/[^a-z0-9]+/gi, '').slice(0, 24) + '_' + seed.length;
+// Collision-free rule id (crypto.randomUUID is available in the popup's secure context).
+export const newRuleId = (): string => 'r_' + crypto.randomUUID();

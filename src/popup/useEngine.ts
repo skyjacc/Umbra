@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
-import { matchRule, type Rule } from '@/lib/rules';
+import { matchRule, newRuleId, type Rule } from '@/lib/rules';
+import { BUILTIN_PRESETS } from '@/lib/builtins';
 import { t } from './i18n';
 import * as io from '@/lib/engine-io';
 
@@ -16,12 +17,6 @@ export interface TabState extends TabInfo {
   gain: number;
   activePreset: string;
 }
-export interface SavedHost {
-  host: string;
-  preset: string;
-  updatedAt: number;
-}
-
 // Rebuild a tab's bands from the engine's eqFilters (defensive sanitize).
 const toBands = (eqFilters: any[]): Band[] =>
   Array.from({ length: NUM_FILTERS }, (_, i) => {
@@ -42,9 +37,7 @@ export function useEngine() {
   const [activePreset, setActivePreset] = useState('');
   const [sampleRate, setSampleRate] = useState(44100);
   const [presets, setPresets] = useState<Record<string, PresetBands>>({});
-  const [savedHosts, setSavedHosts] = useState<SavedHost[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
-  const [autoDomain, setAutoDomainState] = useState(true);
   const [engineStatus, setEngineStatus] = useState('starting…');
   const [notice, setNoticeState] = useState('');
   const [spectrum, setSpectrum] = useState<boolean>(() => {
@@ -55,6 +48,18 @@ export function useEngine() {
     }
   });
   const [fft, setFft] = useState<number[] | null>(null);
+  // Band guide: overlay a per-dot zone icon so newcomers see what each point shapes. Off by
+  // default (persisted like the spectrum toggle); purely visual, no engine involvement.
+  const [showRoles, setShowRoles] = useState<boolean>(() => {
+    try {
+      return localStorage.SHOW_ROLES === '1';
+    } catch {
+      return false;
+    }
+  });
+  // The "Full window" page runs as a GLOBAL-PROFILE editor: its own tab isn't capturable, so
+  // instead of editing a real tab it edits the sound-everywhere profile (host '' → global).
+  const [globalEditor, setGlobalEditor] = useState(false);
 
   // Refs mirror state so message-handler closures read fresh values.
   const activeIdRef = useRef(activeTabId);
@@ -78,11 +83,49 @@ export function useEngine() {
   const autoTried = useRef(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const send = useRef(io.makeThrottle(33)).current;
+  // The offscreen document has NO chrome.storage access, so the ENGINE can't resolve a tab's
+  // sound. The POPUP is the source of truth: it holds the global profile, resolves each tab
+  // (rule → global → flat), and pushes the bands to the engine (a dumb applier).
+  const globalRef = useRef<{ bands: Band[]; gain: number } | null>(null);
+
+  const resolvedFor = useCallback((host: string): { bands: Band[]; gain: number; presetName: string } => {
+    const mr = host ? matchRule(host, rulesRef.current) : null;
+    if (mr) {
+      if (mr.mode === 'curve' && mr.curve) return { bands: io.presetToBands(mr.curve), gain: mr.gain ?? 1, presetName: mr.preset || '' };
+      if (mr.mode === 'preset' && mr.preset) {
+        const p = presetsRef.current[mr.preset] ?? BUILTIN_PRESETS[mr.preset];
+        if (p) return { bands: io.presetToBands(p), gain: 1, presetName: mr.preset };
+      }
+    }
+    const g = globalRef.current;
+    if (g) return { bands: g.bands, gain: g.gain, presetName: '' };
+    return { bands: io.flatBands(), gain: 1, presetName: '' };
+  }, []);
+
+  // Push every captured tab's resolved sound to the engine, and mirror the active tab's in
+  // the graph. Skips while the user is mid-drag (don't clobber a live edit).
+  const applyEverywhere = useCallback(
+    (tabsList: { id: number; host: string }[]) => {
+      if (interacting.current) return;
+      for (const t of tabsList) {
+        const r = resolvedFor(t.host);
+        io.toOffscreen('applySettings', { tabId: t.id, eqFilters: r.bands, gain: r.gain, activePreset: r.presetName });
+      }
+      const cur = tabsList.find((t) => t.id === activeIdRef.current);
+      if (cur) {
+        const r = resolvedFor(cur.host);
+        setBands(r.bands);
+        setGain(r.gain);
+        setActivePreset(r.presetName);
+      }
+    },
+    [resolvedFor]
+  );
 
   const capturing = activeTabId != null && tabs.some((t) => t.id === activeTabId);
   // Editing needs a live capture on the active tab. In the standalone dev preview
   // (no extension APIs) the graph stays interactive so it can be demoed/screenshotted.
-  const canEdit = capturing || !io.hasChrome();
+  const canEdit = capturing || globalEditor || !io.hasChrome();
 
   const showNotice = useCallback((t: string) => {
     setNoticeState(t);
@@ -95,7 +138,7 @@ export function useEngine() {
     if (activeIdRef.current == null || !gotFirstStatus.current) return;
     autoTried.current = true;
     if (list.some((t) => t.id === activeIdRef.current)) return; // already captured
-    io.toBackground('toggleCapture', { on: true }); // Ears-style: open popup = EQ the tab
+    io.toBackground('toggleCapture', { on: true, auto: true }); // Ears-style: open popup = EQ the tab (skips tabs the user Stopped)
   }, []);
 
   const handleStatus = useCallback(
@@ -121,20 +164,15 @@ export function useEngine() {
       setTabs(list);
       if (msg.sampleRate) setSampleRate(msg.sampleRate);
       if (msg.presets && Object.keys(msg.presets).length) setPresets(msg.presets);
-      if (Array.isArray(msg.savedHosts)) setSavedHosts(msg.savedHosts);
-      if (typeof msg.autoDomain === 'boolean') setAutoDomainState(msg.autoDomain);
       setEngineStatus('connected');
 
-      // Adopt the active tab's live curve (unless the user is mid-drag).
-      const cur = activeIdRef.current != null ? list.find((t) => t.id === activeIdRef.current) : undefined;
-      if (cur && !interacting.current) {
-        setBands(cur.bands);
-        setGain(cur.gain);
-        setActivePreset(cur.activePreset);
-      }
+      // The engine can't resolve a tab's sound (offscreen has no chrome.storage), so the popup
+      // resolves each captured tab and pushes it. Runs on every status (a no-op while dragging,
+      // and idempotent when nothing changed).
+      applyEverywhere(list);
       maybeAutoCapture(list);
     },
-    [maybeAutoCapture]
+    [maybeAutoCapture, applyEverywhere]
   );
 
   // Boot: paint presets + domain preview, learn the active tab, wake the engine.
@@ -145,24 +183,51 @@ export function useEngine() {
       if (mounted) setPresets(init.presets);
     });
     io.readRules().then((rs) => {
-      if (mounted) setRules(rs);
+      if (mounted) {
+        rulesRef.current = rs;
+        setRules(rs);
+      }
     });
-
+    io.readDefaultEq().then((g) => {
+      if (mounted) globalRef.current = g;
+    });
     if (io.hasChrome()) {
-      io.getActiveTab().then(async (t) => {
+      io.isFullWindowTab().then((full) => {
         if (!mounted) return;
-        setActiveTabId(t.id);
-        setActiveHost(t.host || '');
-        setCapturable(t.capturable !== false);
-        // Preview the site's sticky curve before capture, so the graph isn't flat-then-jump.
-        if (t.host) {
-          const preview = await io.readDomainEq(t.host);
-          if (mounted && preview && !interacting.current) {
-            setBands(preview.bands);
-            setGain(preview.gain);
-          }
+        if (full) {
+          // Full window = global-profile editor (own tab isn't capturable → edit the sound
+          // that plays everywhere instead). Host '' resolves to the global profile (no rule).
+          setGlobalEditor(true);
+          setActiveTabId(null);
+          setActiveHost('');
+          setCapturable(false);
+          io.readDefaultEq().then((g) => {
+            if (!mounted) return;
+            globalRef.current = g;
+            if (!interacting.current) {
+              const r = resolvedFor('');
+              setBands(r.bands);
+              setGain(r.gain);
+              setActivePreset(r.presetName);
+            }
+          });
+          return;
         }
-        maybeAutoCapture(tabsRef.current);
+        io.getActiveTab().then(async (t) => {
+          if (!mounted) return;
+          setActiveTabId(t.id);
+          setActiveHost(t.host || '');
+          setCapturable(t.capturable !== false);
+          // Show what this site will play (its rule / the global profile) before capture.
+          globalRef.current = await io.readDefaultEq();
+          if (mounted && t.host && !interacting.current) {
+            const r = resolvedFor(t.host);
+            setBands(r.bands);
+            setGain(r.gain);
+            setActivePreset(r.presetName);
+          }
+          maybeAutoCapture(tabsRef.current);
+        });
       });
     } else {
       setEngineStatus('dev preview');
@@ -255,7 +320,40 @@ export function useEngine() {
     });
   }, []);
 
-  // ---- Editing (targets the active tab; no-op until it's captured) ----
+  const toggleRoles = useCallback(() => {
+    setShowRoles((s) => {
+      const n = !s;
+      try {
+        localStorage.SHOW_ROLES = n ? '1' : '';
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  }, []);
+
+  // ---- Editing ----
+  // Commit the current sound to WHERE it belongs: a ruled site edits that rule's curve, an
+  // unruled site edits the global profile. reapplyAll then propagates to every captured tab.
+  const commitTarget = useCallback(
+    (bands: Band[], gain: number) => {
+      const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+      if (mr) {
+        const next = rulesRef.current.map((r) =>
+          r.id === mr.id ? { ...r, mode: 'curve' as const, curve: io.bandsToPreset(bands), gain } : r
+        );
+        rulesRef.current = next; // so applyEverywhere resolves with the new rule immediately
+        setRules(next);
+        io.writeRules(next);
+      } else {
+        globalRef.current = { bands, gain };
+        io.writeDefaultEq(bands, gain);
+      }
+      applyEverywhere(tabsRef.current);
+    },
+    [applyEverywhere]
+  );
+
   const onBandsLive = useCallback(
     (nb: Band[]) => {
       interacting.current = true;
@@ -280,58 +378,49 @@ export function useEngine() {
   );
   const onCommit = useCallback(() => {
     interacting.current = false;
-    const id = activeIdRef.current;
-    if (id == null) return;
-    io.toOffscreen('applySettings', { tabId: id, eqFilters: bandsRef.current, gain: gainRef.current, activePreset: activeRef.current || '' });
-  }, []);
+    commitTarget(bandsRef.current, gainRef.current);
+  }, [commitTarget]);
 
   const toggleCapture = useCallback(() => io.toBackground('toggleCapture', { on: !capturing }), [capturing]);
   const stopTab = useCallback((id: number) => io.toOffscreen('disconnectTab', { tabId: id }), []);
-  // Reset one specific tab (from the Tabs view) — flat + forget its domain curve.
-  const resetTabById = useCallback((id: number) => io.toOffscreen('resetTab', { tabId: id }), []);
 
-  // Reset the current tab to flat AND forget its saved (domain) curve.
+  // On the current site: reset to flat. Unruled → the global profile; ruled → remove the rule.
   const resetAll = useCallback(() => {
-    setBands(io.flatBands());
-    setGain(1);
-    setActivePreset('');
+    const flat = io.flatBands();
     interacting.current = false;
-    const id = activeIdRef.current;
-    if (id != null && tabsRef.current.some((t) => t.id === id)) io.toOffscreen('resetTab', { tabId: id });
-    else if (activeHostRef.current) io.toOffscreen('forgetHost', { host: activeHostRef.current });
-  }, []);
-
-  // Reset EVERYTHING: flatten every live tab and wipe all remembered sites.
-  const resetEverything = useCallback(() => {
-    setBands(io.flatBands());
-    setGain(1);
-    setActivePreset('');
-    io.toOffscreen('resetAllTabs');
-    setSavedHosts([]);
-    showNotice(t('note.resetAll'));
-  }, [showNotice]);
-
-  const setAutoDomain = useCallback((on: boolean) => {
-    setAutoDomainState(on);
-    io.toOffscreen('setAuto', { on });
-  }, []);
-
-  const forgetHost = useCallback(
-    (host: string) => {
-      io.toOffscreen('forgetHost', { host });
-      setSavedHosts((hs) => hs.filter((h) => h.host !== host));
-      showNotice(t('note.forgot', { host }));
-    },
-    [showNotice]
-  );
+    const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+    if (mr) {
+      // On a ruled site, "reset" removes the rule → the site falls back to the global profile.
+      const next = rulesRef.current.filter((r) => r.id !== mr.id);
+      rulesRef.current = next;
+      setRules(next);
+      io.writeRules(next);
+    } else {
+      globalRef.current = { bands: flat, gain: 1 };
+      io.writeDefaultEq(flat, 1);
+    }
+    applyEverywhere(tabsRef.current);
+    // Reflect the reset in the editor graph directly — the active "tab" may not be in the
+    // pushed list (e.g. the global editor's own non-captured tab), so applyEverywhere's
+    // active-tab mirror wouldn't fire.
+    const r = resolvedFor(activeHostRef.current);
+    setBands(r.bands);
+    setGain(r.gain);
+    setActivePreset(r.presetName);
+  }, [applyEverywhere, resolvedFor]);
 
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
-  const persistRules = useCallback((next: Rule[]) => {
-    setRules(next);
-    io.writeRules(next).then((ok) => {
-      if (!ok) showNotice(t('note.rulesSaveFailed'));
-    });
-  }, [showNotice]);
+  const persistRules = useCallback(
+    (next: Rule[]) => {
+      rulesRef.current = next;
+      setRules(next);
+      io.writeRules(next).then((ok) => {
+        if (!ok) showNotice(t('note.rulesSaveFailed'));
+      });
+      applyEverywhere(tabsRef.current); // a rule change takes effect live on all captured tabs
+    },
+    [showNotice, applyEverywhere]
+  );
 
   const addRule = useCallback((rule: Rule) => persistRules([...rulesRef.current, rule]), [persistRules]);
   const updateRule = useCallback(
@@ -353,7 +442,7 @@ export function useEngine() {
       const base = labels.length >= 2 ? labels[labels.length - 2] : host; // registrable name label
       const pattern = scope === 'anyTld' ? base + '.' : scope === 'anySub' ? '.' + base + '.' : host;
       const rule: Rule = {
-        id: 'r_' + Date.now().toString(36),
+        id: newRuleId(),
         patterns: [pattern],
         mode: 'curve',
         curve: io.bandsToPreset(bandsRef.current),
@@ -362,7 +451,8 @@ export function useEngine() {
         enabled: true
       };
       persistRules([...rulesRef.current, rule]);
-      showNotice(t('note.ruleAdded', { pattern }));
+      const captured = tabsRef.current.some((tb) => tb.id === activeIdRef.current);
+      showNotice(t(captured ? 'note.ruleAddedReeq' : 'note.ruleAdded', { pattern }));
     },
     [persistRules, showNotice]
   );
@@ -370,14 +460,20 @@ export function useEngine() {
   const matchedRule = activeHost ? matchRule(activeHost, rules) : null;
 
   // ---- Share by code (offline base64; presets and/or rules) ----
-  const copyPresetsCode = useCallback(() => {
-    navigator.clipboard?.writeText(io.encodeShare({ presets: presetsRef.current })).catch(() => {});
-    showNotice(t('note.codeCopied'));
-  }, [showNotice]);
-  const copyRulesCode = useCallback(() => {
-    navigator.clipboard?.writeText(io.encodeShare({ rules: rulesRef.current })).catch(() => {});
-    showNotice(t('note.codeCopied'));
-  }, [showNotice]);
+  const copyCode = useCallback(
+    async (code: string) => {
+      try {
+        if (!navigator.clipboard) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(code);
+        showNotice(t('note.codeCopied'));
+      } catch {
+        showNotice(t('note.copyFailed'));
+      }
+    },
+    [showNotice]
+  );
+  const copyPresetsCode = useCallback(() => copyCode(io.encodeShare({ presets: presetsRef.current })), [copyCode]);
+  const copyRulesCode = useCallback(() => copyCode(io.encodeShare({ rules: rulesRef.current })), [copyCode]);
   const importShareCode = useCallback(
     async (code: string) => {
       const data = io.decodeShare(code);
@@ -387,24 +483,23 @@ export function useEngine() {
       }
       let pCount = 0;
       let rCount = 0;
+      let presetErr = '';
       if (data.presets && typeof data.presets === 'object') {
         const res = await io.importPresetsText(JSON.stringify(data.presets));
         if (!res.error) {
           pCount = res.count;
           setPresets(await io.refreshPresets());
+        } else {
+          presetErr = res.error;
         }
       }
-      if (Array.isArray(data.rules)) {
-        const valid = data.rules
-          .filter((r) => r && Array.isArray(r.patterns) && (r.mode === 'preset' || r.mode === 'curve'))
-          .map((r, i) => ({ ...r, id: 'r_' + Date.now().toString(36) + '_' + i, enabled: r.enabled !== false }));
-        if (valid.length) {
-          rCount = valid.length;
-          persistRules([...rulesRef.current, ...valid]);
-        }
+      const valid = io.sanitizeImportedRules(data.rules);
+      if (valid.length) {
+        rCount = valid.length;
+        persistRules([...rulesRef.current, ...valid]);
       }
       if (!pCount && !rCount) {
-        showNotice(t('note.codeInvalid'));
+        showNotice(presetErr ? t('note.importFailed', { err: presetErr }) : t('note.codeInvalid'));
         return;
       }
       showNotice(t('note.codeImported', { p: pCount, r: rCount }));
@@ -420,6 +515,7 @@ export function useEngine() {
         setPresets(fresh);
         p = fresh[name];
       }
+      if (!p) p = BUILTIN_PRESETS[name]; // curated built-ins aren't in sync storage
       if (!p) {
         showNotice(t('note.notFound', { name }));
         return;
@@ -427,25 +523,22 @@ export function useEngine() {
       const nb = io.presetToBands(p);
       setBands(nb);
       setActivePreset(name);
+      // Apply live to the active tab for instant feedback, then commit it to the global
+      // profile (or the site's rule) so it becomes the sound everywhere / for that site.
       const id = activeIdRef.current;
-      if (id != null && tabsRef.current.some((tb) => tb.id === id)) io.toOffscreen('applyPreset', { tabId: id, preset: name });
-      else showNotice(t('note.pressEq'));
+      if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: name });
+      commitTarget(nb, gainRef.current);
     },
-    [showNotice]
+    [showNotice, commitTarget]
   );
 
   const savePreset = useCallback(
     async (name: string) => {
-      const id = activeIdRef.current;
-      if (id != null && tabsRef.current.some((tb) => tb.id === id)) {
-        io.toOffscreen('savePreset', { tabId: id, preset: name });
-      } else {
-        try {
-          await io.savePreset(name, bandsRef.current);
-        } catch {
-          showNotice(t('note.saveFailed'));
-          return;
-        }
+      try {
+        await io.savePreset(name, bandsRef.current); // just names the current curve (sync storage)
+      } catch {
+        showNotice(t('note.saveFailed'));
+        return;
       }
       setActivePreset(name);
       setPresets(await io.refreshPresets());
@@ -502,29 +595,26 @@ export function useEngine() {
     activeTabId,
     activeHost,
     capturable,
-    savedHosts,
+    globalEditor,
     rules,
     matchedRule,
-    autoDomain,
     presets,
     engineStatus,
     notice,
     capturing,
     canEdit,
     spectrum,
+    showRoles,
     fft,
     // actions
     toggleSpectrum,
+    toggleRoles,
     onBandsLive,
     onGainLive,
     onCommit,
     toggleCapture,
     stopTab,
-    resetTabById,
     resetAll,
-    resetEverything,
-    setAutoDomain,
-    forgetHost,
     addRule,
     updateRule,
     deleteRule,
