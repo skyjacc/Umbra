@@ -55,7 +55,6 @@
 - [How it works](#how-it-works)
 - [Privacy](#privacy)
 - [Stack](#stack)
-- [Stats](#stats)
 - [Feedback](#feedback)
 - [Contributing](#contributing)
 - [Credits and licenses](#credits-and-licenses)
@@ -178,12 +177,14 @@ Everything runs on your computer. Umbra makes no network requests, has no analyt
 | Tests | Vitest (46) |
 | CI/CD | GitHub Actions — builds the `dist/` zip on push, PR & `v*` tags |
 
+<!-- Re-enable once the repo has a few stars: star-history 301-redirects and renders broken at 0 stars via GitHub camo.
 ## Stats
 
 <p align="center">
   <a href="https://star-history.com/#skyjacc/Umbra&Date"><img src="https://api.star-history.com/svg?repos=skyjacc/Umbra&type=Date" alt="Star history"></a>
 </p>
 
+-->
 ## Feedback
 
 | | |
