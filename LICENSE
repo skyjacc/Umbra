@@ -19,17 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-------------------------------------------------------------------------------
-Third-party components
-------------------------------------------------------------------------------
-
-The MIT license above covers the first-party Umbra EQ source code only. Bundled
-third-party components keep their own licenses:
-
-  - Inter (font)      — SIL Open Font License 1.1 — see fonts/OFL-Inter.txt
-                        (c) 2016 The Inter Project Authors
-  - Geist Mono (font) — SIL Open Font License 1.1 — see fonts/OFL-GeistMono.txt
-                        (c) 2023 Vercel, Inc. — The Geist Project Authors
-  - Snap.svg          — Apache License 2.0 — see the header in snap.svg-min.js
-  - Tabler Icons      — MIT License — inlined as SVG
