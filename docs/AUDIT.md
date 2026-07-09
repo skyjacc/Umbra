@@ -494,4 +494,24 @@ tsc 0 · 46 тестов · build ok. Греп остатков v1 в витри
 
 ## 8. Заметки
 
+**2026-07-09 — синк GitHub + защита main + PROJECT.md под v2**
+
+- **main отставал.** Релиз 2.2.0 был срезан с ветки `release/v2.2.0` + тег `v2.2.0`, но
+  ветка не влита обратно в `main` (полу-сделанный git-flow) — дефолтная ветка на гитхабе
+  висела на 2.1.0. Влил PR #1 (rebase) → `main` = 2.2.0. Ветку `release/v2.2.0` удалил
+  (локал + remote). Тег и GitHub Release не тронуты.
+- **Branch protection на `main`:** require PR + зелёный CI-чек `build`, linear history,
+  запрет force-push/удаления, conversation-resolution; approvals=0, enforce_admins=false
+  (админ-обход как escape hatch). Закреплён поток: `feature → PR → CI → merge → tag на main`.
+- **PROJECT.md переписан под реальность v2.2.0.** Был враньём: «Version 1.0.1», модель v1
+  (per-site sticky-память, `popup.js`/Snap.svg, «все вкладки в ОДИН общий EQ»), тесты
+  «53/53 в test/», ссылка на несуществующий `MONETIZATION.md`. Стало: model-v2 (попап —
+  source of truth, движок — dumb applier, пер-таб цепи + лимитер), правила (§5b), storage
+  (`DEFAULT_EQ` global profile + `RULES` + `PRESETS.`), файл-мапа под React `src/`, 46
+  Vitest-тестов, 6-местный version-инвариант, CI + branch-protection. Убрана ссылка на
+  `MONETIZATION.md`.
+
+Остаётся doc-долг: **шапка этого AUDIT.md** (Версия 2.1.0 + §1 про `DEQ.<host>` память)
+описывает v1 — переписать при следующем заходе в аудит.
+
 <!-- сюда пишем дальше -->
