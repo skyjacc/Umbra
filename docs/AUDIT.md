@@ -514,4 +514,28 @@ tsc 0 · 46 тестов · build ok. Греп остатков v1 в витри
 Остаётся doc-долг: **шапка этого AUDIT.md** (Версия 2.1.0 + §1 про `DEQ.<host>` память)
 описывает v1 — переписать при следующем заходе в аудит.
 
+**2026-07-10 — апгрейд GitHub-страницы (README EN+RU, метаданные, LICENSE→MIT)**
+
+Разведка (workflow, 4 агента: примеры лучших README + референс SoundCloud-Desktop +
+критика нашего + аудит метаданных) → синтез. Итог:
+
+- **Метаданные репо** (`gh`, напрямую): описание переписано под v2 (было v1-враньё «remembers
+  your settings for every site»); +5 topics (audio-equalizer, browser-extension,
+  edge-extension, offscreen-api, parametric-eq); homepage → Releases (была ссылка на сам себя);
+  Wiki off (пустая); Discussions on (под секцию Feedback).
+- **README.md переписан:** герой→релиз, динамик-бейджи (release/license/CI-build/stars/
+  last-commit), Download-кнопка + переключатель EN↔RU, слот `docs/demo.gif` (закомменчен,
+  скрины — fallback), TOC, секция «Why Umbra», лимитер/band-guide/full-window в Features,
+  **исправлена устаревшая строка "How it works"** (попап — source of truth, offscreen — dumb
+  applier; была v1 «per-site memory and rules»), collapsible-сборка, Stack-таблица,
+  star-history, Feedback-таблица, trademark-дисклеймер, SEO-теги.
+- **README.ru.md** — новый, полное RU-зеркало.
+- **LICENSE → чистый MIT.** Дописанный блок сторонних лицензий (делал `licenseInfo=other`,
+  GitHub не показывал MIT-бейдж) вынесен в **THIRD-PARTY-NOTICES.md**, актуализирован: убраны
+  Snap.svg (выпилен в v2) и Tabler (заменены lucide-react); оставлены Inter/Geist (OFL),
+  React/Tailwind/shadcn/Radix (MIT), lucide (ISC).
+
+Осталось вручную (нет GitHub API): запись `docs/demo.gif` + загрузка соц-превью 1280×640 из
+banner.png через Settings UI.
+
 <!-- сюда пишем дальше -->
