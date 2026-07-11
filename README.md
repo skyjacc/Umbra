@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/skyjacc/Umbra/releases/latest"><img src="https://img.shields.io/github/v/release/skyjacc/Umbra?label=release&color=8b93c6" alt="Latest release"></a>
+  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee"><img src="https://img.shields.io/chrome-web-store/v/plkncppcgglcjdkmcdeajhbfccbnnoee?label=Chrome%20Web%20Store&color=8b93c6&logo=googlechrome&logoColor=white" alt="Chrome Web Store"></a>
+  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee"><img src="https://img.shields.io/chrome-web-store/users/plkncppcgglcjdkmcdeajhbfccbnnoee?label=users&color=8b93c6" alt="Chrome Web Store users"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/skyjacc/Umbra?color=8b93c6" alt="MIT license"></a>
   <a href="https://github.com/skyjacc/Umbra/actions/workflows/build.yml"><img src="https://github.com/skyjacc/Umbra/actions/workflows/build.yml/badge.svg" alt="Build status"></a>
   <img src="https://img.shields.io/badge/Manifest-V3-8b93c6" alt="Manifest V3">
@@ -18,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/skyjacc/Umbra/releases/latest"><img src="https://img.shields.io/badge/Download-Latest%20Release-8b93c6?style=for-the-badge&logo=github&logoColor=white" alt="Download latest release" height="34"></a>
+  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee"><img src="https://img.shields.io/badge/Add%20to%20Chrome-8b93c6?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Add to Chrome" height="34"></a>
   &nbsp;
   <a href="README.ru.md"><img src="https://img.shields.io/badge/%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-README-4b5178?style=for-the-badge" alt="Русский README" height="34"></a>
 </p>
@@ -35,7 +36,9 @@ Thin bass on laptop speakers, one video mixed too quiet, another too harsh — a
 
 ## Install
 
-Chrome Web Store listing is on the way. Until then, about a minute:
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee)** — one click, auto-updating.
+
+On Edge or Opera, or to run your own build, load it unpacked (about a minute):
 
 1. Download the latest `umbra-eq-<version>.zip` from [Releases](https://github.com/skyjacc/Umbra/releases/latest) and unzip it (or build from source below).
 2. Open `chrome://extensions` (or `edge://`, `opera://`) and turn on **Developer mode**.
