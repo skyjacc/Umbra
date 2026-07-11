@@ -47,7 +47,6 @@ export function useEngine() {
       return false;
     }
   });
-  const [fft, setFft] = useState<number[] | null>(null);
   // Band guide: overlay a per-dot zone icon so newcomers see what each point shapes. Off by
   // default (persisted like the spectrum toggle); purely visual, no engine involvement.
   const [showRoles, setShowRoles] = useState<boolean>(() => {
@@ -93,7 +92,10 @@ export function useEngine() {
     if (mr) {
       if (mr.mode === 'curve' && mr.curve) return { bands: io.presetToBands(mr.curve), gain: mr.gain ?? 1, presetName: mr.preset || '' };
       if (mr.mode === 'preset' && mr.preset) {
-        const p = presetsRef.current[mr.preset] ?? BUILTIN_PRESETS[mr.preset];
+        // Own-property lookup only: an untrusted imported rule preset named "__proto__"/"toString"/
+        // etc. would otherwise resolve to an inherited member and throw in presetToBands.
+        const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+        const p = has(presetsRef.current, mr.preset) ? presetsRef.current[mr.preset] : has(BUILTIN_PRESETS, mr.preset) ? BUILTIN_PRESETS[mr.preset] : null;
         if (p) return { bands: io.presetToBands(p), gain: 1, presetName: mr.preset };
       }
     }
@@ -281,32 +283,8 @@ export function useEngine() {
     };
   }, [handleStatus, maybeAutoCapture, showNotice]);
 
-  // Spectrum: poll the ACTIVE tab's FFT ~60fps while enabled.
-  useEffect(() => {
-    if (!spectrum) {
-      setFft(null);
-      return;
-    }
-    if (!io.hasChrome()) {
-      setFft(Array.from({ length: 4096 }, (_, i) => -100 + 82 * Math.exp(-((i - 40) ** 2) / 1400) + 40 * Math.exp(-i / 500) * (0.6 + 0.4 * Math.sin(i / 2))));
-      return;
-    }
-    let alive = true;
-    let raf = 0;
-    const tick = () => {
-      if (!alive) return;
-      io.toOffscreen('getFFT', { tabId: activeIdRef.current }, (resp: any) => {
-        if (!alive) return;
-        if (resp && resp.fft) setFft(resp.fft);
-        raf = requestAnimationFrame(tick);
-      });
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
-    };
-  }, [spectrum]);
+  // (The spectrum FFT poll lives in EqGraph now, so it re-renders only that component — not the
+  // whole popup — while the visualizer is on.)
 
   const toggleSpectrum = useCallback(() => {
     setSpectrum((s) => {
@@ -354,32 +332,76 @@ export function useEngine() {
     [applyEverywhere]
   );
 
+  // Coalesce the VISUAL band update to one per frame — setBands isn't throttled like the engine
+  // message, and each setBands re-runs EqGraph's ~5.8k biquad-eval memo. bandsRef is updated
+  // synchronously every move so a commit uses the latest curve regardless of the pending frame.
+  const bandsPending = useRef<Band[] | null>(null);
+  const bandsFrame = useRef(0);
   const onBandsLive = useCallback(
     (nb: Band[]) => {
       interacting.current = true;
-      setBands(nb);
-      setActivePreset('');
+      bandsRef.current = nb;
+      bandsPending.current = nb;
+      if (!bandsFrame.current) {
+        bandsFrame.current = requestAnimationFrame(() => {
+          bandsFrame.current = 0;
+          if (bandsPending.current) {
+            setBands(bandsPending.current);
+            setActivePreset('');
+          }
+        });
+      }
       const id = activeIdRef.current;
       if (id == null) return;
       send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: '' }));
     },
     [send]
   );
+  // Coalesce the volume drag to one setGain per frame (same rationale as onBandsLive); keep gainRef
+  // synchronous so a commit uses the latest value regardless of the pending frame.
+  const gainPending = useRef<number | null>(null);
+  const gainFrame = useRef(0);
   const onGainLive = useCallback(
     (g: number) => {
       interacting.current = true;
-      setGain(g);
-      setActivePreset('');
+      gainRef.current = g;
+      gainPending.current = g;
+      if (!gainFrame.current) {
+        gainFrame.current = requestAnimationFrame(() => {
+          gainFrame.current = 0;
+          if (gainPending.current != null) {
+            setGain(gainPending.current);
+            setActivePreset('');
+          }
+        });
+      }
       const id = activeIdRef.current;
       if (id == null) return;
       send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: '' }));
     },
     [send]
   );
+  // Persist once, trailing-debounced. Keyboard nudges auto-repeat (~30/s) and each commit can be a
+  // storage.sync write on a ruled site (120/min quota) — committing per keydown silently drops the
+  // final save past quota. Drag-end also routes here, so this collapses a burst into one write.
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCommit = useCallback(() => {
     interacting.current = false;
-    commitTarget(bandsRef.current, gainRef.current);
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => {
+      commitTimer.current = null;
+      commitTarget(bandsRef.current, gainRef.current);
+    }, 200);
   }, [commitTarget]);
+  // Cancel any queued frame / pending commit on unmount so no callback fires on a dead tree.
+  useEffect(
+    () => () => {
+      if (bandsFrame.current) cancelAnimationFrame(bandsFrame.current);
+      if (gainFrame.current) cancelAnimationFrame(gainFrame.current);
+      if (commitTimer.current) clearTimeout(commitTimer.current);
+    },
+    []
+  );
 
   const toggleCapture = useCallback(() => io.toBackground('toggleCapture', { on: !capturing }), [capturing]);
   const stopTab = useCallback((id: number) => io.toOffscreen('disconnectTab', { tabId: id }), []);
@@ -439,7 +461,13 @@ export function useEngine() {
         return;
       }
       const labels = host.split('.');
-      const base = labels.length >= 2 ? labels[labels.length - 2] : host; // registrable name label
+      // Pick the registrable-name label. Guard multi-part TLDs (bbc.co.uk → "bbc", not "co", which
+      // as ".co." would match amazon.co.jp and half the web). Heuristic: if the second-to-last label
+      // is a known second-level under a 2-letter ccTLD, step one further left.
+      const SECOND_LEVEL = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'or', 'ne', 'go']);
+      let baseIdx = labels.length - 2;
+      if (baseIdx >= 1 && SECOND_LEVEL.has(labels[baseIdx]) && labels[labels.length - 1].length === 2) baseIdx -= 1;
+      const base = baseIdx >= 0 ? labels[baseIdx] : host; // registrable name label
       const pattern = scope === 'anyTld' ? base + '.' : scope === 'anySub' ? '.' + base + '.' : host;
       const rule: Rule = {
         id: newRuleId(),
@@ -605,7 +633,6 @@ export function useEngine() {
     canEdit,
     spectrum,
     showRoles,
-    fft,
     // actions
     toggleSpectrum,
     toggleRoles,

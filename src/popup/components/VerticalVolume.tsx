@@ -54,6 +54,24 @@ export function VerticalVolume({
       onCommit();
     }
   };
+  // Keyboard control (a11y): arrows step 1 dB, Page 5 dB, Home/End to the rails; commit each press.
+  const nudge = (deltaDb: number) => {
+    let d = Math.max(MASTER_DB_MIN, Math.min(MASTER_DB_MAX, db + deltaDb));
+    if (Math.abs(d) < 0.9) d = 0; // same unity detent as the drag path
+    onGain(dbToMasterGain(d));
+    onCommit();
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!editable) return;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') nudge(1);
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') nudge(-1);
+    else if (e.key === 'PageUp') nudge(5);
+    else if (e.key === 'PageDown') nudge(-5);
+    else if (e.key === 'Home') { onGain(dbToMasterGain(MASTER_DB_MIN)); onCommit(); } // WAI-ARIA: Home = minimum
+    else if (e.key === 'End') { onGain(dbToMasterGain(MASTER_DB_MAX)); onCommit(); } // End = maximum
+    else return;
+    e.preventDefault();
+  };
 
   return (
     <div className="flex w-10 shrink-0 select-none flex-col items-center gap-1" style={{ height: EQ_H }}>
@@ -66,9 +84,14 @@ export function VerticalVolume({
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
-        className={'relative flex w-full flex-1 touch-none justify-center ' + (editable ? 'cursor-ns-resize' : 'cursor-default')}
+        onKeyDown={onKey}
+        tabIndex={editable ? 0 : -1}
+        className={'relative flex w-full flex-1 touch-none justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ' + (editable ? 'cursor-ns-resize' : 'cursor-default')}
         role="slider"
         aria-label={tr('vol.master')}
+        aria-valuemin={MASTER_DB_MIN}
+        aria-valuemax={MASTER_DB_MAX}
+        aria-valuenow={Math.round(db)}
         aria-valuetext={gainDbText(gain) + ' dB'}
       >
         {/* 0 dB marker */}

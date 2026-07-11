@@ -179,7 +179,8 @@ export default function App() {
             <EqGraph
               bands={eng.bands}
               sampleRate={eng.sampleRate}
-              fft={eng.fft}
+              spectrumOn={eng.spectrum}
+              activeTabId={eng.activeTabId}
               showRoles={eng.showRoles}
               onBands={eng.onBandsLive}
               onCommit={eng.onCommit}

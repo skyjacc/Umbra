@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   EQ_W,
   EQ_H,
@@ -21,11 +21,13 @@ import {
   curvePoints
 } from '@/lib/audio';
 import { t } from '../i18n';
+import * as io from '@/lib/engine-io';
 
 interface Props {
   bands: Band[];
   sampleRate: number;
-  fft?: number[] | null; // spectrum data (offscreen FFT), when the visualizer is on
+  spectrumOn?: boolean; // whether the live FFT visualizer is on (EqGraph owns the poll now)
+  activeTabId?: number | null; // the tab whose FFT to poll
   showRoles?: boolean; // overlay a zone icon over each dot (a "what does this do" guide)
   onBands: (b: Band[]) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
@@ -51,10 +53,43 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, onCommit, editable = true }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = null, showRoles = false, onBands, onCommit, editable = true }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
+  const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
   const [hover, setHover] = useState<number | null>(null);
+  const [focusIdx, setFocusIdx] = useState<number | null>(null); // keyboard focus, separate from mouse hover
+
+  // FFT lives HERE (not in the top-level engine hook) so polling the spectrum at ~60fps re-renders
+  // only this component, not the whole popup + every sibling section. Off by default → usually no loop.
+  const [fft, setFft] = useState<number[] | null>(null);
+  const tabIdRef = useRef(activeTabId);
+  tabIdRef.current = activeTabId;
+  useEffect(() => {
+    if (!spectrumOn) {
+      setFft(null);
+      return;
+    }
+    if (!io.hasChrome()) {
+      setFft(Array.from({ length: 4096 }, (_, i) => -100 + 82 * Math.exp(-((i - 40) ** 2) / 1400) + 40 * Math.exp(-i / 500) * (0.6 + 0.4 * Math.sin(i / 2))));
+      return;
+    }
+    let alive = true;
+    let raf = 0;
+    const tick = () => {
+      if (!alive) return;
+      io.toOffscreen('getFFT', { tabId: tabIdRef.current }, (resp: any) => {
+        if (!alive) return;
+        if (resp && resp.fft) setFft(resp.fft);
+        raf = requestAnimationFrame(tick);
+      });
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+    };
+  }, [spectrumOn]);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {
@@ -130,6 +165,7 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
     if (!editable) return; // no live capture on the active tab — read-only
     e.preventDefault();
     dragIdx.current = i;
+    liveRef.current = bands.slice();
     setHover(i);
     try {
       eqRef.current?.setPointerCapture(e.pointerId);
@@ -140,7 +176,8 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
   function eqMove(e: React.PointerEvent) {
     const i = dragIdx.current;
     if (i == null) return;
-    const b = bands[i];
+    const src = liveRef.current || bands; // accumulate off the drag buffer — the prop lags by a frame
+    const b = src[i];
     let next: Band;
     if (e.shiftKey) {
       next = { ...b, q: clampQ(b.q + e.movementY / 10) };
@@ -154,13 +191,15 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
       ly = Math.max(topY, Math.min(botY, ly));
       next = { ...b, frequency: clampFreq(xToFreq(lx)), gain: clampGainDb(yToDb(ly)) };
     }
-    const nb = bands.slice();
+    const nb = src.slice();
     nb[i] = next;
+    liveRef.current = nb;
     onBands(nb);
   }
   function eqUp() {
     if (dragIdx.current != null) {
       dragIdx.current = null;
+      liveRef.current = null;
       onCommit();
     }
     setHover(null);
@@ -172,8 +211,33 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
     onBands(nb);
     onCommit();
   }
+  // Keyboard editing (a11y): Up/Down = gain, Left/Right = frequency (~1/6 octave), Shift+Up/Down =
+  // Q, Enter/Delete = reset. Each press is a discrete commit.
+  function nudgeBand(i: number, e: React.KeyboardEvent) {
+    if (!editable) return;
+    const b = bands[i];
+    let next: Band | null = null;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const s = e.key === 'ArrowUp' ? 1 : -1;
+      next = e.shiftKey ? { ...b, q: clampQ(b.q + s * 0.1) } : { ...b, gain: clampGainDb(b.gain + s) };
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      next = { ...b, frequency: clampFreq(b.frequency * Math.pow(2, (e.key === 'ArrowRight' ? 1 : -1) / 6)) };
+    } else if (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      resetBand(i);
+      return;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    const nb = bands.slice();
+    nb[i] = next;
+    onBands(nb);
+    onCommit();
+  }
 
   const zeroY = dbToY(0); // 0 dB baseline for the graph
+  const active = hover ?? focusIdx; // mouse hover wins; else the keyboard-focused dot drives the readout
 
   return (
     <svg
@@ -182,6 +246,8 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
         height={EQ_H}
         className="touch-none rounded-lg"
         style={{ background: 'rgba(255,255,255,.012)' }}
+        role="group"
+        aria-label={t('eq.graphLabel')}
         onPointerMove={eqMove}
         onPointerUp={eqUp}
         onPointerCancel={eqUp}
@@ -231,7 +297,7 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
         {/* ghost per-band curves — colored by band type, hover-highlighted so it's
             obvious which dot drives which bell */}
         {ghosts.map((d, i) => {
-          const on = hover === i;
+          const on = active === i;
           const c = bands[i].type === 'peaking' ? G('peak') : G('shelf');
           return (
             <path
@@ -254,7 +320,7 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
         {/* filter dots — a dark knockout ring separates each dot from the curve and
             neighbours; the hovered dot grows + gets a soft accent halo */}
         {dots.map((d, i) => {
-          const on = hover === i;
+          const on = active === i;
           return (
             <g key={'dot' + i}>
               {on && <circle cx={d.x} cy={d.y} r={11} fill={d.color} fillOpacity={0.18} pointerEvents="none" />}
@@ -267,9 +333,19 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
                 stroke={G('screen')}
                 strokeWidth={2.5}
                 className={editable ? 'cursor-grab' : 'cursor-default'}
+                tabIndex={editable ? 0 : -1}
+                role="slider"
+                aria-label={`${bandZone(i)} ${freqLabel(bands[i].frequency)} Hz`}
+                aria-valuemin={DB_BOTTOM}
+                aria-valuemax={DB_TOP}
+                aria-valuenow={Math.round(bands[i].gain)}
+                aria-valuetext={`${freqLabel(bands[i].frequency)} Hz, ${bands[i].gain >= 0 ? '+' : ''}${bands[i].gain.toFixed(1)} dB, Q ${bands[i].q.toFixed(2)}`}
                 onPointerDown={(e) => dotDown(i, e)}
                 onPointerEnter={() => dragIdx.current == null && setHover(i)}
                 onPointerLeave={() => dragIdx.current == null && setHover(null)}
+                onFocus={() => setFocusIdx(i)}
+                onBlur={() => setFocusIdx(null)}
+                onKeyDown={(e) => nudgeBand(i, e)}
                 onDoubleClick={() => resetBand(i)}
               />
               <circle cx={d.x} cy={d.y} r={2} fill={G('grab')} fillOpacity={0.9} pointerEvents="none" />
@@ -296,16 +372,16 @@ export function EqGraph({ bands, sampleRate, fft, showRoles = false, onBands, on
           ))}
 
         {/* readout tooltip for the hovered / dragged band */}
-        {hover != null &&
-          bands[hover] &&
+        {active != null &&
+          bands[active] &&
           (() => {
-            const b = bands[hover];
-            const tx = Math.max(60, Math.min(EQ_W - 60, dots[hover].x));
-            const ty = Math.max(20, dots[hover].y - 16);
+            const b = bands[active];
+            const tx = Math.max(60, Math.min(EQ_W - 60, dots[active].x));
+            const ty = Math.max(20, dots[active].y - 16);
             const label = `${freqLabel(b.frequency)}  ·  ${b.gain >= 0 ? '+' : ''}${b.gain.toFixed(1)} dB  ·  Q ${b.q.toFixed(2)}`;
             return (
               <g pointerEvents="none">
-                <rect x={tx - 59} y={ty - 11} width={118} height={16} rx={5} fill={G('screen')} fillOpacity={0.92} stroke={dots[hover].color} strokeOpacity={0.5} />
+                <rect x={tx - 59} y={ty - 11} width={118} height={16} rx={5} fill={G('screen')} fillOpacity={0.92} stroke={dots[active].color} strokeOpacity={0.5} />
                 <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {label}
                 </text>

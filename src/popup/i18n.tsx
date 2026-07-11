@@ -14,6 +14,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'nav.more': 'More',
 
     'eq.spectrum': 'Spectrum',
+    'eq.graphLabel': 'Equalizer bands — drag or use arrow keys',
     'eq.roles': 'Band guide — what each dot controls',
     'eq.preset': 'Preset',
     'eq.presetNone': 'None',
@@ -137,6 +138,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'nav.more': 'Ещё',
 
     'eq.spectrum': 'Спектр',
+    'eq.graphLabel': 'Полосы эквалайзера — тяни или стрелками',
     'eq.roles': 'Подсказка — за что отвечает точка',
     'eq.preset': 'Пресет',
     'eq.presetNone': 'Нет',

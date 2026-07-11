@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trash2, Plus, HelpCircle } from 'lucide-react';
 import { parsePatterns, newRuleId, type Rule } from '@/lib/rules';
 import { BUILTIN_ORDER } from '@/lib/builtins';
@@ -111,12 +111,36 @@ function RuleCard({
 }) {
   const tr = useT();
   const [patText, setPatText] = useState(r.patterns.join(' '));
+  // Keep the input in sync when the rule's patterns change elsewhere (e.g. a cross-window sync
+  // edit) so a stale blur can't silently overwrite it; commit reflects the normalized value back.
+  const joined = r.patterns.join(' ');
+  const lastJoined = useRef(joined);
+  useEffect(() => {
+    if (joined !== lastJoined.current) {
+      setPatText(joined);
+      lastJoined.current = joined;
+    }
+  }, [joined]);
+  const commitPatterns = () => {
+    const parsed = parsePatterns(patText);
+    onUpdate(r.id, { patterns: parsed });
+    const next = parsed.join(' ');
+    setPatText(next);
+    lastJoined.current = next;
+  };
 
   // Built-ins first (skip any shadowed by a same-name user preset), then user presets.
   const presetOptions = [
     ...BUILTIN_ORDER.filter((n) => !presetNames.includes(n)).map((n) => ({ value: n, label: n })),
     ...presetNames.map((n) => ({ value: n, label: n }))
   ];
+  // A rule that HAS a stored curve shows "Custom sound" in the target list — offered whenever a
+  // curve exists (not only while mode is 'curve'), so flipping to a preset by mistake isn't a
+  // one-way trap: you can select it again to switch the rule back to its saved curve.
+  const CURVE_VALUE = '__curve__';
+  const isCurve = r.mode === 'curve';
+  const hasCurve = !!r.curve;
+  const targetOptions = hasCurve ? [{ value: CURVE_VALUE, label: tr('rules.customCurve') }, ...presetOptions] : presetOptions;
 
   return (
     <div className={'rounded-xl p-3 [box-shadow:var(--shadow-border)] ' + (matched ? 'bg-primary/10' : 'bg-white/[.05]')}>
@@ -124,7 +148,8 @@ function RuleCard({
         <input
           value={patText}
           onChange={(e) => setPatText(e.target.value)}
-          onBlur={() => onUpdate(r.id, { patterns: parsePatterns(patText) })}
+          onBlur={commitPatterns}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           placeholder={tr('rules.placeholder')}
           spellCheck={false}
           className="min-w-0 flex-1 rounded-lg border border-border bg-black/25 px-2.5 py-1.5 font-mono text-[11.5px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
@@ -149,11 +174,12 @@ function RuleCard({
 
       <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
         <span aria-hidden>→</span>
-        {r.mode === 'curve' ? (
-          <span className="rounded-full bg-white/[.06] px-2 py-0.5 text-[10.5px] text-foreground">{tr('rules.customCurve')}</span>
-        ) : (
-          <Select value={r.preset || ''} options={presetOptions} onChange={(v) => onUpdate(r.id, { preset: v })} className="min-w-[130px]" />
-        )}
+        <Select
+          value={isCurve ? CURVE_VALUE : r.preset || ''}
+          options={targetOptions}
+          onChange={(v) => onUpdate(r.id, v === CURVE_VALUE ? { mode: 'curve' } : { mode: 'preset', preset: v })}
+          className="min-w-[130px]"
+        />
         {matched && <span className="ml-auto shrink-0 font-semibold text-accent">{tr('rules.matches')}</span>}
       </div>
     </div>
