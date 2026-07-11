@@ -111,6 +111,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'guide.row.anyPage': 'any page of youtube.com (music., www., …)',
     'guide.row.several': 'several sites in one rule — separate with a space',
     'guide.tip': 'Tip: to cover a site and its mirrors, list them: film. kino. flix.',
+    'guide.close': 'Close',
     'guide.applyNote': 'Rules take effect right away on tabs you have EQ on.',
 
     'note.saved': 'Saved preset "{name}".',
@@ -235,6 +236,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'guide.row.anyPage': 'любая страница youtube.com (music., www., …)',
     'guide.row.several': 'несколько сайтов в одном правиле — через пробел',
     'guide.tip': 'Совет: чтобы покрыть сайт и его зеркала, перечисли: film. kino. flix.',
+    'guide.close': 'Закрыть',
     'guide.applyNote': 'Правила срабатывают сразу на вкладках, где включён EQ.',
 
     'note.saved': 'Пресет «{name}» сохранён.',
@@ -265,7 +267,9 @@ export function getLang(): Lang {
 
 export function t(key: string, vars?: Vars): string {
   let s = DICT[_lang][key] ?? DICT.en[key] ?? key;
-  if (vars) for (const k in vars) s = s.replaceAll('{' + k + '}', String(vars[k]));
+  // Function replacement so a `$` in an (untrusted) value — e.g. a preset name or rule pattern shown
+  // in a notice — is inserted literally, not treated as a `$&`/`$1` replacement pattern.
+  if (vars) for (const k in vars) s = s.replaceAll('{' + k + '}', () => String(vars[k]));
   return s;
 }
 

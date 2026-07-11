@@ -565,4 +565,15 @@ Security Engineer / Performance Benchmarker / Software Architect), каждая 
 (cap импорта), N8 (WeakMap ghost-кэш), 20 известных Low L1-L20 из раунда 1. Полные отчёты:
 scratchpad `AUDIT_REPORT.md` (R1) + `AUDIT_R2.md` (R2).
 
+**2026-07-11 — добивка Low из аудита (батч 2)**
+
+Закрыл часть известных Low: **L1** GuideOverlay → `role=dialog`+`aria-modal`+focus-in/restore+Tab-trap;
+**L2** notice-toast `role=status`/`aria-live`; **L5** `clampFreq`/`clampFrequency` потолок 20000→22000
+(band 11 = 20480 Hz теперь round-trip'ится; обе клампы в lock-step) + тест на сохранение band 11;
+**L8** `t()` замена через функцию (`$` в имени/паттерне вставляется буквально); **L11** `sanitizeFilter`
+валидирует `type` против union; **L12** `FileReader.onerror`; **L15** `matchedRule` в `useMemo`.
+
+Тесты 46→47, tsc 0. Осталось: L3, L4-остаток(частично закрыт), L6, L9, L10, L13, L14, L16, L17, L18,
+L19, L20 + отложенные R2 (L-R5, N1, N7, N8).
+
 <!-- сюда пишем дальше -->

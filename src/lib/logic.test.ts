@@ -72,7 +72,11 @@ describe('presets', () => {
   it('coerceBands clamps out-of-range', () => {
     const b = coerceBands({ frequencies: [999999], gains: [99], qs: [99] })!;
     expect(b.gains[0]).toBeLessThanOrEqual(30);
-    expect(b.frequencies[0]).toBeLessThanOrEqual(20000);
+    expect(b.frequencies[0]).toBeLessThanOrEqual(22000);
     expect(b.qs[0]).toBeLessThanOrEqual(11);
+  });
+  it('coerceBands preserves the top band (20480 Hz) — clamp ceiling must not truncate it', () => {
+    const b = coerceBands({ frequencies: [20480], gains: [0], qs: [0.7071] })!;
+    expect(b.frequencies[0]).toBe(20480);
   });
 });

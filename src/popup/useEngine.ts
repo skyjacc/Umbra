@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
 import { matchRule, newRuleId, type Rule } from '@/lib/rules';
@@ -485,7 +485,7 @@ export function useEngine() {
     [persistRules, showNotice]
   );
 
-  const matchedRule = activeHost ? matchRule(activeHost, rules) : null;
+  const matchedRule = useMemo(() => (activeHost ? matchRule(activeHost, rules) : null), [activeHost, rules]);
 
   // ---- Share by code (offline base64; presets and/or rules) ----
   const copyCode = useCallback(
