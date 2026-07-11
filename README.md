@@ -55,29 +55,14 @@
 - [How it works](#how-it-works)
 - [Privacy](#privacy)
 - [Stack](#stack)
-- [Star history](#star-history)
+- [Stars](#stars)
 - [Feedback](#feedback)
 - [Contributing](#contributing)
 - [Credits and licenses](#credits-and-licenses)
 
 ## Why Umbra EQ
 
-Browser audio is take-it-or-leave-it. The bass is thin on your laptop speakers, one video is mixed way too quiet, another has harsh, fatiguing highs — and most EQ extensions either ignore streaming sites or go completely silent on them. Umbra EQ fixes the sound of the tab you are actually listening to, live.
-
-### One sound, every tab
-Set your EQ once and it applies to every tab you turn it on for. No per-site fiddling — the global profile is the default everywhere, and you just edit what you hear.
-
-### Site rules when you want them
-Need one video site brighter and everything else left alone? Add a hostname rule and it overrides the global sound for matching tabs — first match wins — while the rest of the web keeps your global profile.
-
-### Works where others go quiet
-Not just YouTube. Umbra runs on Netflix, Spotify, and other streaming sites where audio-EQ extensions often produce no sound at all.
-
-### Private by design
-100% local. No account, no sign-in, zero network calls, zero analytics. Your audio is never recorded or sent anywhere, and the production bundle ships a strict CSP (`script-src 'self'; object-src 'self'`) — no remote code, no `eval`.
-
-### Clean, click-free audio
-A brick-wall output limiter catches EQ boosts before they clip, and every gain change rides `setTargetAtTime`, so moving a band never pops or crackles.
+Browser audio is take-it-or-leave-it: thin bass on laptop speakers, one video mixed too quiet, another with harsh highs — and most EQ extensions go silent on the streaming sites you actually use. Umbra fixes the sound of the tab you're listening to, live, and keeps it 100% on your computer. Set it once for every tab, or give specific sites their own sound with rules.
 
 ## Install
 
@@ -161,9 +146,9 @@ The same zip is accepted by the Chrome Web Store, Microsoft Edge Add-ons, and Op
 
 ## How it works
 
-Manifest V3. The **popup** is React and TypeScript (Tailwind and shadcn/ui) and draws the equalizer as plain SVG. The **popup is the source of truth**: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **audio engine is vanilla**: the service worker (`src/background.js`) owns the offscreen document and mints tab-capture stream ids, and the offscreen document (`public/offscreen.js`) is a dumb per-tab applier — it builds and holds a chain of 11 biquad filters per captured tab (glided click-free with `setTargetAtTime`) behind a brick-wall output limiter. Settings, presets, and rules live in `chrome.storage`, owned by the popup. Pure audio, preset, and rule math sits in `src/lib` and is unit-tested with Vitest. The content security policy is strict (`script-src 'self'; object-src 'self'`), so the production bundle has no remote code and no `eval`.
+Manifest V3. The **popup** (React + TypeScript) is the source of truth: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **engine is vanilla** — the service worker owns the offscreen document and mints tab-capture ids; the offscreen document holds a chain of 11 biquad filters per tab behind a brick-wall limiter, glided click-free. Pure audio/preset/rule math lives in `src/lib` (unit-tested); strict CSP, no remote code, no `eval`.
 
-See [`PROJECT.md`](PROJECT.md) for the full architecture reference and [`CONTRIBUTING.md`](CONTRIBUTING.md) to work on it.
+See [`PROJECT.md`](PROJECT.md) for the full architecture and [`CONTRIBUTING.md`](CONTRIBUTING.md) to contribute.
 
 ## Privacy
 
@@ -181,7 +166,7 @@ Everything runs on your computer. Umbra makes no network requests, has no analyt
 | Tests | Vitest (64) |
 | CI/CD | GitHub Actions — builds the `dist/` zip on push, PR & `v*` tags |
 
-## Star history
+## Stars
 
 If Umbra fixed your sound, a star helps other people find it.
 
@@ -189,10 +174,6 @@ If Umbra fixed your sound, a star helps other people find it.
   <a href="https://github.com/skyjacc/Umbra/stargazers"><img src="https://img.shields.io/github/stars/skyjacc/Umbra?style=for-the-badge&label=Star&color=8b93c6&logo=github&logoColor=white" alt="GitHub stars"></a>
   &nbsp;
   <a href="https://github.com/skyjacc/Umbra/releases"><img src="https://img.shields.io/github/downloads/skyjacc/Umbra/total?style=for-the-badge&label=Downloads&color=4b5178&logo=github&logoColor=white" alt="Release downloads"></a>
-</p>
-
-<p align="center">
-  <a href="https://star-history.com/#skyjacc/Umbra&Date"><b>See the growth chart on star-history.com &rarr;</b></a>
 </p>
 
 ## Feedback
