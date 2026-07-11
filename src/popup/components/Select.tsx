@@ -23,6 +23,7 @@ export function Select({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +38,32 @@ export function Select({
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  // On open, move focus to the selected option; arrows rove between options (each is a real button,
+  // so Enter/Space select natively).
+  useEffect(() => {
+    if (!open) return;
+    const list = listRef.current;
+    (list?.querySelector<HTMLElement>('[aria-selected="true"]') ?? list?.querySelector<HTMLElement>('[role="option"]'))?.focus();
+  }, [open]);
+  const onListKey = (e: React.KeyboardEvent) => {
+    const opts = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+    if (!opts.length) return;
+    const idx = opts.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      opts[Math.min(opts.length - 1, idx + 1)].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      opts[Math.max(0, idx <= 0 ? 0 : idx - 1)].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      opts[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      opts[opts.length - 1].focus();
+    }
+  };
 
   const cur = options.find((o) => o.value === value);
 
@@ -55,7 +82,9 @@ export function Select({
       </button>
       {open && (
         <div
+          ref={listRef}
           role="listbox"
+          onKeyDown={onListKey}
           className="absolute left-0 z-50 mt-1 max-h-[176px] min-w-full overflow-y-auto rounded-xl border border-white/10 bg-secondary/95 p-1 shadow-xl backdrop-blur-md"
         >
           {options.map((o) => {

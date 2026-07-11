@@ -14,8 +14,6 @@ const NUM_FILTERS = 11;
 const DEFAULT_FREQUENCIES = [20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240, 20480];
 const DEFAULT_Q = 0.7071; // Butterworth
 
-const PRESET_PREFIX = 'PRESETS.';
-
 // Bump on every change so the popup can detect a STALE service worker / offscreen.
 const BUILD = '2.2.0';
 
@@ -42,10 +40,10 @@ let audioContext = null;
 // tabId -> { stream, source, preGain, filters[11], postGain, limiter, analyzer,
 //            lastAnalyzerUse, host, tab, bands[11], gain, presetName }
 const streams = {};
-// tabIds whose getUserMedia is in flight. A disconnect that lands during the await removes the
-// id here so startCapture stops the freshly-acquired stream instead of orphaning it (the entry
-// isn't in `streams` yet, so stopStream can't reach it).
-const pending = new Set();
+// tabId -> unique token for a getUserMedia in flight. A disconnect (or a newer capture for the same
+// tab) replaces/removes the token so startCapture stops the freshly-acquired stream instead of
+// orphaning it (the entry isn't in `streams` yet, so stopStream can't reach it).
+const pending = new Map();
 
 // ---------------------------------------------------------------------------
 // Clamps (keep the audio graph in sane ranges no matter what the UI sends)
@@ -53,7 +51,12 @@ const pending = new Set();
 const clampFilterGain = (g) => Math.max(-30, Math.min(30, Number(g) || 0));
 const clampFrequency = (f) => Math.max(5, Math.min(22000, Number(f) || 5)); // ceiling ≥ band 11 (20480 Hz); lock-step with clampFreq in src/lib/audio.ts
 const clampQ = (q) => Math.max(0.2, Math.min(11, Number(q) || DEFAULT_Q));
-const clampMasterGain = (g) => Math.max(0.00316, Math.min(10, Number(g) || 1));
+// <=0 / non-finite -> unity (1), matching clampMasterGain in src/lib/audio.ts; otherwise clamp to the
+// [0.00316, 10] linear range (= [-25, +10] dB).
+const clampMasterGain = (g) => {
+  const n = Number(g);
+  return n > 0 ? Math.max(0.00316, Math.min(10, n)) : 1;
+};
 
 const typeOf = (i) => (i === 0 ? 'lowshelf' : i === NUM_FILTERS - 1 ? 'highshelf' : 'peaking');
 const flatBands = () => DEFAULT_FREQUENCIES.map((f) => ({ f, g: 0, q: DEFAULT_Q }));
@@ -64,25 +67,6 @@ function hostOf(url) {
   } catch (e) {
     return '';
   }
-}
-
-// ---------------------------------------------------------------------------
-// Storage — the engine only READS named presets (sync) to echo them in status. All
-// resolution + persistence (global profile, rules, presets) is owned by the popup.
-
-const _stg = (area) => (typeof chrome !== 'undefined' && chrome.storage && chrome.storage[area]) || null;
-
-// null-proto accumulator so a preset literally named "__proto__" becomes an own
-// property instead of reassigning the object's prototype.
-async function getPresets() {
-  const s = _stg('sync');
-  if (!s) return Object.create(null);
-  const all = await s.get(null);
-  const presets = Object.create(null);
-  for (const key in all) {
-    if (key.startsWith(PRESET_PREFIX)) presets[key.slice(PRESET_PREFIX.length)] = all[key];
-  }
-  return presets;
 }
 
 // ---------------------------------------------------------------------------
@@ -149,21 +133,24 @@ async function startCapture(streamId, tab) {
     return;
   }
   let stream;
-  pending.add(tab.id);
+  // A unique token per in-flight capture: a disconnect OR a newer capture for the same tab replaces
+  // it, so this one knows to stop the stream it just acquired instead of racing to a live chain.
+  const token = {};
+  pending.set(tab.id, token);
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } }
     });
   } catch (e) {
-    pending.delete(tab.id);
+    if (pending.get(tab.id) === token) pending.delete(tab.id);
     reportEngineError('getUserMedia for tab capture failed', e);
     return;
   }
-  // A stopCapture/disconnect for this tab landed while getUserMedia was awaiting — honor it by
-  // stopping the stream we just acquired instead of capturing a tab the user disconnected.
-  if (!pending.has(tab.id)) {
+  // Superseded (disconnect, or a newer startCapture for this tab) while getUserMedia was awaiting —
+  // stop the stream we just acquired instead of capturing a tab the user disconnected/re-toggled.
+  if (pending.get(tab.id) !== token) {
     stream.getTracks().forEach((t) => t.stop());
-    dlog('startCapture: disconnected mid-await, dropped stream for tab', tab.id);
+    dlog('startCapture: superseded mid-await, dropped stream for tab', tab.id);
     return;
   }
   pending.delete(tab.id);
@@ -294,9 +281,8 @@ function applyToEntry(e, list, gain, presetName) {
   }
 }
 
-// Live-drag + commit path. Deliberately does NOT broadcast: it fires up to ~30x/s
-// during a drag, and a broadcast reads all storage (getPresets) every time. The popup
-// holds the active tab's curve optimistically, so it needs no echo here; discrete
+// Live-drag + commit path. Deliberately does NOT broadcast: it fires up to ~30x/s during a drag.
+// The popup holds the active tab's curve optimistically, so it needs no echo here; discrete
 // actions (capture) broadcast instead.
 function applySettings(m) {
   const e = streams[m.tabId];
@@ -311,12 +297,6 @@ function applySettings(m) {
 // Status + FFT for the popup
 
 async function buildStatus() {
-  let presets = {};
-  try {
-    presets = await getPresets();
-  } catch (e) {
-    dlog('getPresets failed:', e && e.message);
-  }
   const tabs = Object.values(streams).map((e) => ({
     id: e.tab.id,
     title: e.tab.title,
@@ -332,7 +312,7 @@ async function buildStatus() {
     build: BUILD,
     initializing: !audioContext,
     sampleRate: audioContext ? audioContext.sampleRate : 44100,
-    presets,
+    presets: {}, // the popup owns presets (sync storage); the engine no longer re-reads all of it here
     tabs
   };
 }

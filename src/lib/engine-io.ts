@@ -85,14 +85,6 @@ export async function writeDefaultEq(bands: Band[], gain: number) {
     /* ignore */
   }
 }
-export async function clearDefaultEq() {
-  if (!hasChrome() || !chrome.storage) return;
-  try {
-    await chrome.storage.local.remove(DEFAULT_EQ_KEY);
-  } catch {
-    /* ignore */
-  }
-}
 
 // Reading chrome.runtime.lastError inside the callback swallows the benign
 // "The message port closed before a response was received" console warning that
@@ -169,7 +161,7 @@ export async function readInitialState(): Promise<InitialState> {
       if (!k.startsWith(PRESET_PREFIX)) continue;
       const name = k.slice(PRESET_PREFIX.length);
       if (UNSAFE_KEYS.includes(name)) continue;
-      presets[name] = all[k];
+      presets[name] = coerceBands(all[k]) ?? all[k]; // sanitize legacy/foreign shapes for first paint
     }
   } catch {
     /* no presets */
@@ -294,6 +286,7 @@ export function encodeShare(payload: SharePayload): string {
 export function decodeShare(code: string): SharePayload | null {
   const s = (code || '').trim();
   const body = s.startsWith(SHARE_PREFIX) ? s.slice(SHARE_PREFIX.length) : s;
+  if (body.length > 64 * 1024) return null; // reject oversized blobs before decode/parse (sync-quota / DoS guard)
   try {
     const obj = JSON.parse(b64decode(body));
     if (obj && typeof obj === 'object') return obj as SharePayload;
@@ -331,44 +324,4 @@ export function presetToBands(p: PresetBands): Band[] {
   return Array.from({ length: NUM_FILTERS }, (_, i) =>
     sanitizeFilter({ frequency: p.frequencies[i], gain: p.gains[i], q: p.qs[i] }, i)
   );
-}
-
-// --- Debug snapshot: storage + engine ring-buffer logs, as one text blob the user pastes. ---
-function fetchLogs(target: 'bg' | 'offscreen'): Promise<any> {
-  return new Promise((resolve) => {
-    if (!hasChrome()) return resolve({ unavailable: true });
-    const to = setTimeout(() => resolve({ timeout: true }), 1500);
-    const send = target === 'bg' ? toBackground : toOffscreen;
-    send('getLogs', {}, (r: any) => {
-      clearTimeout(to);
-      resolve(r || { none: true });
-    });
-  });
-}
-
-export async function collectDebug(extra: Record<string, unknown>): Promise<string> {
-  const out: string[] = [];
-  out.push('=== UmbraEQ debug · build ' + BUILD + ' ===');
-  out.push('popup: ' + JSON.stringify(extra));
-  if (hasChrome() && chrome.storage) {
-    try {
-      const local: any = await chrome.storage.local.get(null);
-      const sync: any = await chrome.storage.sync.get(null);
-      out.push('DEFAULT_EQ (global profile): ' + JSON.stringify(local[DEFAULT_EQ_KEY] ?? null));
-      out.push('AUTO_DOMAIN: ' + JSON.stringify(local.AUTO_DOMAIN));
-      const deq = Object.keys(local).filter((k) => k.startsWith('DEQ.')); // v1 leftovers (unused in v2)
-      out.push('DEQ leftover keys (' + deq.length + '): ' + JSON.stringify(deq));
-      out.push('RULES: ' + JSON.stringify(sync[RULES_KEY] ?? []));
-      out.push('preset names: ' + JSON.stringify(Object.keys(sync).filter((k) => k.startsWith(PRESET_PREFIX)).map((k) => k.slice(PRESET_PREFIX.length))));
-    } catch (e) {
-      out.push('storage error: ' + String(e));
-    }
-  }
-  const bg: any = await fetchLogs('bg');
-  out.push('--- background · build ' + (bg.build ?? '?') + ' · state=' + JSON.stringify(bg.state ?? {}) + ' ---');
-  (bg.log ?? []).forEach((l: string) => out.push('bg ' + l));
-  const off: any = await fetchLogs('offscreen');
-  out.push('--- offscreen · build ' + (off.build ?? '?') + ' · state=' + JSON.stringify(off.state ?? {}) + ' ---');
-  (off.log ?? []).forEach((l: string) => out.push('off ' + l));
-  return out.join('\n');
 }

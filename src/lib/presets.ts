@@ -41,7 +41,10 @@ export function normalizePresets(raw: any): Record<string, PresetBands> {
   if (Array.isArray(raw)) {
     raw.forEach((p, i) => {
       const bands = coerceBands(p);
-      if (bands) out[(p && (p.name || p.title)) || 'Preset ' + (i + 1)] = bands;
+      if (!bands) return;
+      const name = (p && (p.name || p.title)) || 'Preset ' + (i + 1);
+      if (UNSAFE_KEYS.includes(name)) return; // same guard as the object branch
+      out[name] = bands;
     });
     return out;
   }

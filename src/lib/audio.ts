@@ -173,17 +173,3 @@ export function sanitizeFilter(raw: any, index: number): Band {
     type: raw && (raw.type === 'lowshelf' || raw.type === 'peaking' || raw.type === 'highshelf') ? raw.type : filterType(index)
   };
 }
-
-export function sanitizeStatus<T extends { eqFilters?: any[]; gain?: any; sampleRate?: number; streams?: any[] }>(
-  status: T,
-  fallbackSampleRate = 44100
-) {
-  const safe: any = Object.assign({}, status || {});
-  const inFilters = Array.isArray(safe.eqFilters) ? safe.eqFilters : [];
-  safe.eqFilters = [];
-  for (let i = 0; i < NUM_FILTERS; i++) safe.eqFilters.push(sanitizeFilter(inFilters[i], i));
-  safe.gain = clampMasterGain(safe.gain);
-  safe.sampleRate = safe.sampleRate || fallbackSampleRate;
-  safe.streams = safe.streams || [];
-  return safe as { eqFilters: Band[]; gain: number; sampleRate: number; streams: any[] } & T;
-}
