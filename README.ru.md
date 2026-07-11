@@ -167,7 +167,9 @@ Manifest V3. **Попап** (React + TypeScript) — источник истин
   <a href="https://github.com/skyjacc/Umbra/releases"><img src="https://img.shields.io/github/downloads/skyjacc/Umbra/total?style=for-the-badge&label=Downloads&color=4b5178&logo=github&logoColor=white" alt="Скачивания релизов"></a>
 </p>
 
-<p align="center"><a href="https://www.star-history.com/#skyjacc/Umbra&Date">График звёзд &rarr;</a></p>
+<p align="center">
+  <a href="https://star-history.com/#skyjacc/Umbra&Date"><img src="docs/star-history.png" alt="История звёзд Umbra EQ на GitHub" width="640"></a>
+</p>
 
 ## Обратная связь
 
