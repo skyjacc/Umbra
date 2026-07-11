@@ -59,6 +59,9 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = n
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
   const [hover, setHover] = useState<number | null>(null);
   const [focusIdx, setFocusIdx] = useState<number | null>(null); // keyboard focus, separate from mouse hover
+  // Cache each band's ghost-curve path by Band reference — a drag replaces only the dragged band's
+  // object, so the other 10 hit the cache instead of recomputing ~263 biquad evals each. Reset on sampleRate change.
+  const ghostCache = useRef<{ sr: number; map: WeakMap<Band, string> }>({ sr: 0, map: new WeakMap() });
 
   // FFT lives HERE (not in the top-level engine hook) so polling the spectrum at ~60fps re-renders
   // only this component, not the whole popup + every sibling section. Off by default → usually no loop.
@@ -94,10 +97,19 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = n
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {
     const pts = curvePoints(bands, sampleRate);
+    if (ghostCache.current.sr !== sampleRate) ghostCache.current = { sr: sampleRate, map: new WeakMap() };
+    const gc = ghostCache.current.map;
     return {
       combined: closedPath(pts),
       combinedStroke: openPath(pts),
-      ghosts: bands.map((b) => openPath(curvePoints([b], sampleRate))),
+      ghosts: bands.map((b) => {
+        let p = gc.get(b);
+        if (p === undefined) {
+          p = openPath(curvePoints([b], sampleRate));
+          gc.set(b, p);
+        }
+        return p;
+      }),
       dots: bands.map((b) => ({
         x: clampX(freqToX(b.frequency)),
         y: clampY(dbToY(b.gain)),
@@ -153,10 +165,11 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = n
     let maxH = 0;
     for (const c of cols) if (c[1] > maxH) maxH = c[1];
     if (maxH < 2) return null; // near-silence: draw nothing (no flat baseline line)
-    const pts = cols.map(([x, h]) => `${x.toFixed(1)} ${(EQ_H - 1 - h).toFixed(1)}`);
+    // Round each column once, then format line (space-separated) and area (comma-separated) from it.
+    const xy = cols.map(([x, h]) => [x.toFixed(1), (EQ_H - 1 - h).toFixed(1)] as const);
     return {
-      line: 'M' + pts.join(' L'),
-      area: `${cols[0][0].toFixed(1)},${EQ_H} ${cols.map(([x, h]) => `${x.toFixed(1)},${(EQ_H - 1 - h).toFixed(1)}`).join(' ')} ${cols[cols.length - 1][0].toFixed(1)},${EQ_H}`
+      line: 'M' + xy.map(([x, y]) => `${x} ${y}`).join(' L'),
+      area: `${xy[0][0]},${EQ_H} ${xy.map(([x, y]) => `${x},${y}`).join(' ')} ${xy[xy.length - 1][0]},${EQ_H}`
     };
   }, [fft, sampleRate]);
 

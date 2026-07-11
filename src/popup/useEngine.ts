@@ -281,7 +281,7 @@ export function useEngine() {
         chrome.storage?.onChanged?.removeListener(onChanged);
       }
     };
-  }, [handleStatus, maybeAutoCapture, showNotice]);
+  }, [handleStatus, maybeAutoCapture, showNotice, resolvedFor]);
 
   // (The spectrum FFT poll lives in EqGraph now, so it re-renders only that component — not the
   // whole popup — while the visualizer is on.)
@@ -314,11 +314,13 @@ export function useEngine() {
   // Commit the current sound to WHERE it belongs: a ruled site edits that rule's curve, an
   // unruled site edits the global profile. reapplyAll then propagates to every captured tab.
   const commitTarget = useCallback(
-    (bands: Band[], gain: number) => {
+    (bands: Band[], gain: number, presetName = '') => {
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
       if (mr) {
+        // Write the applied preset's name (or '' for a hand-tweak) so a ruled site's label reflects
+        // the curve that actually plays, instead of a stale earlier preset name.
         const next = rulesRef.current.map((r) =>
-          r.id === mr.id ? { ...r, mode: 'curve' as const, curve: io.bandsToPreset(bands), gain } : r
+          r.id === mr.id ? { ...r, mode: 'curve' as const, curve: io.bandsToPreset(bands), gain, preset: presetName } : r
         );
         rulesRef.current = next; // so applyEverywhere resolves with the new rule immediately
         setRules(next);
@@ -555,7 +557,7 @@ export function useEngine() {
       // profile (or the site's rule) so it becomes the sound everywhere / for that site.
       const id = activeIdRef.current;
       if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: name });
-      commitTarget(nb, gainRef.current);
+      commitTarget(nb, gainRef.current, name);
     },
     [showNotice, commitTarget]
   );
