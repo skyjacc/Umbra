@@ -170,9 +170,9 @@ If Umbra fixed your sound, a star helps other people find it.
 
 <a href="https://www.star-history.com/?repos=skyjacc%2FUmbra&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&theme=dark&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&theme=dark&legend=top-left&sealed_token=5nsh_UHuzblZshtMf4C7j-zWnbA-LWyY6-LLQIzwh1MXehy-MxC_4vmIVqEk8ndH6zdj1JQ-kukR9mEB_843GXROAtzjeqD8ixp7dm939x0g3KxKxIeYps8NhWb8CWkyKJ1fnLStM4FTiU52ng2gk-dTKEzBCNWqRQtuvRDUpWtioYV4eFKxRwXAVMTM" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=5nsh_UHuzblZshtMf4C7j-zWnbA-LWyY6-LLQIzwh1MXehy-MxC_4vmIVqEk8ndH6zdj1JQ-kukR9mEB_843GXROAtzjeqD8ixp7dm939x0g3KxKxIeYps8NhWb8CWkyKJ1fnLStM4FTiU52ng2gk-dTKEzBCNWqRQtuvRDUpWtioYV4eFKxRwXAVMTM" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=5nsh_UHuzblZshtMf4C7j-zWnbA-LWyY6-LLQIzwh1MXehy-MxC_4vmIVqEk8ndH6zdj1JQ-kukR9mEB_843GXROAtzjeqD8ixp7dm939x0g3KxKxIeYps8NhWb8CWkyKJ1fnLStM4FTiU52ng2gk-dTKEzBCNWqRQtuvRDUpWtioYV4eFKxRwXAVMTM" />
  </picture>
 </a>
 
