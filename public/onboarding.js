@@ -1,43 +1,32 @@
 // Onboarding page logic. Separate file (not inline) to satisfy the extension CSP
 // (script-src 'self' forbids inline <script>). Handles the version tag, the close
-// button, and RU/EN localization driven by data-i18n / data-i18n-html attributes.
+// button, RU/EN localization (data-i18n / data-i18n-html), and the reduced-motion
+// switch that freezes the pin-flow demo on its end state.
 'use strict';
 
 const DICT = {
   en: {
-    tag: 'Shape the sound of any tab. Boost the bass, tame harsh highs, or make a quiet video louder.',
-    quickstart: 'Quick start',
-    s1h: 'Play some audio',
-    s1p: 'Open any tab with sound — music, a video, a stream or a call.',
-    s2h: 'Turn it on',
-    s2p: 'Click the Umbra EQ icon in the toolbar, then press <b>EQ This Tab</b>. That tab is now equalized.',
-    s3h: 'Shape the sound',
-    s3p: 'Drag the dots on the curve to boost or cut any frequency, live. The strip on the left is master volume.',
-    tip1: '<b>Shift-drag</b> a dot = change width',
-    tip2: '<b>Double-click</b> a dot = reset it',
-    tip3: '<b>Presets</b> — save, apply &amp; share by code',
-    tip4: '<b>Rules</b> — a different sound on sites you pick',
-    tip5: '<b>Every tab</b> keeps its own EQ',
-    tip6: "<b>Spectrum</b> — see what you're hearing",
+    tag: 'An equalizer for every tab. Boost the bass, tame harsh highs, or make a quiet video louder — all on your computer.',
+    toolbarTip: 'Your toolbar is up here',
+    pinTitle: 'Pin Umbra so it is one click away',
+    pinLead: 'Chrome hides new extensions behind the puzzle icon in the toolbar. Pin Umbra EQ once and it stays in reach.',
+    ddHeader: 'Extensions',
+    step1: 'Click the <b>puzzle icon</b> at the top-right of Chrome.',
+    step2: 'Find <b>Umbra EQ</b> in the list and click its pin.',
+    step3: 'On any tab with sound, click Umbra and press <b>EQ This Tab</b>.',
     priv: '<b>Everything happens on your computer.</b> Umbra never records your audio or sends it anywhere, and there is no account to sign up for.',
     gotit: 'Got it',
     feedback: 'Questions / feedback →'
   },
   ru: {
-    tag: 'Настрой звук любой вкладки. Добавь баса, убери резкие верхи или сделай тихое видео громче.',
-    quickstart: 'Быстрый старт',
-    s1h: 'Включи звук',
-    s1p: 'Открой любую вкладку со звуком — музыка, видео, стрим или звонок.',
-    s2h: 'Включи Umbra',
-    s2p: 'Нажми иконку Umbra EQ на панели, затем <b>«Включить на вкладке»</b>. Вкладка теперь эквализируется.',
-    s3h: 'Настрой звук',
-    s3p: 'Тяни точки на кривой, чтобы усилить или убрать любую частоту вживую. Полоса слева — общая громкость.',
-    tip1: '<b>Shift+тяни</b> точку — ширина',
-    tip2: '<b>Двойной клик</b> — сброс точки',
-    tip3: '<b>Пресеты</b> — сохраняй, применяй, делись кодом',
-    tip4: '<b>Правила</b> — свой звук на выбранных сайтах',
-    tip5: '<b>Каждая вкладка</b> хранит свой EQ',
-    tip6: '<b>Спектр</b> — видно, что слышишь',
+    tag: 'Эквалайзер для каждой вкладки. Добавь баса, убери резкие верхи или сделай тихое видео громче — всё на твоём компьютере.',
+    toolbarTip: 'Твоя панель — здесь, сверху',
+    pinTitle: 'Закрепи Umbra — так до неё один клик',
+    pinLead: 'Chrome прячет новые расширения за иконкой-пазлом на панели. Закрепи Umbra EQ один раз — и она всегда под рукой.',
+    ddHeader: 'Расширения',
+    step1: 'Нажми <b>иконку-пазл</b> справа вверху в Chrome.',
+    step2: 'Найди <b>Umbra EQ</b> в списке и нажми на закрепление (пин).',
+    step3: 'На любой вкладке со звуком нажми Umbra и <b>«Включить на вкладке»</b>.',
     priv: '<b>Всё происходит на твоём компьютере.</b> Umbra не записывает звук и никуда его не отправляет, и никакой аккаунт не нужен.',
     gotit: 'Понятно',
     feedback: 'Вопросы / отзывы →'
@@ -45,17 +34,8 @@ const DICT = {
 };
 
 function detectLang() {
-  try {
-    const s = localStorage.UMBRA_LANG;
-    if (s === 'en' || s === 'ru') return s;
-  } catch (e) {
-    /* ignore */
-  }
-  try {
-    if ((navigator.language || '').toLowerCase().startsWith('ru')) return 'ru';
-  } catch (e) {
-    /* ignore */
-  }
+  try { const s = localStorage.UMBRA_LANG; if (s === 'en' || s === 'ru') return s; } catch (e) { /* ignore */ }
+  try { if ((navigator.language || '').toLowerCase().startsWith('ru')) return 'ru'; } catch (e) { /* ignore */ }
   return 'en';
 }
 
@@ -80,11 +60,7 @@ function apply() {
 document.querySelectorAll('[data-lang]').forEach((b) => {
   b.addEventListener('click', () => {
     lang = b.getAttribute('data-lang');
-    try {
-      localStorage.UMBRA_LANG = lang;
-    } catch (e) {
-      /* ignore */
-    }
+    try { localStorage.UMBRA_LANG = lang; } catch (e) { /* ignore */ }
     apply();
   });
 });
@@ -93,18 +69,12 @@ try {
   const v = chrome.runtime.getManifest().version;
   const verEl = document.getElementById('ver');
   if (verEl) verEl.textContent = 'v' + v;
-} catch (e) {
-  /* getManifest unavailable outside the extension context — ignore */
-}
+} catch (e) { /* getManifest unavailable outside the extension context — ignore */ }
 
 const closeBtn = document.getElementById('closeBtn');
 if (closeBtn) {
   closeBtn.addEventListener('click', () => {
-    try {
-      window.close();
-    } catch (e) {
-      /* ignore */
-    }
+    try { window.close(); } catch (e) { /* ignore */ }
   });
 }
 

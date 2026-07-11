@@ -4,6 +4,36 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+Two rounds of a production audit (specialized sub-agents, adversarially verified) drove a
+hardening pass; the second round caught and fixed regressions the first round's fixes introduced.
+
+### Added
+- **Keyboard control for the equalizer** — the master fader and every band dot are now focusable
+  sliders: arrow keys move gain/frequency, Shift+arrow changes Q, PageUp/Down and Home/End on the
+  fader, Enter/Delete resets a band. Proper `role="slider"` + live value semantics for screen readers.
+- **Rebuilt onboarding** — a pin-the-extension guide with an arrow to the toolbar and a baked,
+  self-contained animation of the extensions-menu pin flow (no external assets); reduced-motion aware.
+
+### Changed
+- **Rules: a "Custom sound" rule can be switched to a preset** (and back) — it used to be a dead end.
+- **Build:** `@crxjs/vite-plugin` moved off the deprecated beta to the stable line (2.7.x).
+- Volume and EQ dragging, and the spectrum FFT, do less work per frame (coalesced updates, lighter
+  FFT payload), and the spectrum poll no longer re-renders the whole popup.
+
+### Fixed
+- A **Stopped** tab is no longer silently re-equalized after the service worker is evicted
+  (the Stopped set now persists in `chrome.storage.session`).
+- **Tab-capture streams no longer leak** on init failure, mid-capture disconnect, or a chain error.
+- Holding a key to nudge a band/volume no longer risks blowing the sync-storage write quota and
+  silently dropping the final save (commits are debounced).
+- A rule pattern edited in one window is no longer overwritten by a stale edit in another; the
+  pattern field also commits on Enter and shows the normalized value.
+- Opera/other internal pages (`opera://`, `view-source:`, `chrome-untrusted://`) are correctly
+  treated as not-capturable; a health-checking ping no longer tears down live captures during a slow
+  engine start; an imported rule with a preset named like `__proto__` can no longer crash resolution.
+
 ## [2.2.0] — 2026-07-08
 
 Umbra now works like one sound system: a single EQ plays on **every** tab, and rules override

@@ -42,6 +42,10 @@ let audioContext = null;
 // tabId -> { stream, source, preGain, filters[11], postGain, limiter, analyzer,
 //            lastAnalyzerUse, host, tab, bands[11], gain, presetName }
 const streams = {};
+// tabIds whose getUserMedia is in flight. A disconnect that lands during the await removes the
+// id here so startCapture stops the freshly-acquired stream instead of orphaning it (the entry
+// isn't in `streams` yet, so stopStream can't reach it).
+const pending = new Set();
 
 // ---------------------------------------------------------------------------
 // Clamps (keep the audio graph in sane ranges no matter what the UI sends)
@@ -138,46 +142,77 @@ function buildChain(entry, bands, gain) {
 // Capture
 
 async function startCapture(streamId, tab) {
+  // getUserMedia acquires the OS-level capture; without a live context we could never wire or
+  // stop it, so bail before acquiring rather than deref a null context afterwards.
+  if (!audioContext) {
+    reportEngineError('startCapture', new Error('audio engine not initialized'));
+    return;
+  }
   let stream;
+  pending.add(tab.id);
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } }
     });
   } catch (e) {
+    pending.delete(tab.id);
     reportEngineError('getUserMedia for tab capture failed', e);
     return;
   }
+  // A stopCapture/disconnect for this tab landed while getUserMedia was awaiting — honor it by
+  // stopping the stream we just acquired instead of capturing a tab the user disconnected.
+  if (!pending.has(tab.id)) {
+    stream.getTracks().forEach((t) => t.stop());
+    dlog('startCapture: disconnected mid-await, dropped stream for tab', tab.id);
+    return;
+  }
+  pending.delete(tab.id);
 
-  if (tab.id in streams) stopStream(tab.id); // re-capture replaces old stream
-  if (Object.keys(streams).length === 0) audioContext.resume();
+  try {
+    if (tab.id in streams) stopStream(tab.id); // re-capture replaces old stream
+    if (Object.keys(streams).length === 0) audioContext.resume().catch((e) => dlog('resume failed:', e && e.message));
 
-  const host = hostOf(tab.url);
-  // The engine can't resolve (no storage) — start flat. The popup pushes this tab's real
-  // bands via 'applySettings' as soon as it sees the capture in the next status broadcast.
-  const bands = flatBands();
-  const gain = 1;
+    const host = hostOf(tab.url);
+    // The engine can't resolve (no storage) — start flat. The popup pushes this tab's real
+    // bands via 'applySettings' as soon as it sees the capture in the next status broadcast.
+    const bands = flatBands();
+    const gain = 1;
 
-  const source = audioContext.createMediaStreamSource(stream);
-  const entry = {
-    stream,
-    source,
-    host,
-    tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '', url: tab.url || '' },
-    bands,
-    gain,
-    presetName: '',
-    analyzer: null,
-    lastAnalyzerUse: 0
-  };
-  buildChain(entry, bands, gain);
-  source.connect(entry.preGain);
+    const source = audioContext.createMediaStreamSource(stream);
+    const entry = {
+      stream,
+      source,
+      host,
+      tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '', url: tab.url || '' },
+      bands,
+      gain,
+      presetName: '',
+      analyzer: null,
+      lastAnalyzerUse: 0
+    };
+    buildChain(entry, bands, gain);
+    source.connect(entry.preGain);
 
-  const track = stream.getAudioTracks()[0];
-  track.onended = () => disconnectTab(tab.id); // tab closed / capture revoked
+    const track = stream.getAudioTracks()[0];
+    track.onended = () => disconnectTab(tab.id); // tab closed / capture revoked
 
-  streams[tab.id] = entry;
-  dlog('capturing tab', tab.id, 'host', host, '— active streams:', Object.keys(streams).length);
-  broadcastStatus();
+    streams[tab.id] = entry;
+    dlog('capturing tab', tab.id, 'host', host, '— active streams:', Object.keys(streams).length);
+    broadcastStatus();
+  } catch (e) {
+    // Chain construction threw (context closed, node limit, …) — stop the acquired stream so we
+    // don't leave the tab captured with no way to reach it.
+    try {
+      stream.getTracks().forEach((t) => t.stop());
+    } catch (x) {
+      /* ignore */
+    }
+    // Mirror disconnectTab cleanup: the re-capture path may have emptied `streams` and resumed the
+    // context, so re-suspend when idle and refresh the popup (which would otherwise still list the tab).
+    if (audioContext && Object.keys(streams).length === 0) audioContext.suspend().catch((x) => dlog('suspend failed:', x && x.message));
+    broadcastStatus();
+    reportEngineError('startCapture: building chain failed', e);
+  }
 }
 
 function stopStream(tabId) {
@@ -201,8 +236,9 @@ function stopStream(tabId) {
 }
 
 function disconnectTab(tabId) {
+  pending.delete(tabId); // cancel an in-flight capture for this tab (startCapture stops its stream)
   stopStream(tabId);
-  if (Object.keys(streams).length === 0) audioContext.suspend();
+  if (audioContext && Object.keys(streams).length === 0) audioContext.suspend().catch((e) => dlog('suspend failed:', e && e.message));
   broadcastStatus();
 }
 
@@ -316,16 +352,20 @@ function handleFFT(tabId, sendResponse) {
   }
   if (!e.analyzer) {
     e.analyzer = audioContext.createAnalyser();
-    e.analyzer.fftSize = 8192;
+    // 4096 → 2048 bins: plenty for the ~262-column peak-held visualizer, and half the payload
+    // structured-cloned to the popup each frame vs the old 8192/4096-bin size.
+    e.analyzer.fftSize = 4096;
     e.analyzer.smoothingTimeConstant = 0.7;
     e.postGain.connect(e.analyzer);
+    e.freqBuf = new Float32Array(e.analyzer.frequencyBinCount); // reused each frame — no per-call alloc
   }
   e.lastAnalyzerUse = performance.now();
-  const data = new Float32Array(e.analyzer.frequencyBinCount);
-  e.analyzer.getFloatFrequencyData(data);
+  e.analyzer.getFloatFrequencyData(e.freqBuf);
   // Clamp non-finite bins (silence gives -Infinity) to -100 so JSON doesn't turn them
   // into null, which the popup would read as 0 dB (a full flat block).
-  sendResponse({ fft: Array.from(data, (v) => (Number.isFinite(v) ? v : -100)) });
+  // Round to integer dB — the visualizer maps -100..0 dB onto ~140px, so sub-dB precision is
+  // sub-pixel; integers cut the serialized payload ~4x with no visible difference.
+  sendResponse({ fft: Array.from(e.freqBuf, (v) => (Number.isFinite(v) ? Math.round(v) : -100)) });
 }
 
 // Drop each idle analyzer tap (saves CPU when a tab's visualizer stops asking).
@@ -340,6 +380,7 @@ setInterval(() => {
         /* already disconnected */
       }
       e.analyzer = null;
+      e.freqBuf = null; // freed with the analyzer; reallocated if the visualizer asks again
     }
   }
 }, 1000);
@@ -390,7 +431,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'getFFT') {
-    ready.then(() => handleFFT(message.tabId, sendResponse));
+    // Always answer, even on a throw — a swallowed rejection here would leave sendResponse unfired
+    // and permanently stall the popup's rAF spectrum poll (it waits for the callback before the next).
+    ready
+      .then(() => handleFFT(message.tabId, sendResponse))
+      .catch((e) => {
+        dlog('getFFT failed:', e && e.message);
+        sendResponse({ fft: null });
+      });
     return true;
   }
 

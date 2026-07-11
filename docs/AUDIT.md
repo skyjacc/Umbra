@@ -538,4 +538,31 @@ tsc 0 · 46 тестов · build ok. Греп остатков v1 в витри
 Осталось вручную (нет GitHub API): запись `docs/demo.gif` + загрузка соц-превью 1280×640 из
 banner.png через Settings UI.
 
+**2026-07-11 — двухраундовый production-аудит (sub-agents) + hardening**
+
+Прогнал полный аудит проекта двумя раундами через специализированных sub-agents (Code Reviewer /
+Security Engineer / Performance Benchmarker / Software Architect), каждая находка адверсариально
+верифицирована (confirm/refute, дефолт REFUTE).
+
+- **Раунд 1:** 0 Critical, 0 High, 9 Medium, 20 Low. Закрыл все 9 Medium: M1 stoppedTabs →
+  `chrome.storage.session`; M2 stream-leak в startCapture (guard + pending-Set + try/catch); M3
+  RuleCard patText sync + Enter-commit; M4 git-гигиена (scratch убран); M5 crxjs beta→2.7.1; M6
+  клавиатура+ARIA на фейдер+граф; M7 FFT-поллинг перенесён в EqGraph; M8 rAF-коалесинг onBandsLive;
+  M9 FFT fftSize 8192→4096 + reuse буфера.
+- **Раунд 2 (regression-check фиксов):** нашёл, что 9 фиксов дали **9 регрессий** (2 Medium + 7 Low)
+  + 3 новых Medium + новые Low. Закрыл: M1-регр (`onCommit` debounce 200ms — авто-повтор клавиш
+  пробивал sync-квоту → тихая потеря сохранения); M2-регр (`await stoppedReady` во всех write-путях
+  SW); M3 (double-ping 700+4000мс, не сносит инициализирующийся offscreen); M4 (`onGainLive`
+  rAF-коалесинг); L-R1..L-R7 (curve-trapdoor, rAF-cleanup, Home/End по WAI-ARIA, focusIdx≠hover,
+  chain-catch re-suspend/broadcast, shift-Q через liveRef); N2 (quickAdd `bbc.co.uk`→`.bbc.` не
+  `.co.`); N3 (`aria-current`); N5 (`opera://`/`view-source:` в блок-листе); N6 (hasOwnProperty-guard
+  → нет краша через preset `__proto__`); N9 (FFT `Math.round`); N4/L4 (dropped-send dlog; getFFT `.catch`).
+
+Проверка обоих батчей: tsc 0 · 46/46 тестов · чистая сборка (crxjs 2.7.1). Версия НЕ бампалась
+(мид-ворк, все 6 мест 2.2.0; CHANGELOG под [Unreleased]).
+
+Отложено (не блокеры): L-R5 (pending-token), N1 (устаревший label пресета на curve-правиле), N7
+(cap импорта), N8 (WeakMap ghost-кэш), 20 известных Low L1-L20 из раунда 1. Полные отчёты:
+scratchpad `AUDIT_REPORT.md` (R1) + `AUDIT_R2.md` (R2).
+
 <!-- сюда пишем дальше -->
