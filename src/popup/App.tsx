@@ -110,6 +110,7 @@ export default function App() {
     if (!f) return;
     const r = new FileReader();
     r.onload = (e) => eng.importPresets(String(e.target?.result || ''));
+    r.onerror = () => eng.showNotice(tr('note.importFailed', { err: 'could not read the file' }));
     r.readAsText(f);
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -466,7 +467,12 @@ export default function App() {
       <BottomNav view={view} onView={setView} />
 
       {eng.notice && (
-        <div className="fixed inset-x-3 bottom-[64px] z-50 rounded-xl border border-primary/40 bg-secondary/90 px-3.5 py-2.5 text-[11.5px] text-foreground shadow-lg backdrop-blur-md">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="fixed inset-x-3 bottom-[64px] z-50 rounded-xl border border-primary/40 bg-secondary/90 px-3.5 py-2.5 text-[11.5px] text-foreground shadow-lg backdrop-blur-md"
+        >
           {eng.notice}
         </div>
       )}

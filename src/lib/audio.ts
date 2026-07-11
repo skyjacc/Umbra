@@ -40,7 +40,9 @@ export const dbToMasterGain = (db: number) => Math.pow(10, db / 10);
 
 export const clampQ = (q: number) => Math.max(0.2, Math.min(11, q));
 export const clampGainDb = (g: number) => Math.max(DB_BOTTOM, Math.min(DB_TOP, g));
-export const clampFreq = (f: number) => Math.max(5, Math.min(20000, f));
+// Ceiling raised above band 11's default (20480 Hz) so it round-trips; stays below the 44.1 kHz
+// Nyquist. Kept in lock-step with clampFrequency in public/offscreen.js.
+export const clampFreq = (f: number) => Math.max(5, Math.min(22000, f));
 export const clampMasterGain = (g: number) => {
   const n = Number(g);
   if (!Number.isFinite(n) || n <= 0) return 1;
@@ -168,7 +170,7 @@ export function sanitizeFilter(raw: any, index: number): Band {
     frequency: clampFreq(Number.isFinite(f) ? f : fallback),
     gain: clampGainDb(Number.isFinite(g) ? g : 0),
     q: clampQ(Number.isFinite(q) ? q : DEFAULT_Q),
-    type: raw && raw.type ? raw.type : filterType(index)
+    type: raw && (raw.type === 'lowshelf' || raw.type === 'peaking' || raw.type === 'highshelf') ? raw.type : filterType(index)
   };
 }
 

@@ -51,7 +51,7 @@ const pending = new Set();
 // Clamps (keep the audio graph in sane ranges no matter what the UI sends)
 
 const clampFilterGain = (g) => Math.max(-30, Math.min(30, Number(g) || 0));
-const clampFrequency = (f) => Math.max(5, Math.min(20000, Number(f) || 5));
+const clampFrequency = (f) => Math.max(5, Math.min(22000, Number(f) || 5)); // ceiling ≥ band 11 (20480 Hz); lock-step with clampFreq in src/lib/audio.ts
 const clampQ = (q) => Math.max(0.2, Math.min(11, Number(q) || DEFAULT_Q));
 const clampMasterGain = (g) => Math.max(0.00316, Math.min(10, Number(g) || 1));
 
