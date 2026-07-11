@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { freqToX, xToFreq, dbToY, yToDb, biquadCoefficients, filterType, gainDbText } from './audio';
-import { normalizePresets, coerceBands } from './presets';
+import {
+  freqToX,
+  xToFreq,
+  dbToY,
+  yToDb,
+  biquadCoefficients,
+  bandDbAtY,
+  filterType,
+  gainDbText,
+  clampFreq,
+  clampMasterGain,
+  sanitizeFilter,
+  DEFAULT_FREQUENCIES
+} from './audio';
+import { normalizePresets, coerceBands, presetBandsEqual } from './presets';
 import { BUILTIN_PRESETS, BUILTIN_ORDER } from './builtins';
 
 describe('coordinate transforms', () => {
@@ -78,5 +91,61 @@ describe('presets', () => {
   it('coerceBands preserves the top band (20480 Hz) — clamp ceiling must not truncate it', () => {
     const b = coerceBands({ frequencies: [20480], gains: [0], qs: [0.7071] })!;
     expect(b.frequencies[0]).toBe(20480);
+  });
+});
+
+describe('clamps', () => {
+  it('every DEFAULT_FREQUENCIES survives clampFreq (no default band gets truncated)', () => {
+    for (const f of DEFAULT_FREQUENCIES) expect(clampFreq(f)).toBe(f);
+  });
+  it('clampMasterGain: <=0 / non-finite -> unity, positive clamps to [0.00316, 10]', () => {
+    expect(clampMasterGain(0)).toBe(1);
+    expect(clampMasterGain(-5)).toBe(1);
+    expect(clampMasterGain(NaN)).toBe(1);
+    expect(clampMasterGain(1)).toBeCloseTo(1, 5);
+    expect(clampMasterGain(1000)).toBeLessThanOrEqual(10);
+    expect(clampMasterGain(0.00001)).toBeGreaterThanOrEqual(0.00316);
+  });
+});
+
+describe('sanitizeFilter', () => {
+  it('accepts alt keys (f/g/Q) and clamps', () => {
+    const b = sanitizeFilter({ f: 999999, g: 99, Q: 99 }, 5);
+    expect(b.frequency).toBeLessThanOrEqual(22000);
+    expect(b.gain).toBeLessThanOrEqual(30);
+    expect(b.q).toBeLessThanOrEqual(11);
+  });
+  it('NaN / missing -> per-index defaults', () => {
+    const b = sanitizeFilter({ frequency: 'x', gain: null }, 0);
+    expect(b.frequency).toBe(DEFAULT_FREQUENCIES[0]);
+    expect(b.gain).toBe(0);
+  });
+  it('rejects an invalid type, keeping the per-index type', () => {
+    expect(sanitizeFilter({ frequency: 1000, gain: 0, q: 1, type: 'evil' }, 5).type).toBe(filterType(5));
+    expect(sanitizeFilter({ frequency: 1000, gain: 0, q: 1, type: 'lowshelf' }, 5).type).toBe('lowshelf');
+  });
+});
+
+describe('biquad magnitude — all types + boost and cut stay finite', () => {
+  for (const type of ['lowshelf', 'peaking', 'highshelf'] as const) {
+    for (const g of [-12, 0, 12]) {
+      it(`${type} @ ${g}dB is finite across the band`, () => {
+        const c = biquadCoefficients(type, 1000, 0.7071, g, 44100);
+        for (const y of [0, 0.25, 0.5, 0.9, 1]) expect(Number.isFinite(bandDbAtY(c, y))).toBe(true);
+      });
+    }
+  }
+});
+
+describe('presetBandsEqual', () => {
+  const mk = (gain0: number) => ({
+    frequencies: DEFAULT_FREQUENCIES.slice(),
+    gains: Array.from({ length: 11 }, (_, i) => (i === 0 ? gain0 : 0)),
+    qs: Array(11).fill(0.7071)
+  });
+  it('equal -> true, any change -> false', () => {
+    expect(presetBandsEqual(mk(3), mk(3))).toBe(true);
+    expect(presetBandsEqual(mk(3), mk(4))).toBe(false);
+    expect(presetBandsEqual(mk(3), null)).toBe(false);
   });
 });

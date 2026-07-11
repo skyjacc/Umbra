@@ -3,7 +3,6 @@
 
 export const EQ_W = 524;
 export const EQ_H = 252;
-export const GAIN_W = 34;
 
 export const DB_TOP = 30;
 export const DB_BOTTOM = -30;

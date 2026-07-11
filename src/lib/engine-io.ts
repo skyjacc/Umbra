@@ -12,7 +12,7 @@ import {
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
 import { parsePatterns, newRuleId, type Rule } from './rules';
 
-export const BUILD = '2.2.0';
+export const BUILD = '2.3.0';
 export const PRESET_PREFIX = 'PRESETS.';
 export const RULES_KEY = 'RULES'; // sync: ordered domain-rules array
 

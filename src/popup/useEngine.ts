@@ -24,6 +24,10 @@ const toBands = (eqFilters: any[]): Band[] =>
     return sanitizeFilter({ frequency: f.frequency, gain: f.gain, q: f.q }, i);
   });
 
+// Value-equal (freq/gain/Q) — used to skip a state write when a resolved curve didn't change.
+const bandsEqual = (a: Band[], b: Band[]): boolean =>
+  a.length === b.length && a.every((x, i) => !!b[i] && x.frequency === b[i].frequency && x.gain === b[i].gain && x.q === b[i].q);
+
 // The popup's engine. The editable curve tracks the ACTIVE tab; each captured tab
 // holds its own EQ (offscreen), and a tab's curve is remembered per hostname.
 export function useEngine() {
@@ -116,9 +120,13 @@ export function useEngine() {
       const cur = tabsList.find((t) => t.id === activeIdRef.current);
       if (cur) {
         const r = resolvedFor(cur.host);
-        setBands(r.bands);
-        setGain(r.gain);
-        setActivePreset(r.presetName);
+        // Skip the state write when the resolved curve is value-identical: resolvedFor allocates
+        // fresh arrays, so a no-change broadcast would otherwise bust EqGraph's memo every time.
+        if (r.gain !== gainRef.current || r.presetName !== activeRef.current || !bandsEqual(r.bands, bandsRef.current)) {
+          setBands(r.bands);
+          setGain(r.gain);
+          setActivePreset(r.presetName);
+        }
       }
     },
     [resolvedFor]
