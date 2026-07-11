@@ -166,7 +166,9 @@ If Umbra fixed your sound, a star helps other people find it.
   <a href="https://github.com/skyjacc/Umbra/releases"><img src="https://img.shields.io/github/downloads/skyjacc/Umbra/total?style=for-the-badge&label=Downloads&color=4b5178&logo=github&logoColor=white" alt="Release downloads"></a>
 </p>
 
-<p align="center"><a href="https://www.star-history.com/#skyjacc/Umbra&Date">Star history chart &rarr;</a></p>
+<p align="center">
+  <a href="https://star-history.com/#skyjacc/Umbra&Date"><img src="docs/star-history.png" alt="Umbra EQ GitHub star history" width="640"></a>
+</p>
 
 ## Feedback
 
