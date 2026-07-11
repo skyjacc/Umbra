@@ -55,6 +55,7 @@
 - [How it works](#how-it-works)
 - [Privacy](#privacy)
 - [Stack](#stack)
+- [Star history](#star-history)
 - [Feedback](#feedback)
 - [Contributing](#contributing)
 - [Credits and licenses](#credits-and-licenses)
@@ -101,6 +102,7 @@ The Chrome Web Store listing is on the way. Until then it installs in about a mi
 - **Presets.** Built-in Bass Boost, Vocal, Movie, and Warm, plus your own — move them as a file or share your presets and rules with a copy-paste code.
 - **Live spectrum.** A visual analyzer behind the curve that shows what you are hearing. It never changes the sound.
 - **Band guide + full-window editor.** An on-screen guide to what each band does, and a full-window view for shaping the global sound on a bigger graph.
+- **Keyboard & screen-reader friendly.** The master fader and every band are focusable sliders — drive them with the arrow keys, no mouse required.
 - **Русский and English**, four themes, and a custom accent color.
 - **Runs on your computer.** No account, no network, no analytics. Your audio is never recorded or sent anywhere.
 
@@ -111,6 +113,8 @@ The Chrome Web Store listing is on the way. Until then it installs in about a mi
 3. Drag a dot: left and right is frequency, up and down is boost or cut. Shift-drag changes the width, double-click resets a band. The strip on the left is master volume.
 4. Your EQ plays on every tab. To give a site a different sound, add a rule in the **Rules** tab like `youtube.` or `film. kino.` — it overrides the global sound there.
 5. Each captured tab keeps its own EQ; stop any of them under **Tabs**. Open **Full window** (More) to edit the global sound on a bigger graph.
+
+Prefer the keyboard? Focus the volume fader or a band dot and use the arrow keys — Shift+arrow changes the width/Q, Enter resets a band.
 
 The in-app **Guide** (More tab) explains all of this, in Russian or English.
 
@@ -134,7 +138,7 @@ The popup is a React and TypeScript app bundled with Vite and [CRXJS](https://cr
 npm install
 npm run build      # → dist/  (the loadable, CSP-clean MV3 extension)
 npm run dev        # HMR dev build
-npm test           # 46 Vitest unit tests for the audio, preset, and rule logic
+npm test           # 64 Vitest unit tests for the audio, preset, rule + invariant logic
 npm run typecheck  # tsc, also runs in CI
 ```
 
@@ -174,17 +178,23 @@ Everything runs on your computer. Umbra makes no network requests, has no analyt
 | Popup | React 18, TypeScript |
 | Build | Vite + CRXJS |
 | UI | Tailwind CSS, shadcn/ui, lucide icons |
-| Tests | Vitest (46) |
+| Tests | Vitest (64) |
 | CI/CD | GitHub Actions — builds the `dist/` zip on push, PR & `v*` tags |
 
-<!-- Re-enable once the repo has a few stars: star-history 301-redirects and renders broken at 0 stars via GitHub camo.
-## Stats
+## Star history
+
+If Umbra fixed your sound, a star helps other people find it.
 
 <p align="center">
-  <a href="https://star-history.com/#skyjacc/Umbra&Date"><img src="https://api.star-history.com/svg?repos=skyjacc/Umbra&type=Date" alt="Star history"></a>
+  <a href="https://github.com/skyjacc/Umbra/stargazers"><img src="https://img.shields.io/github/stars/skyjacc/Umbra?style=for-the-badge&label=Star&color=8b93c6&logo=github&logoColor=white" alt="GitHub stars"></a>
+  &nbsp;
+  <a href="https://github.com/skyjacc/Umbra/releases"><img src="https://img.shields.io/github/downloads/skyjacc/Umbra/total?style=for-the-badge&label=Downloads&color=4b5178&logo=github&logoColor=white" alt="Release downloads"></a>
 </p>
 
--->
+<p align="center">
+  <a href="https://star-history.com/#skyjacc/Umbra&Date"><b>See the growth chart on star-history.com &rarr;</b></a>
+</p>
+
 ## Feedback
 
 | | |
