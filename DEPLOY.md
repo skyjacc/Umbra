@@ -40,7 +40,7 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
   - [ ] Stop a tab, reopen the popup → it stays un-EQ'd.
   - [ ] Presets save/apply/delete, Export/Import file, Copy code / Paste code.
   - [ ] Spectrum toggle, Guide overlay, EN/RU switch, theme + custom color.
-- [ ] Version bumped in all six places (see **Version bump** above; now `2.2.0`).
+- [ ] Version bumped in all six places (see **Version bump** above; now `2.3.0`).
 - [ ] `DEBUG` is `false` in `src/background.js` and `public/offscreen.js` (default).
 - [ ] Toolbar icons are the Umbra crescent (`public/icon{16,32,48,128}.png`) — done.
 - [ ] Privacy policy is reachable at a public URL for the store forms — the repo file

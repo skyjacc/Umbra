@@ -12,8 +12,7 @@ Umbra EQ — Equalizer & Bass Boost
 
 ## Summary / short description (≤ 132 chars)
 
-One EQ on every tab — boost bass, fix harsh audio, save presets. Rules override the
-sound per site. Works on Netflix & Spotify.
+One equalizer for every tab — boost bass, fix harsh or quiet audio, save presets. Per-site rules. Works on Netflix & Spotify.
 
 ## Category
 
@@ -26,34 +25,30 @@ playing in their browser tabs in real time.
 
 ## Detailed description
 
-Umbra EQ adds a real equalizer to any browser tab.
+Umbra EQ adds a real 11-band equalizer to any browser tab. Shape the sound of what you're
+listening to live — boost the bass, tame harsh highs, or lift a video that's mixed too
+quiet — and hear the change while you drag.
 
-• 11-band parametric EQ — drag the response curve to boost or cut any frequency,
-  live, while the audio plays, with a spectrum analyzer behind it so you see exactly
-  what you are shaping.
-• One sound on every tab — set the EQ once and it plays on every tab you turn it on for.
-  You just edit what you hear.
-• Site rules — override the global sound on the sites you choose, by an address pattern
-  (for example, one rule that covers a movie site and all of its mirrors).
-• Per-tab EQ — each tab still gets its own chain, so a movie tab and a music tab can sound
-  different at the same time.
-• Works on Netflix, Spotify, and other streaming sites where audio EQ extensions often go
-  silent.
-• Presets — save your own, and share your presets or rules with a single copy-paste
-  code (or an export file).
-• Master volume boost — go past 100% when a video is too quiet. One-click Bass Boost.
-• Русский and English interface, four themes and a custom accent color.
-• Works on any tab with sound: music, video, streams, calls.
-• Everything runs on your computer. Umbra doesn't record or send your audio, and
-  there is no account to sign up for.
+One sound, everywhere. Set your EQ once and it applies to every tab you turn it on for.
+Give specific sites their own sound with rules (first match wins), and each tab keeps its
+own chain — so a movie and a music tab can sound different at the same time. It works on
+Netflix, Spotify, and other streaming sites where audio EQ extensions often go silent.
+
+Features:
+• 11-band parametric EQ with a live spectrum behind the curve.
+• Bass boost, volume past 100%, and a brick-wall limiter so big boosts stay clean.
+• Per-site rules and per-tab sound.
+• Presets — Bass Boost, Vocal, Movie, Warm, plus your own; export as a file or a share code.
+• Full-window editor, band guide, four themes, English and Russian.
+• Keyboard and screen-reader friendly.
+
+100% local — no account, no network, no analytics. Your audio is never recorded or sent.
 
 How to use:
 1. Play audio in a tab.
 2. Click the Umbra EQ icon, then "EQ This Tab".
-3. Drag the dots: left/right = frequency, up/down = boost/cut. Shift-drag changes the
-   width (Q). Double-click a dot to reset it.
-4. Your EQ plays on every tab. To give a specific site a different sound, add a rule in the
-   Rules tab (e.g. youtube.) — one rule can cover a whole site or several at once.
+3. Drag the dots: left/right = frequency, up/down = boost/cut; Shift-drag changes the
+   width (Q); double-click resets. Add a rule like "youtube." to give a site its own sound.
 
 ## Permission justifications (paste into the review form)
 
