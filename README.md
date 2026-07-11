@@ -166,15 +166,15 @@ If Umbra fixed your sound, a star helps other people find it.
   <a href="https://github.com/skyjacc/Umbra/releases"><img src="https://img.shields.io/github/downloads/skyjacc/Umbra/total?style=for-the-badge&label=Downloads&color=4b5178&logo=github&logoColor=white" alt="Release downloads"></a>
 </p>
 
-<p align="center">
-  <a href="https://www.star-history.com/#skyjacc/Umbra&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&theme=dark&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
-      <img alt="Umbra EQ star history chart" src="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" width="640" />
-    </picture>
-  </a>
-</p>
+## Star History
+
+<a href="https://www.star-history.com/?repos=skyjacc%2FUmbra&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&theme=dark&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=skyjacc/Umbra&type=date&legend=top-left&sealed_token=g8oK8FZvjws0UF1kQQqzzWABV38Kwr-DMPeX9tE_ZwzP7szhg6yh767ZwIDbnH6ofQuVPQfuA5sbCd6JdNvHml-d4ZqPSodkIzsvJf0fv5iKZrS52j5nSHELVC1EYBm8vVl7BCTxW9-AmWhKqQ0H6pZE4BJs_bdArQaXYUu_VI6sadUOPOBUd8f9Vm3a" />
+ </picture>
+</a>
 
 ## Feedback
 
