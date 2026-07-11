@@ -77,31 +77,21 @@ The Chrome Web Store listing is on the way. Until then it installs in about a mi
 
 ## Features
 
-- **11-band equalizer.** Drag the response curve to boost or cut any frequency while the audio plays.
-- **One sound on every tab.** Set the EQ once and it plays on every tab you turn it on for — you just edit what you hear.
-- **Site rules.** Override the global sound on chosen sites by address pattern, for example one rule that covers a video site and all of its mirrors (first match wins).
-- **Per-tab chains.** Each captured tab still gets its own filter chain, so a film tab and a music tab can sound different at the same time.
-- **Works on Netflix and Spotify**, and other streaming sites where audio EQ extensions often go silent.
-- **Bass boost and volume.** One-click bass boost, plus a master volume that goes past 100% for quiet videos.
-- **Output limiter.** A brick-wall limiter catches heavy boosts before they clip, so aggressive presets stay clean.
-- **Presets.** Built-in Bass Boost, Vocal, Movie, and Warm, plus your own — move them as a file or share your presets and rules with a copy-paste code.
-- **Live spectrum.** A visual analyzer behind the curve that shows what you are hearing. It never changes the sound.
-- **Band guide + full-window editor.** An on-screen guide to what each band does, and a full-window view for shaping the global sound on a bigger graph.
-- **Keyboard & screen-reader friendly.** The master fader and every band are focusable sliders — drive them with the arrow keys, no mouse required.
-- **Русский and English**, four themes, and a custom accent color.
-- **Runs on your computer.** No account, no network, no analytics. Your audio is never recorded or sent anywhere.
+- **11-band parametric EQ** — drag the curve to boost or cut any frequency, live.
+- **One global sound + site rules** — one EQ everywhere, or per-site overrides by address pattern (first match wins). Each tab keeps its own chain, so two tabs can sound different.
+- **Works on Netflix, Spotify** and other sites where EQ extensions go silent.
+- **Bass boost, volume past 100%, output limiter** — big boosts stay clean, no clipping.
+- **Presets** — Bass Boost / Vocal / Movie / Warm + your own; export as a file or a copy-paste share code.
+- **Live spectrum, band guide, full-window editor.**
+- **Keyboard + screen-reader friendly**, RU/EN, four themes. 100% local — no account, no network, no analytics.
 
 ## How to use
 
-1. Play audio in a tab.
-2. Click the Umbra EQ icon, then **EQ This Tab**.
-3. Drag a dot: left and right is frequency, up and down is boost or cut. Shift-drag changes the width, double-click resets a band. The strip on the left is master volume.
-4. Your EQ plays on every tab. To give a site a different sound, add a rule in the **Rules** tab like `youtube.` or `film. kino.` — it overrides the global sound there.
-5. Each captured tab keeps its own EQ; stop any of them under **Tabs**. Open **Full window** (More) to edit the global sound on a bigger graph.
+1. Play audio in a tab, click the Umbra EQ icon, press **EQ This Tab**.
+2. Drag a dot (or use the arrow keys): left/right is frequency, up/down is boost/cut; Shift changes width/Q, double-click resets. The left strip is master volume.
+3. Add a **rule** like `youtube.` to give a site its own sound; stop a tab under **Tabs**, or open **Full window** to edit the global sound on a bigger graph.
 
-Prefer the keyboard? Focus the volume fader or a band dot and use the arrow keys — Shift+arrow changes the width/Q, Enter resets a band.
-
-The in-app **Guide** (More tab) explains all of this, in Russian or English.
+The in-app **Guide** (More tab) walks through all of it, in Russian or English.
 
 ## Browser support
 
@@ -152,7 +142,7 @@ See [`PROJECT.md`](PROJECT.md) for the full architecture and [`CONTRIBUTING.md`]
 
 ## Privacy
 
-Everything runs on your computer. Umbra makes no network requests, has no analytics, and never records or sends your audio. Settings and presets stay in your browser. Full details in [`PRIVACY.md`](PRIVACY.md).
+100% local — no network requests, no analytics; your audio is never recorded or sent, and settings/presets stay in your browser. Details in [`PRIVACY.md`](PRIVACY.md).
 
 ## Stack
 
@@ -175,6 +165,8 @@ If Umbra fixed your sound, a star helps other people find it.
   &nbsp;
   <a href="https://github.com/skyjacc/Umbra/releases"><img src="https://img.shields.io/github/downloads/skyjacc/Umbra/total?style=for-the-badge&label=Downloads&color=4b5178&logo=github&logoColor=white" alt="Release downloads"></a>
 </p>
+
+<p align="center"><a href="https://www.star-history.com/#skyjacc/Umbra&Date">Star history chart &rarr;</a></p>
 
 ## Feedback
 
