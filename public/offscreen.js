@@ -15,7 +15,7 @@ const DEFAULT_FREQUENCIES = [20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240,
 const DEFAULT_Q = 0.7071; // Butterworth
 
 // Bump on every change so the popup can detect a STALE service worker / offscreen.
-const BUILD = '2.2.0';
+const BUILD = '2.3.0';
 
 // --- Logging: ring buffer + console, so diagnostics can be exported later. ---
 const DEBUG = false; // flip to true only for local diagnostics

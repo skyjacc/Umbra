@@ -4,7 +4,7 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.3.0] — 2026-07-11
 
 Two rounds of a production audit (specialized sub-agents, adversarially verified) drove a
 hardening pass; the second round caught and fixed regressions the first round's fixes introduced.
@@ -33,6 +33,10 @@ hardening pass; the second round caught and fixed regressions the first round's 
 - Opera/other internal pages (`opera://`, `view-source:`, `chrome-untrusted://`) are correctly
   treated as not-capturable; a health-checking ping no longer tears down live captures during a slow
   engine start; an imported rule with a preset named like `__proto__` can no longer crash resolution.
+- The **toolbar badge** shows the live capture count again (it read a stale field and was always empty).
+- The top band (20.48 kHz) is no longer clamped down, so a flat preset round-trips cleanly.
+- The themed dropdowns are keyboard-navigable and the in-app guide is a proper focus-trapped dialog;
+  action toasts are announced to screen readers.
 
 ## [2.2.0] — 2026-07-08
 

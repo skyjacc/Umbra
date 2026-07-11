@@ -1,7 +1,7 @@
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
-const BUILD = '2.2.0'; // keep in sync with offscreen.js / popup.js
+const BUILD = '2.3.0'; // keep in sync with offscreen.js / src/lib/engine-io.ts (guarded by invariants.test.ts)
 
 // --- Logging: ring buffer + console, for one-click diagnostics export. ---
 const DEBUG = false; // flip to true only for local diagnostics
@@ -244,7 +244,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Broadcasts from the offscreen document: mirror capture count onto the badge.
   if (message.type === 'workspaceStatus') {
-    const n = (message.streams || []).length;
+    const n = (message.tabs || []).length; // engine sends `tabs`; the old `streams` name was always empty
+
     chrome.action.setBadgeText({ text: n > 0 ? String(n) : '' });
     chrome.action.setBadgeBackgroundColor({ color: '#2C3E50' });
   }

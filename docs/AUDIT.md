@@ -577,4 +577,19 @@ scratchpad `AUDIT_REPORT.md` (R1) + `AUDIT_R2.md` (R2).
 Тесты 46→47, tsc 0. Осталось: L3, L4-остаток(частично закрыт), L6, L9, L10, L13, L14, L16, L17, L18,
 L19, L20 + отложенные R2 (L-R5, N1, N7, N8).
 
+**2026-07-11 — хвост R2 + релиз v2.3.0**
+
+Закрыл оставшиеся R2-находки: **N13** мёртвый badge (SW читал `message.streams`, движок шлёт
+`tabs` → счётчик всегда 0) → `message.tabs`; **N10** `applyEverywhere` mirror ставил state на
+no-change бродкаст (resolvedFor аллоцирует новые массивы) → value-compare `bandsEqual` перед
+`setBands`; **L20-остаток** мёртвые `GAIN_W` + orphan-ключ `rules.bassBoost` (en+ru); **N12**
+тест-слепоты → добавлены тесты клампов (clampFreq survives DEFAULT_FREQUENCIES, clampMasterGain
+≤0→1), sanitizeFilter (alt-keys/NaN/invalid-type), biquad всех типов boost+cut на конечность,
+presetBandsEqual. Тесты 49→**64**. **N11** (IDN/punycode в матчере) — отложен как известное
+ограничение рядом с PSL-каветом (Low, edge).
+
+**Релиз v2.3.0:** бамп 6 мест (package/manifest/background BUILD/offscreen BUILD/engine-io BUILD +
+CHANGELOG `[Unreleased]`→`[2.3.0]`), исправлен L18-комментарий (`popup.js`→`engine-io.ts`). Согласо-
+ванность версии теперь под `invariants.test.ts`. tsc 0 · 64 теста · тег `v2.3.0` → CI зип+Release.
+
 <!-- сюда пишем дальше -->
