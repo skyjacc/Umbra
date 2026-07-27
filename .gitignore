@@ -7,11 +7,16 @@ node_modules/
 *.log
 scratchpad/
 
-# Private/local notes — do not publish in repo or store package
+# Private/local notes — do not publish in repo or store package.
+# (HANDOFF.md is deliberately NOT here: it is the developer handoff doc and ships with the repo.)
 MONETIZATION.md
 Chat.md
-handoff.md
 ENGINE_STUDY.md
+
+# Claude Code working files — local tooling, not project docs
+CLAUDE.md
+.claude/
+graphify-out/
 
 # Dev-only screenshots & scratch
 test/*.png

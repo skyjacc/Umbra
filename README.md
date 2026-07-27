@@ -79,7 +79,7 @@ The in-app **Guide** (More tab) walks through all of it, RU or EN.
 <details>
 <summary><b>For developers</b></summary>
 
-The popup is React + TypeScript, bundled with Vite and [CRXJS](https://crxjs.dev). The audio engine (service worker + offscreen Web Audio document) stays vanilla.
+The popup is React + TypeScript, bundled with Vite and [CRXJS](https://crxjs.dev). The audio engine (service worker + offscreen Web Audio document) stays vanilla. Needs Node 20+; no API keys, env vars, or services to set up.
 
 ```bash
 npm install
@@ -108,7 +108,7 @@ The same zip is accepted by the Chrome Web Store, Edge Add-ons, and Opera.
 
 Manifest V3. The **popup** (React + TypeScript) is the source of truth: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **engine is vanilla** — the service worker owns the offscreen document and mints tab-capture ids; the offscreen document holds 11 biquad filters per tab behind a brick-wall limiter, glided click-free. Pure audio/preset/rule math lives in `src/lib` (unit-tested); strict CSP, no remote code, no `eval`.
 
-See [`PROJECT.md`](PROJECT.md) for the architecture, [`CONTRIBUTING.md`](CONTRIBUTING.md) to contribute.
+Working on Umbra? [`HANDOFF.md`](HANDOFF.md) is the full developer handoff — architecture, release process, roadmap, known limitations. See also [`PROJECT.md`](PROJECT.md), [`DEPLOY.md`](DEPLOY.md), and [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Privacy
 
