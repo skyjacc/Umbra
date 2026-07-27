@@ -6,6 +6,7 @@
 
 const DICT = {
   en: {
+    heroTitle: "Shape any <span>tab's sound</span>",
     tag: 'An equalizer for every tab. Boost the bass, tame harsh highs, or make a quiet video louder — all on your computer.',
     toolbarTip: 'Your toolbar is up here',
     pinTitle: 'Pin Umbra so it is one click away',
@@ -19,7 +20,8 @@ const DICT = {
     feedback: 'Questions / feedback →'
   },
   ru: {
-    tag: 'Эквалайзер для каждой вкладки. Добавь баса, убери резкие верхи или сделай тихое видео громче — всё на твоём компьютере.',
+    heroTitle: 'Свой звук <span>у каждой вкладки</span>',
+    tag: 'Больше баса, чище верхи, громче тихое видео — правишь вживую, всё остаётся на компьютере.',
     toolbarTip: 'Твоя панель — здесь, сверху',
     pinTitle: 'Закрепи Umbra — так до неё один клик',
     pinLead: 'Chrome прячет новые расширения за иконкой-пазлом на панели. Закрепи Umbra EQ один раз — и она всегда под рукой.',

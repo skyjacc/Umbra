@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, Tags, Globe, BookOpen, X, Undo2 } from 'lucide-react';
+import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, Captions, Globe, BookOpen, X, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { VerticalVolume } from './components/VerticalVolume';
@@ -150,7 +150,7 @@ export default function App() {
                     : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
                 }
               >
-                <Tags className="size-4" />
+                <Captions className="size-4" />
               </button>
               <button
                 onClick={eng.toggleSpectrum}
