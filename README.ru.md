@@ -79,7 +79,7 @@
 <details>
 <summary><b>Для разработчиков</b></summary>
 
-Попап — приложение на React и TypeScript, собранное Vite и [CRXJS](https://crxjs.dev). Аудиодвижок (service worker + offscreen-документ Web Audio) остаётся на чистом JS.
+Попап — приложение на React и TypeScript, собранное Vite и [CRXJS](https://crxjs.dev). Аудиодвижок (service worker + offscreen-документ Web Audio) остаётся на чистом JS. Нужен Node 20+; ни ключей, ни переменных окружения, ни сервисов настраивать не надо.
 
 ```bash
 npm install
@@ -108,7 +108,7 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1
 
 Manifest V3. **Попап** (React + TypeScript) — источник истины: вычисляет звук каждой вкладки (правило → общий профиль → плоский) и отправляет полосы движку. **Движок — на чистом JS**: service worker владеет offscreen-документом и выдаёт id захвата вкладок; offscreen держит цепочку из 11 biquad-фильтров на вкладку за ограничителем «кирпичная стена», плавно без щелчков. Математика аудио/пресетов/правил — в `src/lib` (покрыта тестами); строгий CSP, без удалённого кода и `eval`.
 
-Архитектура — в [`PROJECT.md`](PROJECT.md), как контрибьютить — в [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Работаешь над Umbra? [`HANDOFF.md`](HANDOFF.md) — полная передача проекта: архитектура, релиз-процесс, роадмап, ограничения. Также [`PROJECT.md`](PROJECT.md), [`DEPLOY.md`](DEPLOY.md) и [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Приватность
 
