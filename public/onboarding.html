@@ -11,22 +11,22 @@
     * { box-sizing: border-box; margin: 0; }
     :root {
       --bg: #0a0b0f; --ink: #e7e8ee; --dim: #969aa8; --faint: #5d616d;
-      --acc: #8b93c6; --acc2: #a6adda;
+      --acc: #8b93c6; --acc2: #a6adda; --pink: #c48bbf;
       --glass: rgba(255,255,255,.05); --gbrd: rgba(255,255,255,.1); --ghi: rgba(255,255,255,.1);
     }
     body {
       font-family: 'InterUmbra', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(120% 80% at 80% -10%, #241056 0%, transparent 55%),
+        radial-gradient(120% 80% at 82% -10%, #241056 0%, transparent 55%),
         radial-gradient(120% 90% at -10% 110%, #2a1263 0%, transparent 55%),
         var(--bg);
-      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 44px 20px;
       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
     }
-    .wrap { width: 100%; max-width: 640px; }
+    .wrap { width: 100%; max-width: 900px; }
 
-    /* ---- curved arrow to the real toolbar (top-right of the browser) ---- */
+    /* curved arrow to the real toolbar */
     .point { position: fixed; top: 0; right: 24px; width: 210px; height: 250px; pointer-events: none; z-index: 5; }
     .point svg { width: 100%; height: 100%; overflow: visible; }
     .point .lbl { fill: var(--acc2); font-family: 'InterUmbra', sans-serif; font-size: 13px; font-weight: 650; }
@@ -35,16 +35,14 @@
     .point .head { fill: var(--acc2); opacity: 0; animation: fadein .3s 1.3s ease forwards; }
     @keyframes draw { to { stroke-dashoffset: 0; } }
     @keyframes fadein { to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { .point .draw { animation: none; stroke-dashoffset: 0; } .point .head { animation: none; opacity: 1; } }
 
-    /* ---- brand ---- */
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    /* brand */
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
     .mark { width: 34px; height: 34px; color: var(--acc2);
             filter: drop-shadow(0 0 10px rgba(139,147,198,.5)) drop-shadow(0 0 24px rgba(139,147,198,.22));
             animation: breathe 5.5s ease-in-out infinite; }
     @keyframes breathe { 0%,100% { filter: drop-shadow(0 0 8px rgba(139,147,198,.5)) drop-shadow(0 0 22px rgba(139,147,198,.22)); }
                          50% { filter: drop-shadow(0 0 13px rgba(166,173,218,.7)) drop-shadow(0 0 30px rgba(139,147,198,.32)); } }
-    @media (prefers-reduced-motion: reduce) { .mark { animation: none; } }
     .name { font-size: 24px; font-weight: 800; letter-spacing: .01em; }
     .name b { background: linear-gradient(90deg, var(--acc), var(--acc2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
     .ver { font-family: 'GeistUmbra', monospace; font-size: 12px; color: var(--faint); align-self: flex-end; margin-bottom: 4px; }
@@ -52,29 +50,117 @@
     .lang button { font-family: inherit; font-size: 11px; font-weight: 700; color: var(--dim); cursor: pointer; border: none; background: none; border-radius: 7px; padding: 4px 9px; }
     .lang button.on { background: rgba(139,147,198,.25); color: var(--ink); }
     .lang button:focus-visible { outline: 2px solid var(--acc2); outline-offset: 1px; }
-    .tag { color: var(--dim); font-size: 14.5px; line-height: 1.5; margin: 2px 0 24px 46px; max-width: 480px; }
+
+    /* hero */
+    .hero { display: grid; grid-template-columns: 1fr 1.05fr; gap: 34px; align-items: center; margin-bottom: 26px; }
+    .hero h1 { font-size: 42px; font-weight: 800; line-height: 1.05; letter-spacing: -.015em; }
+    .hero h1 span { background: linear-gradient(90deg, var(--acc2), var(--pink)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .tag { color: var(--dim); font-size: 15px; line-height: 1.55; margin-top: 16px; max-width: 400px; }
+
+    /* ---- live popup mockup ---- */
+    .popup { border-radius: 18px; overflow: hidden; color: #e8eaf4; position: relative;
+             background: linear-gradient(180deg,#171923,#12131b);
+             box-shadow: 0 34px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06); }
+    .phdr { display: flex; align-items: center; gap: 8px; padding: 13px 15px 8px; }
+    .plogo { width: 19px; height: 19px; color: var(--acc); }
+    .wm { font-weight: 700; font-size: 15px; color: #f4f5fa; } .wm b { color: var(--acc); }
+    .pre { font-size: 11px; color: #8a90a0; margin-left: 6px; }
+    .hicons { margin-left: auto; display: flex; gap: 6px; }
+    .hbtn { width: 30px; height: 30px; border-radius: 9px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04); display: flex; align-items: center; justify-content: center; color: #8a90a0; }
+    .hbtn svg { width: 15px; height: 15px; }
+    .hbtn.on { border-color: rgba(139,147,198,.5); background: rgba(139,147,198,.2); color: var(--acc); }
+    .pscreen { padding: 6px 15px 14px; }
+    .gpanel { border-radius: 14px; background: #0f1016; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), inset 0 2px 16px rgba(0,0,0,.5); padding: 12px; display: flex; gap: 10px; }
+    .vol { width: 30px; display: flex; flex-direction: column; align-items: center; gap: 5px; color: #8a90a0; font-size: 9px; }
+    .voltrack { flex: 1; width: 6px; border-radius: 3px; background: rgba(0,0,0,.4); position: relative; }
+    .volfill { position: absolute; bottom: 0; left: 0; right: 0; height: 72%; border-radius: 3px; background: linear-gradient(to top, rgba(139,147,198,.4), var(--acc)); }
+    .volknob { position: absolute; left: 50%; top: 28%; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.25); transform: translate(-50%,-50%); }
+    .graph { position: relative; flex: 1; height: 176px; }
+    .gsvg { position: absolute; inset: 0; overflow: visible; }
+    .fft { d: path("M 8 152 L 8 104.9 L 15.6 117.8 L 23.2 110.2 L 30.8 115.2 L 38.3 115.6 L 45.9 118.4 L 53.5 108.1 L 61.1 125.1 L 68.7 125.9 L 76.3 120.8 L 83.8 115.2 L 91.4 124.8 L 99 121.7 L 106.6 119.2 L 114.2 127.5 L 121.8 123.6 L 129.3 126.6 L 136.9 126.5 L 144.5 120.2 L 152.1 130.4 L 159.7 130.8 L 167.3 133.6 L 174.8 126.3 L 182.4 133.7 L 190 130.5 L 197.6 134.6 L 205.2 131 L 212.8 132.3 L 220.3 137.1 L 227.9 129.9 L 235.5 133.6 L 243.1 131.3 L 250.7 135.7 L 258.3 139.8 L 265.8 133.1 L 273.4 134.3 L 281 137.9 L 288.6 137.5 L 296.2 140.1 L 303.8 141.9 L 311.3 140.6 L 318.9 140.9 L 326.5 140.3 L 334.1 139.7 L 341.7 141.9 L 349.3 138.2 L 356.8 139.5 L 364.4 140.2 L 372 139.3 L 372 152 Z");
+           fill: url(#fftg); animation: fftmorph 3.4s ease-in-out infinite alternate; }
+    @keyframes fftmorph { from { d: path("M 8 152 L 8 104.9 L 15.6 117.8 L 23.2 110.2 L 30.8 115.2 L 38.3 115.6 L 45.9 118.4 L 53.5 108.1 L 61.1 125.1 L 68.7 125.9 L 76.3 120.8 L 83.8 115.2 L 91.4 124.8 L 99 121.7 L 106.6 119.2 L 114.2 127.5 L 121.8 123.6 L 129.3 126.6 L 136.9 126.5 L 144.5 120.2 L 152.1 130.4 L 159.7 130.8 L 167.3 133.6 L 174.8 126.3 L 182.4 133.7 L 190 130.5 L 197.6 134.6 L 205.2 131 L 212.8 132.3 L 220.3 137.1 L 227.9 129.9 L 235.5 133.6 L 243.1 131.3 L 250.7 135.7 L 258.3 139.8 L 265.8 133.1 L 273.4 134.3 L 281 137.9 L 288.6 137.5 L 296.2 140.1 L 303.8 141.9 L 311.3 140.6 L 318.9 140.9 L 326.5 140.3 L 334.1 139.7 L 341.7 141.9 L 349.3 138.2 L 356.8 139.5 L 364.4 140.2 L 372 139.3 L 372 152 Z"); }
+                          to { d: path("M 8 152 L 8 110.3 L 15.6 117 L 23.2 105.6 L 30.8 98.7 L 38.3 121.8 L 45.9 110.8 L 53.5 120.3 L 61.1 122.9 L 68.7 109.5 L 76.3 116 L 83.8 113.3 L 91.4 114.6 L 99 121.8 L 106.6 123.8 L 114.2 117.2 L 121.8 128.2 L 129.3 126.5 L 136.9 126.6 L 144.5 128.6 L 152.1 131.6 L 159.7 135.2 L 167.3 132.4 L 174.8 133.1 L 182.4 125.7 L 190 133.7 L 197.6 127 L 205.2 131.6 L 212.8 128.6 L 220.3 132.1 L 227.9 134.6 L 235.5 134.3 L 243.1 131.8 L 250.7 131.5 L 258.3 135.3 L 265.8 132.6 L 273.4 137.3 L 281 137.7 L 288.6 139.1 L 296.2 138.7 L 303.8 137.8 L 311.3 139.2 L 318.9 141.1 L 326.5 140.3 L 334.1 138.2 L 341.7 141.1 L 349.3 141.9 L 356.8 140.4 L 364.4 143.2 L 372 140.2 L 372 152 Z"); } }
+    /* the curve is the user's EQ setting — it stays put; only the FFT below is "live" */
+    .curve { fill: none; stroke: url(#cg); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .dot { fill: #dfe2f4; stroke: #0f1016; stroke-width: 2; }
+    .zlabel { fill: var(--acc); fill-opacity: .55; font-size: 8px; font-weight: 700; letter-spacing: 1.3px; }
+    .flabel { fill: #c7cad6; fill-opacity: .45; font-size: 7.5px; }
+    .warn { display: flex; align-items: center; gap: 7px; color: #8a90a0; font-size: 10.5px; margin: 9px 2px 11px; }
+    .warn svg { width: 13px; height: 13px; flex: none; }
+    .pbtns { display: flex; gap: 8px; }
+    .btnMain { flex: 1; height: 40px; border-radius: 12px; border: 1px solid rgba(139,147,198,.5); background: rgba(139,147,198,.14); color: #f4f5fa; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btnMain svg { width: 15px; height: 15px; }
+    .btnReset { width: 96px; height: 40px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); color: #c7cad6; font-weight: 500; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btnReset svg { width: 14px; height: 14px; }
+    .pnav { display: flex; border-top: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
+    .pnavItem { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 0; color: #6b7080; font-size: 10px; font-weight: 600; position: relative; }
+    .pnavItem svg { width: 19px; height: 19px; }
+    .pnavItem.on { color: var(--acc); }
+    .pnavItem .pill { position: absolute; top: 0; width: 26px; height: 2px; border-radius: 2px; background: var(--acc); opacity: .9; }
 
     /* ---- pin card ---- */
-    .card { background: var(--glass); border: 1px solid var(--gbrd); border-radius: 18px; padding: 22px 22px 24px;
+    .card { background: var(--glass); border: 1px solid var(--gbrd); border-radius: 18px; padding: 22px;
             -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
-            box-shadow: 0 12px 40px rgba(0,0,0,.5), inset 0 1px 0 var(--ghi); }
+            box-shadow: 0 12px 40px rgba(0,0,0,.5), inset 0 1px 0 var(--ghi);
+            display: grid; grid-template-columns: 340px 1fr; gap: 26px; align-items: center; }
     .card h2 { font-size: 16px; font-weight: 700; }
     .card .lead { font-size: 13px; color: var(--dim); line-height: 1.5; margin: 4px 0 16px; }
-
-    /* baked pin-flow loop (an animated WebP — nothing to break at runtime) */
-    .demo { border-radius: 14px; overflow: hidden; background: #0f1016; line-height: 0;
-            box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
-    .demo img { display: block; width: 100%; height: auto; }
-
-    /* steps */
-    .steps { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+    .steps { display: flex; flex-direction: column; gap: 12px; }
     .step { display: flex; gap: 12px; align-items: flex-start; }
     .num { flex: none; width: 24px; height: 24px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
            font-weight: 800; font-size: 12px; color: #0a0c14; background: linear-gradient(135deg, var(--acc2), var(--acc)); }
     .step p { font-size: 13.5px; line-height: 1.5; color: var(--dim); padding-top: 2px; }
     .step b { color: var(--ink); font-weight: 600; }
 
-    .priv { margin-top: 20px; text-align: center; font-size: 12px; color: var(--faint); line-height: 1.5; }
+    /* ---- live pin-flow ---- */
+    .pinflow { position: relative; height: 210px; border-radius: 14px; background: #0f1016; overflow: hidden;
+               box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+    .mbar { position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
+            background: #1b1d27; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .maddr { flex: 1; height: 22px; border-radius: 11px; background: rgba(255,255,255,.05); }
+    .puzzle { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #8a90a0; }
+    .puzzle svg { width: 17px; height: 17px; }
+    .ddmenu { position: absolute; top: 46px; right: 10px; width: 214px; border-radius: 12px; padding: 8px; z-index: 3;
+              background: #20222e; box-shadow: 0 16px 34px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07);
+              opacity: 0; transform: translateY(-8px) scale(.96); transform-origin: top right;
+              animation: menuIn 7s ease infinite; }
+    @keyframes menuIn { 0%,8% { opacity: 0; transform: translateY(-8px) scale(.96); }
+                        16%,82% { opacity: 1; transform: translateY(0) scale(1); }
+                        92%,100% { opacity: 0; transform: translateY(-8px) scale(.96); } }
+    .ddhdr { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6b7080; padding: 4px 8px 8px; }
+    .ddrow { display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: 9px; }
+    .ddrow.umbra { background: rgba(139,147,198,.1); }
+    .ddrow .ci { width: 18px; height: 18px; color: var(--acc); flex: none; }
+    .ddrow .dot2 { width: 18px; height: 18px; border-radius: 5px; background: rgba(255,255,255,.08); flex: none; }
+    .ddrow .nm { flex: 1; font-size: 12px; color: #d7dae4; }
+    .ddrow.dim .nm { color: #6b7080; }
+    .pin { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #6b7080; }
+    .pin svg { width: 14px; height: 14px; }
+    .ddrow.umbra .pin { color: #8a90a0; animation: pinOn 7s ease infinite; }
+    @keyframes pinOn { 0%,44% { color: #8a90a0; transform: scale(1); }
+                       50% { color: var(--acc2); transform: scale(.8); }
+                       56%,82% { color: var(--acc2); transform: scale(1); }
+                       92%,100% { color: #8a90a0; transform: scale(1); } }
+    .cursor { position: absolute; top: 0; left: 0; width: 20px; height: 20px; z-index: 6; color: #fff;
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,.5));
+              animation: cursorPath 7s ease-in-out infinite; }
+    .cursor svg { width: 100%; height: 100%; }
+    @keyframes cursorPath {
+      0%   { transform: translate(120px, 150px); }
+      12%  { transform: translate(300px, 20px); }   /* to puzzle */
+      18%  { transform: translate(300px, 20px); }
+      44%  { transform: translate(298px, 96px); }   /* to Umbra pin */
+      50%  { transform: translate(298px, 96px) scale(.82); }  /* click */
+      56%  { transform: translate(298px, 96px); }
+      82%  { transform: translate(298px, 96px); }
+      100% { transform: translate(150px, 150px); }
+    }
+    .ring { position: absolute; left: 296px; top: 94px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--acc2);
+            opacity: 0; z-index: 5; animation: clickRing 7s ease infinite; }
+    @keyframes clickRing { 0%,48% { opacity: 0; transform: scale(.4); } 50% { opacity: .8; transform: scale(.6); } 60% { opacity: 0; transform: scale(1.6); } 100% { opacity: 0; } }
+
+    .priv { margin-top: 22px; text-align: center; font-size: 12px; color: var(--faint); line-height: 1.5; }
     .priv b { color: var(--dim); }
     .foot { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
     .btn { font-family: inherit; font-size: 14px; font-weight: 650; color: #0a0c14; cursor: pointer; border: none;
@@ -85,11 +171,20 @@
     .foot a { color: var(--dim); font-size: 13px; text-decoration: none; }
     .foot a:hover, .foot a:focus-visible { color: var(--acc2); }
     .foot .sp { flex: 1; }
-    @media (max-width: 560px) { .point { display: none; } .tag { margin-left: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .mark, .curveG, .fft, .ddmenu, .pin, .cursor, .ring, .point .draw, .point .head { animation: none !important; }
+      .ddmenu { opacity: 1; transform: none; }
+      .cursor { display: none; }
+    }
+    @media (max-width: 780px) {
+      .hero { grid-template-columns: 1fr; }
+      .card { grid-template-columns: 1fr; }
+      .point { display: none; }
+    }
   </style>
 </head>
 <body>
-  <!-- curved arrow to the real extensions area (top-right of the browser) -->
   <div class="point" aria-hidden="true">
     <svg viewBox="0 0 210 250">
       <text class="lbl" x="0" y="208" data-i18n="toolbarTip">Your toolbar is up here</text>
@@ -112,23 +207,89 @@
         <button type="button" data-lang="ru">RU</button>
       </div>
     </div>
-    <p class="tag" data-i18n="tag">An equalizer for every tab. Boost the bass, tame harsh highs, or make a quiet video louder — all on your computer.</p>
 
-    <div class="card">
-      <h2 data-i18n="pinTitle">Pin Umbra so it is one click away</h2>
-      <p class="lead" data-i18n="pinLead">Chrome hides new extensions behind the puzzle icon in the toolbar. Pin Umbra EQ once and it stays in reach.</p>
-
-      <div class="demo">
-        <picture>
-          <source srcset="onboarding-pin-static.webp" media="(prefers-reduced-motion: reduce)" />
-          <img src="onboarding-pin.webp" alt="Open the Chrome extensions menu and click the pin next to Umbra EQ" width="780" height="228" />
-        </picture>
+    <!-- HERO: copy + live product -->
+    <div class="hero">
+      <div>
+        <h1 data-i18n-html="heroTitle">Shape any <span>tab's sound</span></h1>
+        <p class="tag" data-i18n="tag">An equalizer for every tab. Boost the bass, tame harsh highs, or make a quiet video louder — all on your computer.</p>
       </div>
 
-      <div class="steps">
-        <div class="step"><span class="num">1</span><p data-i18n-html="step1">Click the <b>puzzle icon</b> at the top-right of Chrome.</p></div>
-        <div class="step"><span class="num">2</span><p data-i18n-html="step2">Find <b>Umbra EQ</b> in the list and click its pin.</p></div>
-        <div class="step"><span class="num">3</span><p data-i18n-html="step3">On any tab with sound, click Umbra and press <b>EQ This Tab</b>.</p></div>
+      <div class="popup" aria-hidden="true">
+        <div class="phdr">
+          <svg class="plogo" viewBox="0 0 32 32" fill="none"><mask id="mPop"><rect width="32" height="32" fill="#fff"/><circle cx="20.5" cy="13.5" r="11" fill="#000"/></mask><circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#mPop)"/><circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5"/></svg>
+          <span class="wm">Umbra<b>EQ</b></span>
+          <span class="pre">Preset: None</span>
+          <div class="hicons">
+            <span class="hbtn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="5" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></svg></span>
+            <span class="hbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></span>
+          </div>
+        </div>
+        <div class="pscreen">
+          <div class="gpanel">
+            <div class="vol"><span>0</span><div class="voltrack"><div class="volfill"></div><div class="volknob"></div></div><span style="letter-spacing:.12em">VOL</span></div>
+            <div class="graph">
+              <svg class="gsvg" viewBox="0 0 380 176" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b93c6"/><stop offset="1" stop-color="#c48bbf"/></linearGradient>
+                  <linearGradient id="fftg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b93c6" stop-opacity="0.22"/><stop offset="1" stop-color="#8b93c6" stop-opacity="0.03"/></linearGradient>
+                </defs>
+                <path class="fft"/>
+                <text class="zlabel" x="42" y="12" text-anchor="middle">BASS</text>
+                <text class="zlabel" x="160" y="12" text-anchor="middle">MIDS</text>
+                <text class="zlabel" x="286" y="12" text-anchor="middle">TREBLE</text>
+                <text class="zlabel" x="356" y="12" text-anchor="middle">AIR</text>
+                <line x1="8" y1="112" x2="372" y2="112" stroke="#fff" stroke-opacity=".1" stroke-dasharray="1 3"/>
+                <g class="curveG">
+                  <path class="curve" d="M 8 66 C 42 46, 80 46, 120 98 C 162 134, 212 132, 252 126 C 294 120, 322 84, 372 102"/>
+                  <circle class="dot" cx="8" cy="66" r="3.4"/><circle class="dot" cx="46" cy="52" r="3.4"/><circle class="dot" cx="86" cy="60" r="3.4"/><circle class="dot" cx="120" cy="98" r="3.4"/><circle class="dot" cx="162" cy="122" r="3.4"/><circle class="dot" cx="205" cy="129" r="3.4"/><circle class="dot" cx="252" cy="126" r="3.4"/><circle class="dot" cx="290" cy="110" r="3.4"/><circle class="dot" cx="322" cy="84" r="3.4"/><circle class="dot" cx="350" cy="90" r="3.4"/><circle class="dot" cx="372" cy="102" r="3.4"/>
+                </g>
+                <text class="flabel" x="8" y="172" text-anchor="middle">20</text><text class="flabel" x="80" y="172" text-anchor="middle">80</text><text class="flabel" x="180" y="172" text-anchor="middle">320</text><text class="flabel" x="250" y="172" text-anchor="middle">1.3k</text><text class="flabel" x="320" y="172" text-anchor="middle">5.1k</text><text class="flabel" x="372" y="172" text-anchor="middle">20k</text>
+              </svg>
+            </div>
+          </div>
+          <div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>Loud audio can harm your hearing, so keep it sensible</span></div>
+          <div class="pbtns">
+            <div class="btnMain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg> EQ This Tab</div>
+            <div class="btnReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Reset</div>
+          </div>
+        </div>
+        <div class="pnav">
+          <div class="pnavItem on"><span class="pill"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>EQ</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span>Presets</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg><span>Rules</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></svg><span>Tabs</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg><span>More</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIN CARD: live pin-flow + steps -->
+    <div class="card">
+      <div>
+        <div class="pinflow" aria-hidden="true">
+          <div class="mbar"><div class="maddr"></div><div class="puzzle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 4.5a2.5 2.5 0 0 0-5 0V6H8a2 2 0 0 0-2 2v2.5H4.5a2.5 2.5 0 0 0 0 5H6V18a2 2 0 0 0 2 2h2.5v-1.5a2.5 2.5 0 0 1 5 0V20H18a2 2 0 0 0 2-2v-2.5h1.5a2.5 2.5 0 0 0 0-5H20V8a2 2 0 0 0-2-2h-2.5z"/></svg></div></div>
+          <div class="ddmenu">
+            <div class="ddhdr" data-i18n="ddHeader">Extensions</div>
+            <div class="ddrow umbra">
+              <svg class="ci" viewBox="0 0 32 32" fill="none"><mask id="mDd"><rect width="32" height="32" fill="#fff"/><circle cx="20.5" cy="13.5" r="11" fill="#000"/></mask><circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#mDd)"/></svg>
+              <span class="nm">Umbra EQ</span>
+              <span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></span>
+            </div>
+            <div class="ddrow dim"><span class="dot2"></span><span class="nm">Another extension</span></div>
+          </div>
+          <div class="ring"></div>
+          <div class="cursor"><svg viewBox="0 0 24 24" fill="#fff" stroke="#0a0b0f" stroke-width="1.2" stroke-linejoin="round"><path d="M5 3 L5 19 L9 15 L12 21.5 L14.2 20.5 L11.2 14.2 L16.5 14 Z"/></svg></div>
+        </div>
+      </div>
+      <div>
+        <h2 data-i18n="pinTitle">Pin Umbra so it is one click away</h2>
+        <p class="lead" data-i18n="pinLead">Chrome hides new extensions behind the puzzle icon in the toolbar. Pin Umbra EQ once and it stays in reach.</p>
+        <div class="steps">
+          <div class="step"><span class="num">1</span><p data-i18n-html="step1">Click the <b>puzzle icon</b> at the top-right of Chrome.</p></div>
+          <div class="step"><span class="num">2</span><p data-i18n-html="step2">Find <b>Umbra EQ</b> in the list and click its pin.</p></div>
+          <div class="step"><span class="num">3</span><p data-i18n-html="step3">On any tab with sound, click Umbra and press <b>EQ This Tab</b>.</p></div>
+        </div>
       </div>
     </div>
 

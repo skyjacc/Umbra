@@ -40,6 +40,16 @@ interface Props {
 const bandZone = (i: number) =>
   i <= 2 ? t('eq.zoneBass') : i <= 6 ? t('eq.zoneMid') : i <= 8 ? t('eq.zoneTreble') : t('eq.zoneAir');
 
+// The four frequency zones as spans (matching the bandZone thresholds), so the band guide
+// shows ONE centered label per zone instead of repeating the word on every dot (which used
+// to collide at the low end where the bands sit close together).
+const BAND_ZONES: Array<{ key: string; from: number; to: number }> = [
+  { key: 'eq.zoneBass', from: 0, to: 2 },
+  { key: 'eq.zoneMid', from: 3, to: 6 },
+  { key: 'eq.zoneTreble', from: 7, to: 8 },
+  { key: 'eq.zoneAir', from: 9, to: 10 },
+];
+
 const G = (v: string) => `var(--g-${v})`;
 const openPath = (pts: Array<[number, number]>) =>
   'M' + pts.map(([x, y]) => `${x} ${y}`).join(' L');
@@ -371,21 +381,23 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
           );
         })}
 
-        {/* band guide — a per-dot zone label (bass/mids/treble/air) for newcomers, opt-in */}
+        {/* band guide — ONE centered label per frequency zone (bass/mids/treble/air), opt-in.
+            Pinned to the top and spaced as a subtle legend, so labels never repeat or collide
+            the way the old per-dot labels did. */}
         {showRoles &&
-          dots.map((d, i) => (
+          BAND_ZONES.map((z) => (
             <text
-              key={'role' + i}
-              x={d.x}
-              y={Math.max(10, d.y - 13)}
+              key={'zone' + z.key}
+              x={(dots[z.from].x + dots[z.to].x) / 2}
+              y={12}
               textAnchor="middle"
-              fontSize={7.5}
+              fontSize={8.5}
               fill={G('text')}
-              fillOpacity={0.7}
+              fillOpacity={0.5}
               pointerEvents="none"
-              style={{ letterSpacing: '.02em' }}
+              style={{ letterSpacing: '.14em', textTransform: 'uppercase' }}
             >
-              {bandZone(i)}
+              {t(z.key)}
             </text>
           ))}
 
