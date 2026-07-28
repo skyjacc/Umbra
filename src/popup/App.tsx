@@ -181,6 +181,7 @@ export default function App() {
               bands={eng.bands}
               sampleRate={eng.sampleRate}
               spectrumOn={eng.spectrum}
+              visible={view === 'eq'}
               activeTabId={eng.activeTabId}
               showRoles={eng.showRoles}
               onBands={eng.onBandsLive}
@@ -189,7 +190,7 @@ export default function App() {
             />
           </div>
 
-          <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground/70">
+          <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
             <TriangleAlert className="size-3.5 opacity-70" />
             {tr('eq.loud')}
           </div>
@@ -247,7 +248,7 @@ export default function App() {
           </div>
 
           {visibleBuiltins.length === 0 && names.length === 0 ? (
-            <p className="px-1 text-[12px] text-muted-foreground/70 text-pretty">{tr('presets.none')}</p>
+            <p className="px-1 text-[12px] text-muted-foreground text-pretty">{tr('presets.none')}</p>
           ) : (
             <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
               {/* built-in presets — accent-tinted, dismissible (recoverable) */}
@@ -348,7 +349,7 @@ export default function App() {
                     (t.id === eng.activeTabId ? 'bg-primary/10' : 'bg-white/[.05]')
                   }
                 >
-                  {/^(https?:|data:)/.test(t.favIconUrl) ? (
+                  {/^data:image\//.test(t.favIconUrl) ? (
                     <img src={t.favIconUrl} alt="" className="size-[17px] rounded" />
                   ) : (
                     <Globe className="size-[17px] text-muted-foreground" aria-hidden />

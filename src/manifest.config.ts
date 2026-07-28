@@ -27,6 +27,6 @@ export default defineManifest({
     service_worker: 'src/background.js'
   },
   content_security_policy: {
-    extension_pages: "script-src 'self'; object-src 'self'"
+    extension_pages: "script-src 'self'; object-src 'self'; img-src 'self' data:; connect-src 'self'"
   }
 });

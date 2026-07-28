@@ -321,7 +321,16 @@ export function bandsToPreset(bands: Band[]): PresetBands {
 }
 
 export function presetToBands(p: PresetBands): Band[] {
+  // Defensive: readInitialState/refreshPresets deliberately keep a raw, un-coercible preset shape
+  // (legacy or tampered chrome.storage.sync) whose frequencies/gains/qs may not be arrays. Indexing
+  // those throws and — via resolvedFor/applyEverywhere — makes the engine look dead for every
+  // captured tab. Coerce first; fall back to a flat curve so a corrupt preset degrades to a no-op.
+  const c = coerceBands(p) ?? {
+    frequencies: DEFAULT_FREQUENCIES,
+    gains: Array(NUM_FILTERS).fill(0),
+    qs: Array(NUM_FILTERS).fill(DEFAULT_Q)
+  };
   return Array.from({ length: NUM_FILTERS }, (_, i) =>
-    sanitizeFilter({ frequency: p.frequencies[i], gain: p.gains[i], q: p.qs[i] }, i)
+    sanitizeFilter({ frequency: c.frequencies[i], gain: c.gains[i], q: c.qs[i] }, i)
   );
 }

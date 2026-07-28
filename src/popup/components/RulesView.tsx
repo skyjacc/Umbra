@@ -77,7 +77,7 @@ function RulesViewImpl({
       )}
 
       {rules.length === 0 ? (
-        <p className="px-1 text-[12px] text-muted-foreground/70 text-pretty">{tr('rules.none')}</p>
+        <p className="px-1 text-[12px] text-muted-foreground text-pretty">{tr('rules.none')}</p>
       ) : (
         rules.map((r) => (
           <RuleCard key={r.id} r={r} presetNames={presetNames} matched={r.id === matchedRuleId} onUpdate={onUpdate} onDelete={onDelete} />
@@ -212,7 +212,7 @@ function GuidePanel() {
         ))}
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground text-pretty">{tr('guide.tip')}</p>
-      <p className="mt-1.5 text-[10.5px] text-muted-foreground/60 text-pretty">{tr('guide.applyNote')}</p>
+      <p className="mt-1.5 text-[10.5px] text-muted-foreground text-pretty">{tr('guide.applyNote')}</p>
     </div>
   );
 }
