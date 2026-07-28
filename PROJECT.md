@@ -233,7 +233,7 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-
 ## 12. Tests & CI
 
 - **`npm test`** (Vitest) — pure-logic suites in `src/lib`: `logic.test.ts`,
-  `rules.test.ts`, `share.test.ts`, `invariants.test.ts` (**64 tests**). **`npm run typecheck`** (`tsc
+  `rules.test.ts`, `share.test.ts`, `invariants.test.ts` (**66 tests**). **`npm run typecheck`** (`tsc
   --noEmit`) must pass.
 - **CI** (`.github/workflows/build.yml`, Windows runner) runs typecheck + test + build +
   package on push/PR to `main` and on `v*` tags; on a tag it verifies `manifest.version
@@ -247,7 +247,7 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-
 model-v2 popup resolution (global profile + rules), built-in + user presets with
 self-heal + prototype-pollution guards, share-by-code, RU/EN UI, 4 themes + custom hue,
 band guide, full-window global editor, onboarding, bundled OFL fonts, own crescent logo,
-two adversarial audits closed, 64/64 tests, CI + branch protection, **public repo +
+two adversarial audits closed, 66/66 tests, CI + branch protection, **public repo +
 GitHub Release**, and **published on the Chrome Web Store** with store assets and a
 keyword-dense listing (`STORE_LISTING.md`).
 

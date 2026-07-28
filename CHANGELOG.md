@@ -4,7 +4,7 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.4.0] — 2026-07-29
 
 ### Changed
 
@@ -16,6 +16,34 @@ All notable changes to Umbra EQ are documented here. The format follows
   header, band guide, EQ curve, animated FFT spectrum, bottom nav). The pin-the-extension
   animation is now pure CSS (toolbar → extensions menu → cursor → pin) with a reduced-motion
   static fallback, replacing a baked WebP.
+- **Higher-contrast UI text** — the bottom-navigation labels and helper / empty-state text now
+  meet WCAG AA contrast.
+
+### Added
+
+- **Engine health warning** — if the popup and the audio engine ever fall out of sync, the popup
+  now shows a clear "reload the extension" banner instead of silently misbehaving.
+
+### Fixed
+
+- A just-finished band edit could briefly revert (and be saved reverted) when another tab started
+  or stopped playing.
+- Stopping a tab from the **Tabs** list is now remembered, so it isn't automatically re-EQ'd the
+  next time you open the popup.
+- Keyboard focus no longer jumps to the top of the popup after you close a dropdown or the in-app
+  guide; read-only equalizer controls now announce their disabled state to screen readers.
+- A corrupt or foreign saved preset can no longer break the equalizer.
+
+### Security
+
+- The **Tabs** list no longer loads site icons over the network: favicons render only from local
+  data, and the extension's content-security policy now blocks any remote image or connection —
+  keeping the "100% local, no network" guarantee airtight.
+
+### Performance
+
+- The live spectrum stops polling the audio engine when the equalizer view isn't visible (saves
+  CPU / battery, most noticeably in the full-window editor).
 
 ### Removed
 
