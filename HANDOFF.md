@@ -37,11 +37,16 @@ account, no backend, no analytics, no network calls of any kind.
 **Health:** 64 Vitest tests green · `tsc --noEmit` clean · CI green on push and PR · two full
 adversarial audits closed with 0 critical / 0 high findings remaining.
 
-**Traction (2026-07-12, 30-day window):** ~19 installs · 8 weekly users · 3 ratings averaging
-5.0 · 151 store impressions · 42 page views. **100 % of those page views came from the
-browser's own extension menu — zero organic store-search traffic.** Conversion is healthy
-(45 % view→install) and retention is fine; the bottleneck is purely discovery. That single
-fact should drive the roadmap ([§12](#12-roadmap)).
+**Traction (updated 2026-07-28, ~28-day window, from the store listing's own GA4 property
+544778898):** ~70 active / 72 new users · 5.0 rating · healthy ~45 % view→install. The
+bottleneck is discovery (top-of-funnel volume), not conversion or retention.
+**Acquisition — this corrects an earlier "100 % extension menu / zero organic" claim:** ~24 %
+of users arrive via web search engines (Google / DuckDuckGo / Bing landing on the store page),
+~33 % via the browser's extension menu (mostly returning users), the rest direct / referral.
+Geography leads with the **US (~20 %)**, then a long diverse tail — Romania is ~6 %, not the
+21–28 % once assumed; English is 54 % of users. (Small sample — treat percentages as directional
+and re-check monthly.) The full data-grounded plan lives in the vault's Discovery Plan; it should
+drive the roadmap ([§12](#12-roadmap)).
 
 ---
 
@@ -328,9 +333,12 @@ update `CHANGELOG.md` and the vault, open a PR into `main`, then follow [§7](#7
 **Next — discovery, not features.** The product converts well and is rated 5.0; almost
 nobody finds it. Ranked by expected impact:
 
-1. **Localize the store listing** (not just the UI). Romania is 21–28 % of installs but sees
-   an English listing. Priority: RU, RO, ES, DE, PT-BR. Each locale is a separate ranking
-   surface in the store — the single largest lever available.
+1. **Store-listing reach, data-corrected.** Publish **Edge Add-ons + Opera** listings (same zip
+   and copy) to add two searchable surfaces. **Localization** is **English-first → Spanish →
+   Russian** (RU strings already ship) — the old "Romania 21–28 %, localize RU/RO/ES/DE/PT"
+   priority was not supported by the GA4 data (Romania ~6 %, US #1, English 54 %). Draft copy for
+   en + es/ru/ro/de/pt-BR is in the vault (`store-listing/`). The single highest lever is the
+   keyword-led **store rename** — see item 3, now recommended (not just "reconsider").
 2. **Record the demo GIF.** There is none today — the README falls back to two static screenshots. A 10–15 s
    loop of dragging the curve on a playing tab is the most persuasive asset the project can
    have, and it feeds the README, the store's video slot, and social posts.
