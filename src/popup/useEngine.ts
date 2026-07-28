@@ -191,14 +191,16 @@ export function useEngine() {
   useEffect(() => {
     let mounted = true;
 
-    io.readInitialState().then((init) => {
-      if (mounted) setPresets(init.presets);
-    });
-    io.readRules().then((rs) => {
-      if (mounted) {
-        rulesRef.current = rs;
-        setRules(rs);
-      }
+    // Load presets + rules together, then re-resolve. Both are read async; a preset-mode rule
+    // resolves to null (→ flat) if applyEverywhere runs before its preset finished loading, so set
+    // the refs directly (not only via the re-render) and push one fresh resolve once both are in.
+    Promise.all([io.readInitialState(), io.readRules()]).then(([init, rs]) => {
+      if (!mounted) return;
+      presetsRef.current = init.presets;
+      setPresets(init.presets);
+      rulesRef.current = rs;
+      setRules(rs);
+      applyEverywhere(tabsRef.current);
     });
     io.readDefaultEq().then((g) => {
       if (mounted) globalRef.current = g;

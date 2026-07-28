@@ -33,6 +33,9 @@ All notable changes to Umbra EQ are documented here. The format follows
 - Keyboard focus no longer jumps to the top of the popup after you close a dropdown or the in-app
   guide; read-only equalizer controls now announce their disabled state to screen readers.
 - A corrupt or foreign saved preset can no longer break the equalizer.
+- A site rule set to a preset could briefly play flat right after the popup opened (until you
+  switched views or toggled it), if the rule's preset was still loading — the popup now
+  re-applies once presets and rules have loaded.
 
 ### Security
 
