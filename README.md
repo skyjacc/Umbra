@@ -1,11 +1,11 @@
 <p align="center">
-  <a href="https://github.com/skyjacc/Umbra/releases/latest"><img src="docs/banner.png" alt="Umbra EQ" width="820"></a>
+  <a href="https://github.com/skyjacc/Umbra/releases/latest"><img src="docs/banner.png" alt="Umbra EQ — per-tab equalizer, bass boost and volume booster for Chrome, Edge and Opera" width="820"></a>
 </p>
 
 <h1 align="center">Umbra EQ</h1>
 
 <p align="center">
-  <b>Per-tab parametric EQ + bass boost for Chrome, Edge & Opera</b><br>
+  <b>Per-tab parametric equalizer, bass boost & volume booster for Chrome, Edge & Opera</b><br>
   11 bands &middot; one global sound &middot; site rules &middot; 100% local
 </p>
 
@@ -25,9 +25,9 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-eq.png" alt="The Umbra EQ equalizer" width="410">
+  <img src="docs/screenshot-eq.png" alt="Umbra EQ — the 11-band parametric equalizer curve with live spectrum and bass boost on a browser tab" width="410">
   &nbsp;
-  <img src="docs/screenshot-rules.png" alt="Umbra EQ site rules" width="410">
+  <img src="docs/screenshot-rules.png" alt="Umbra EQ per-site rules — give each site its own equalizer sound by address pattern" width="410">
 </p>
 
 ## Why Umbra EQ
@@ -109,6 +109,28 @@ The same zip is accepted by the Chrome Web Store, Edge Add-ons, and Opera.
 Manifest V3. The **popup** (React + TypeScript) is the source of truth: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **engine is vanilla** — the service worker owns the offscreen document and mints tab-capture ids; the offscreen document holds 11 biquad filters per tab behind a brick-wall limiter, glided click-free. Pure audio/preset/rule math lives in `src/lib` (unit-tested); strict CSP, no remote code, no `eval`.
 
 Working on Umbra? [`HANDOFF.md`](HANDOFF.md) is the full developer handoff — architecture, release process, roadmap, known limitations. See also [`PROJECT.md`](PROJECT.md), [`DEPLOY.md`](DEPLOY.md), and [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## How Umbra EQ compares
+
+Most browser equalizers are a fixed set of graphic-EQ sliders that inject a content script into the page — which is why they fall silent on Spotify, YouTube Music, and other players that isolate their audio. Umbra is different on three axes:
+
+- **True parametric, not fixed sliders.** Each of the 11 bands is a full biquad filter you move in frequency, gain, and width (Q) — finer control than a locked graphic equalizer.
+- **Per-tab, and it keeps working.** A `tabCapture`-based audio engine gives every tab its own filter chain, so a music tab and a video tab can sound different at once — and it still processes sound on the streaming sites where content-script EQs go quiet.
+- **100% local and open-source.** No account, no ads, no analytics, no network calls; MIT-licensed and auditable. Many free equalizer / volume-booster extensions are ad-supported or permission-hungry.
+
+## FAQ
+
+**Does it work as a YouTube or Spotify equalizer?** Yes — Umbra EQ shapes the tab's own audio, so it works as a YouTube equalizer, a Spotify equalizer, and on most web players, streams, and podcasts. Sites that hand their audio to a separate process are the occasional exception.
+
+**Is it a bass booster and volume booster too?** Yes. The low bands act as a one-click bass boost; the master control is a volume booster that pushes a tab past 100%, with a brick-wall limiter so loud audio stays clean instead of clipping.
+
+**What is a parametric equalizer?** Unlike a graphic equalizer with fixed sliders, a parametric EQ lets you move each band in frequency, gain, and width — so you can target the exact part of the sound you want to boost or cut.
+
+**Is it really free, with no ads or tracking?** Yes. Umbra EQ is free, MIT-licensed, 100% local, and makes no network calls of its own — no ads, no accounts, no analytics.
+
+**Which browsers does it support?** Chrome 116+, Microsoft Edge, and Opera (the same package). A Firefox port is planned.
+
+**Is it open source?** Yes — the full source is in this repository under the MIT license.
 
 ## Privacy
 
