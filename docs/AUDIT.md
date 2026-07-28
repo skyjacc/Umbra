@@ -592,4 +592,38 @@ presetBandsEqual. Тесты 49→**64**. **N11** (IDN/punycode в матчер�
 CHANGELOG `[Unreleased]`→`[2.3.0]`), исправлен L18-комментарий (`popup.js`→`engine-io.ts`). Согласо-
 ванность версии теперь под `invariants.test.ts`. tsc 0 · 64 теста · тег `v2.3.0` → CI зип+Release.
 
+**2026-07-28 — full-fleet sweep, Трек A (продукт)**
+
+Мульти-агентный аудит (workflow, 22 агента: 5 доменных finder'ов — Code Reviewer / Accessibility /
+Security / Performance / Frontend → adversarial-верификаторы против hard-инвариантов). **17 находок
+→ 16 подтверждено, 1 отклонено.** Спека: vault `[[Sweep 2026-07-28]]`.
+
+**Применено (7 авто-безопасных, ветка `chore/sweep-product` → PR):**
+- **`useEngine.ts` onCommit (гонка).** `interacting.current=false` снималось синхронно, а запись
+  (`commitTarget`) дебаунсится 200мс — broadcast (`workspaceStatus`) в этом окне проходил гард
+  `applyEverywhere`, резолвил pre-commit кривую, откатывал правку на экране/в движке И персистил
+  откат. Фикс: снимать флаг внутри дебаунс-колбэка, за один statement до `commitTarget` (окно
+  закрыто, но собственный `applyEverywhere` коммита всё равно пушит новую кривую).
+- **`GuideOverlay.tsx` focus-trap.** Эффект зависел от нестабильного инлайн-`onClose` → на каждый
+  ре-рендер App (broadcast / clear тоста) тир-даун+ре-ран крал фокус из диалога. Фикс: `onClose`
+  в ref, deps `[open]`.
+- **`RulesView`/`VerticalVolume`/`BottomNav` — `React.memo`.** Каждый кадр драга ре-рендерил
+  скрытые (display:none) секции + все RuleCard. Пропсы референс-стабильны при драге → memo скипает.
+- **`useEngine.ts` stopTab.** Stop в списке вкладок слал `disconnectTab` напрямую, минуя
+  `stoppedTabs` — авто-capture заново EQ'ил вкладку на следующем открытии попапа. Фикс: активную
+  вкладку роутить через `toBackground('toggleCapture',{on:false})`.
+- **`ShareRow.tsx`** `aria-label="Import"` (хардкод EN) → `tr('share.import')` (+ ключ en/ru).
+- **`EqGraph.tsx` / `VerticalVolume.tsx`** read-only слайдеры без состояния → `aria-disabled={!editable}`.
+- **`App.tsx`** `'(untitled)'` (хардкод EN) → `tr('tabs.untitled')` (+ ключ en/ru).
+
+tsc 0 · 64 теста · build ✓. **⚠️ UI-регрессии авто-тестами не ловятся** (нет UI/E2E) — перед merge
+нужен ручной smoke попапа.
+
+**Отложено (8, требуют решения — инвариант-safe, но нужен выбор дизайна/продукта):**
+контраст muted-текста (BottomNav /60 ~2.9:1, провал WCAG AA) · страница-контролируемый favicon-URL
+грузится по сети в «100% local» (`App.tsx`) + CSP без `img-src`/`connect-src` (`manifest.config.ts`) ·
+`Select.tsx` не возвращает фокус на триггер · FFT-поллинг бьёт движок при скрытом EQ (`EqGraph.tsx`,
+Full-window) · `engineStatus` считается но не рендерится (мёртвый health-сигнал) · `presetToBands`
+кидает на не-coercible пресете (`engine-io.ts`). Детали — в vault `[[Fixes & Findings]]` и `[[Sweep 2026-07-28]]`.
+
 <!-- сюда пишем дальше -->

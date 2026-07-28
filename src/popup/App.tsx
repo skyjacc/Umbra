@@ -355,7 +355,7 @@ export default function App() {
                   )}
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[12.5px] text-foreground" title={t.title}>
-                      {t.title || '(untitled)'}
+                      {t.title || tr('tabs.untitled')}
                     </span>
                     <span className="truncate text-[10.5px] text-muted-foreground/80">
                       {t.host || tr('tabs.local')}

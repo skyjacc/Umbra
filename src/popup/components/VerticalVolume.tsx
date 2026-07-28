@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { EQ_H, MASTER_DB_MAX, MASTER_DB_MIN, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
 import { useT } from '../i18n';
 
@@ -7,7 +7,7 @@ const FRAC0 = (0 - MASTER_DB_MIN) / RANGE; // fraction (from bottom) of the 0 dB
 
 // Thin vertical master-volume fader (Ears-style): fixed width (no reflow jitter),
 // a visible 0 dB tick, and a detent that snaps to exactly 0. Value in dB.
-export function VerticalVolume({
+function VerticalVolumeImpl({
   gain,
   onGain,
   onCommit,
@@ -89,6 +89,7 @@ export function VerticalVolume({
         className={'relative flex w-full flex-1 touch-none justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ' + (editable ? 'cursor-ns-resize' : 'cursor-default')}
         role="slider"
         aria-label={tr('vol.master')}
+        aria-disabled={!editable}
         aria-valuemin={MASTER_DB_MIN}
         aria-valuemax={MASTER_DB_MAX}
         aria-valuenow={Math.round(db)}
@@ -112,3 +113,8 @@ export function VerticalVolume({
     </div>
   );
 }
+
+// Memoized: during a band drag the parent re-renders ~once/frame but this fader's props are
+// unchanged, so the shallow-prop comparison skips the re-render. Props come from stable
+// useCallback/useMemo in useEngine; gain still changes (re-rendering correctly) during a volume drag.
+export const VerticalVolume = memo(VerticalVolumeImpl);

@@ -33,7 +33,7 @@ export function ShareRow({ onCopy, onImport }: { onCopy: () => void; onImport: (
             className="min-w-0 flex-1 rounded-lg border border-border bg-black/25 px-2.5 py-1.5 font-mono text-[10.5px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
           />
           <button
-            aria-label="Import"
+            aria-label={tr('share.import')}
             onClick={() => {
               if (text.trim()) onImport(text);
               setText('');
