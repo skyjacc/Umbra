@@ -4,6 +4,24 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **Band guide** — the guide printed a zone label under every one of the 11 dots, so it read
+  "Bass Bass Bass Mids Mids Mids Mids…" and the words collided at the low end where the bands sit
+  close together. It now renders one centered label per frequency zone (BASS / MIDS / TREBLE /
+  AIR). The header toggle icon changed from `Tags` to `Captions`.
+- **Onboarding rebuilt** — the welcome page now leads with a live mockup of the popup (real
+  header, band guide, EQ curve, animated FFT spectrum, bottom nav). The pin-the-extension
+  animation is now pure CSS (toolbar → extensions menu → cursor → pin) with a reduced-motion
+  static fallback, replacing a baked WebP.
+
+### Removed
+
+- `public/onboarding-pin.webp` and `public/onboarding-pin-static.webp` — no longer referenced
+  after the onboarding rebuild.
+
 ## [2.3.0] — 2026-07-11
 
 Two rounds of a production audit (specialized sub-agents, adversarially verified) drove a
