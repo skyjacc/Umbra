@@ -478,6 +478,17 @@ export default function App() {
         </div>
       )}
 
+      {['stale', 'error', 'notResponding'].includes(eng.engineStatus) && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed inset-x-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/15 px-3.5 py-2.5 text-[11.5px] font-semibold text-destructive shadow-lg backdrop-blur-md"
+        >
+          <TriangleAlert className="size-4 shrink-0" />
+          {tr('engine.' + eng.engineStatus)}
+        </div>
+      )}
+
       <GuideOverlay open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
