@@ -42,7 +42,9 @@ export function useEngine() {
   const [sampleRate, setSampleRate] = useState(44100);
   const [presets, setPresets] = useState<Record<string, PresetBands>>({});
   const [rules, setRules] = useState<Rule[]>([]);
-  const [engineStatus, setEngineStatus] = useState('starting…');
+  // Status CODE (not a display string) so the UI can localize it — see i18n `engine.*` + the
+  // header/banner in App. Values: starting | initializing | connected | stale | devPreview | error | notResponding.
+  const [engineStatus, setEngineStatus] = useState('starting');
   const [notice, setNoticeState] = useState('');
   const [spectrum, setSpectrum] = useState<boolean>(() => {
     try {
@@ -154,11 +156,11 @@ export function useEngine() {
   const handleStatus = useCallback(
     (msg: any) => {
       if (msg.build && msg.build !== io.BUILD) {
-        setEngineStatus('STALE — reload extension');
+        setEngineStatus('stale');
         return;
       }
       if (msg.initializing) {
-        setEngineStatus('initializing…');
+        setEngineStatus('initializing');
         return;
       }
       gotFirstStatus.current = true;
@@ -240,12 +242,12 @@ export function useEngine() {
         });
       });
     } else {
-      setEngineStatus('dev preview');
+      setEngineStatus('devPreview');
     }
 
     const onMsg = (m: any) => {
       if (m.type === 'workspaceStatus') handleStatus(m);
-      else if (m.type === 'engineError') setEngineStatus('engine ERROR');
+      else if (m.type === 'engineError') setEngineStatus('error');
       else if (m.type === 'captureError') {
         const e = String(m.error || '');
         if (/active stream|already|in use/i.test(e)) {
@@ -270,7 +272,7 @@ export function useEngine() {
         const poll = () => {
           if (gotFirstStatus.current) return;
           if (attempts++ > 20) {
-            setEngineStatus('NOT responding');
+            setEngineStatus('notResponding');
             return;
           }
           io.toOffscreen('getStatus', {}, (resp: any) => {

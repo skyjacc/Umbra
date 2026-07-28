@@ -626,7 +626,7 @@ tsc 0 · 64 теста · build ✓. **⚠️ UI-регрессии авто-т�
 Full-window) · `engineStatus` считается но не рендерится (мёртвый health-сигнал) · `presetToBands`
 кидает на не-coercible пресете (`engine-io.ts`). Детали — в vault `[[Fixes & Findings]]` и `[[Sweep 2026-07-28]]`.
 
-**2026-07-29 — Трек A, отложенные находки применены (5 из 8)**
+**2026-07-29 — Трек A, отложенные находки применены (все 8)**
 
 Из 8 отложенных Трека A применены 5 безопасных (ветка `chore/sweep-product`, тот же PR #20):
 - **Favicon сетевой запрос убит + CSP.** `App.tsx` Tabs-list рендерит `<img>` только для `data:image/`
@@ -644,8 +644,11 @@ Full-window) · `engineStatus` считается но не рендерится
 - **`presetToBands` защита.** Не-coercible пресет больше не кидает TypeError (не роняет движок для всех
   вкладок) — coerce + flat-fallback; +2 теста (`share.test.ts`), суита 64 → **66**.
 
-tsc 0 · 66 тестов · build ✓. Осталось 1 отложенное — **`engineStatus`** (health-сигнал считается, но
-не рендерится): render (нужен UI + i18n) vs удалить — продукт-решение, ждёт владельца. На merge PR #20
-бампнуть doc-счётчик тестов 64 → 66 (HANDOFF §2/§9/§14, PROJECT.md, vault Testing/Code Map).
+- **`engineStatus` отрендерен** (выбор владельца: render). Статусы движка переведены в i18n-коды
+  (`engine.*`, en+ru); app-level alert-баннер показывает `stale`/`error`/`notResponding` —
+  задокументированный в §8 STALE-гард снова живой. **Все 8 отложенных Трека A закрыты.**
+
+tsc 0 · 66 тестов · build ✓. На merge PR #20 бампнуть doc-счётчик тестов 64 → 66 (HANDOFF §2/§9/§14,
+PROJECT.md, vault Testing/Code Map).
 
 <!-- сюда пишем дальше -->
