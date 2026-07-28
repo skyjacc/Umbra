@@ -27,6 +27,7 @@ interface Props {
   bands: Band[];
   sampleRate: number;
   spectrumOn?: boolean; // whether the live FFT visualizer is on (EqGraph owns the poll now)
+  visible?: boolean; // whether the EQ view is the active in-app view — gate the FFT poll when hidden
   activeTabId?: number | null; // the tab whose FFT to poll
   showRoles?: boolean; // overlay a zone icon over each dot (a "what does this do" guide)
   onBands: (b: Band[]) => void; // live, during drag
@@ -53,7 +54,7 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = null, showRoles = false, onBands, onCommit, editable = true }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
@@ -69,7 +70,10 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = n
   const tabIdRef = useRef(activeTabId);
   tabIdRef.current = activeTabId;
   useEffect(() => {
-    if (!spectrumOn) {
+    // Gate on `visible` too: EqGraph stays mounted (display:none) when another in-app view is open,
+    // so without this the rAF poll keeps hitting the engine ~30x/s for a hidden graph — a real
+    // battery drain in the long-lived Full-window tab.
+    if (!spectrumOn || !visible) {
       setFft(null);
       return;
     }
@@ -92,7 +96,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = n
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, [spectrumOn]);
+  }, [spectrumOn, visible]);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {

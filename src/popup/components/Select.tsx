@@ -24,13 +24,22 @@ export function Select({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    // Escape closes AND returns focus to the trigger (ARIA listbox pattern) — without this, focus is
+    // dumped to <body> when the focused option unmounts. Outside-click (onDoc) deliberately does NOT
+    // refocus: the user is moving focus elsewhere.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        btnRef.current?.focus();
+      }
+    };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -70,6 +79,7 @@ export function Select({
   return (
     <div ref={ref} className={'relative ' + className}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
@@ -98,6 +108,7 @@ export function Select({
                 onClick={() => {
                   onChange(o.value);
                   setOpen(false);
+                  btnRef.current?.focus(); // selection closes the list → keep focus on the combobox
                 }}
                 className={
                   'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-colors ' +

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { encodeShare, decodeShare, sanitizeImportedRules } from './engine-io';
+import { encodeShare, decodeShare, sanitizeImportedRules, presetToBands } from './engine-io';
+import { NUM_FILTERS } from './audio';
 
 describe('share codes — round-trip', () => {
   it('round-trips presets with a Cyrillic + emoji name (UTF-8 safe)', () => {
@@ -56,5 +57,24 @@ describe('sanitizeImportedRules', () => {
   it('non-array input → empty', () => {
     expect(sanitizeImportedRules(null)).toEqual([]);
     expect(sanitizeImportedRules({})).toEqual([]);
+  });
+});
+
+describe('presetToBands — defensive coercion', () => {
+  it('does not throw on an un-coercible preset and returns NUM_FILTERS finite bands', () => {
+    // A legacy/tampered PRESETS.* shape coerceBands rejects (no frequencies/gains/qs arrays). Before
+    // the guard this threw a TypeError and, via resolvedFor/applyEverywhere, killed the engine for
+    // every captured tab.
+    const bad = { eq: [1, 2, 3] } as any;
+    expect(() => presetToBands(bad)).not.toThrow();
+    const bands = presetToBands(bad);
+    expect(bands).toHaveLength(NUM_FILTERS);
+    expect(bands.every((b) => Number.isFinite(b.frequency) && Number.isFinite(b.gain) && Number.isFinite(b.q))).toBe(true);
+  });
+
+  it('preserves a valid preset', () => {
+    const bands = presetToBands({ frequencies: [100], gains: [6], qs: [1] } as any);
+    expect(bands).toHaveLength(NUM_FILTERS);
+    expect(Number.isFinite(bands[0].gain)).toBe(true);
   });
 });

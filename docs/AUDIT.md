@@ -626,4 +626,26 @@ tsc 0 · 64 теста · build ✓. **⚠️ UI-регрессии авто-т�
 Full-window) · `engineStatus` считается но не рендерится (мёртвый health-сигнал) · `presetToBands`
 кидает на не-coercible пресете (`engine-io.ts`). Детали — в vault `[[Fixes & Findings]]` и `[[Sweep 2026-07-28]]`.
 
+**2026-07-29 — Трек A, отложенные находки применены (5 из 8)**
+
+Из 8 отложенных Трека A применены 5 безопасных (ветка `chore/sweep-product`, тот же PR #20):
+- **Favicon сетевой запрос убит + CSP.** `App.tsx` Tabs-list рендерит `<img>` только для `data:image/`
+  favicon (страница-контролируемые `https:` → fallback `<Globe>`); `manifest.config.ts` CSP получил
+  `img-src 'self' data:; connect-src 'self'` — на extension-страницах больше нет неограниченных
+  удалённых загрузок/fetch. Закрывает утечку IP в «100% local» продукте. (Favicon реальных сайтов
+  больше не показываются — приемлемо; при желании вернуть локально через MV3 `_favicon/` + permission.)
+- **Контраст WCAG AA.** Убран `/60`–`/70` opacity с несущего текста: nav inactive (`BottomNav`) →
+  `text-muted-foreground` + `hover:text-foreground` (иерархия сохранена, тема-безопасно); `eq.loud`
+  предупреждение, пустые состояния presets/rules, guide-note — полный токен.
+- **`Select` возврат фокуса.** На Escape/выбор фокус возвращается на триггер (не улетает в `<body>`);
+  outside-click намеренно не рефокусит.
+- **FFT-поллинг гейт.** `EqGraph` получил проп `visible = view==='eq'`; поллинг спектра
+  останавливается когда EQ-вью скрыт (батарея в Full-window).
+- **`presetToBands` защита.** Не-coercible пресет больше не кидает TypeError (не роняет движок для всех
+  вкладок) — coerce + flat-fallback; +2 теста (`share.test.ts`), суита 64 → **66**.
+
+tsc 0 · 66 тестов · build ✓. Осталось 1 отложенное — **`engineStatus`** (health-сигнал считается, но
+не рендерится): render (нужен UI + i18n) vs удалить — продукт-решение, ждёт владельца. На merge PR #20
+бампнуть doc-счётчик тестов 64 → 66 (HANDOFF §2/§9/§14, PROJECT.md, vault Testing/Code Map).
+
 <!-- сюда пишем дальше -->
