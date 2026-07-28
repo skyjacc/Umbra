@@ -34,7 +34,7 @@ account, no backend, no analytics, no network calls of any kind.
 | Chrome Web Store (live) | `2.3.0` | approved and public |
 | Branch `feat/2.4.0-band-guide-onboarding` | unreleased | see [§11](#11-in-flight) |
 
-**Health:** 64 Vitest tests green · `tsc --noEmit` clean · CI green on push and PR · two full
+**Health:** 66 Vitest tests green · `tsc --noEmit` clean · CI green on push and PR · two full
 adversarial audits closed with 0 critical / 0 high findings remaining.
 
 **Traction (updated 2026-07-28, ~28-day window, from the store listing's own GA4 property
@@ -115,7 +115,7 @@ does that resolution and pushes the finished band list down.
 | Popup | React 18, TypeScript |
 | Build | Vite + [CRXJS](https://crxjs.dev) |
 | UI | Tailwind CSS, shadcn/ui primitives, lucide-react icons |
-| Tests | Vitest (64) |
+| Tests | Vitest (66) |
 | CI/CD | GitHub Actions — build + test on push and PR, release zip on `v*` tags |
 
 **Runtime dependencies:** `react`, `react-dom`, `lucide-react`, `clsx`, `tailwind-merge`,
@@ -188,7 +188,7 @@ provision** — clone, install, build.
 ```bash
 npm install
 npm run build      # → dist/   the loadable, CSP-clean MV3 extension
-npm test           # 64 Vitest unit tests
+npm test           # 66 Vitest unit tests
 npm run typecheck  # tsc --noEmit, also runs in CI
 npm run dev        # HMR dev build
 ```
@@ -273,7 +273,7 @@ The Chrome Web Store rejects any upload whose version is not strictly higher tha
 ## 9. Testing
 
 ```bash
-npm test           # 64 tests, ~2s
+npm test           # 66 tests, ~2s
 npm run typecheck  # strict tsc
 ```
 
@@ -378,7 +378,7 @@ index.
 
 | Item | Why it matters |
 | ---- | -------------- |
-| **No UI or E2E tests** | The 64 tests cover `src/lib` only. Every regression in the popup, the service worker, or the engine is caught by hand. A Playwright smoke test that loads the unpacked extension and drives one band would cover the riskiest path. |
+| **No UI or E2E tests** | The 66 tests cover `src/lib` only. Every regression in the popup, the service worker, or the engine is caught by hand. A Playwright smoke test that loads the unpacked extension and drives one band would cover the riskiest path. |
 | **Clamps duplicated in two files** | `src/lib/audio.ts` and `public/offscreen.js` must agree numerically but cannot share a module (the engine is outside the bundler). `invariants.test.ts` guards it, but it is still copy-paste. |
 | **`build-zip.ps1` is PowerShell-only** | Releasing from macOS or Linux needs a rewrite of the packaging step. |
 | **No demo GIF** | The README ships static screenshots only (`docs/screenshot-eq.png`, `docs/screenshot-rules.png`). A short loop of the curve being dragged is the single most persuasive asset the project lacks. |
