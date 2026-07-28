@@ -4,11 +4,11 @@ import { defineManifest } from '@crxjs/vite-plugin';
 // (service worker + Web Audio); only the popup is React.
 export default defineManifest({
   manifest_version: 3,
-  name: 'Umbra EQ — Equalizer & Bass Boost',
+  name: 'Equalizer + Bass Boost, per Tab — Umbra EQ',
   short_name: 'Umbra EQ',
   description:
     'Give any tab its own equalizer. Boost bass, tame harsh audio, and save presets. Everything stays on your computer.',
-  version: '2.4.0',
+  version: '2.4.1',
   homepage_url: 'https://github.com/skyjacc/Umbra',
   minimum_chrome_version: '116',
   icons: {

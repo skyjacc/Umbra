@@ -4,6 +4,15 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [2.4.1] — 2026-07-29
+
+### Changed
+
+- **Store title leads with the keyword** — the extension name is now
+  "Equalizer + Bass Boost, per Tab — Umbra EQ" (was "Umbra EQ — Equalizer & Bass Boost"), so the
+  Chrome Web Store's search-weighted title starts with the terms people actually search for, while
+  keeping the Umbra EQ brand as a suffix. No functional change.
+
 ## [2.4.0] — 2026-07-29
 
 ### Changed

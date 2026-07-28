@@ -1,7 +1,7 @@
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
-const BUILD = '2.4.0'; // keep in sync with offscreen.js / src/lib/engine-io.ts (guarded by invariants.test.ts)
+const BUILD = '2.4.1'; // keep in sync with offscreen.js / src/lib/engine-io.ts (guarded by invariants.test.ts)
 
 // --- Logging: ring buffer + console, for one-click diagnostics export. ---
 const DEBUG = false; // flip to true only for local diagnostics
