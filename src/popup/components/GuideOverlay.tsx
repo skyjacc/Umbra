@@ -9,6 +9,12 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
   const tr = useT();
   const ref = useRef<HTMLDivElement>(null);
   const prevFocus = useRef<HTMLElement | null>(null);
+  // Keep onClose in a ref so the focus-trap effect need not depend on it. App passes a fresh inline
+  // onClose each render, so listing it in the deps would tear down and re-run the effect on every
+  // parent re-render (e.g. a workspaceStatus broadcast or the notice toast clearing), yanking focus
+  // out of and back into the dialog.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Modal dialog behaviour: move focus in on open, trap Tab within, restore focus on close.
   useEffect(() => {
@@ -20,7 +26,7 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
     focusables()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -45,7 +51,7 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
       document.removeEventListener('keydown', onKey);
       prevFocus.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

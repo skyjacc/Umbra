@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AudioLines, SlidersHorizontal, ListFilter, AppWindow, MoreHorizontal } from 'lucide-react';
 import { useT } from '../i18n';
 
@@ -13,7 +13,7 @@ const TABS: { id: ViewId; Icon: typeof AudioLines }[] = [
 ];
 
 // Bottom tab bar with a sliding active indicator (smoothui "animated tabs" idea).
-export function BottomNav({ view, onView }: { view: ViewId; onView: (v: ViewId) => void }) {
+function BottomNavImpl({ view, onView }: { view: ViewId; onView: (v: ViewId) => void }) {
   const tr = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState({ cx: 0 });
@@ -61,3 +61,7 @@ export function BottomNav({ view, onView }: { view: ViewId; onView: (v: ViewId) 
     </nav>
   );
 }
+
+// Memoized so a band-drag re-render of the parent (once per frame) skips this bar; `view` is a
+// primitive and `onView` is a stable setter, so the shallow prop comparison holds.
+export const BottomNav = memo(BottomNavImpl);

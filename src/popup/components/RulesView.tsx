@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Trash2, Plus, HelpCircle } from 'lucide-react';
 import { parsePatterns, newRuleId, type Rule } from '@/lib/rules';
 import { BUILTIN_ORDER } from '@/lib/builtins';
@@ -23,7 +23,7 @@ interface Props {
 const chip =
   'flex-1 rounded-lg border border-border bg-black/20 px-2 py-1.5 text-[11px] font-semibold text-muted-foreground transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:text-foreground';
 
-export function RulesView({
+function RulesViewImpl({
   rules,
   presets,
   activeHost,
@@ -185,6 +185,11 @@ function RuleCard({
     </div>
   );
 }
+
+// Memoized — the biggest win of the three: this gates the whole RuleCard list, which otherwise
+// re-renders (and recomputes preset/target option lists) on every band-drag frame. All props are
+// referentially stable during a drag (rules/presets/activeHost unchanged; callbacks are useCallbacks).
+export const RulesView = memo(RulesViewImpl);
 
 function GuidePanel() {
   const tr = useT();

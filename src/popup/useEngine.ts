@@ -396,10 +396,15 @@ export function useEngine() {
   // final save past quota. Drag-end also routes here, so this collapses a burst into one write.
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCommit = useCallback(() => {
-    interacting.current = false;
     if (commitTimer.current) clearTimeout(commitTimer.current);
     commitTimer.current = setTimeout(() => {
       commitTimer.current = null;
+      // Clear the mid-edit guard only here — one statement before the authoritative write — not
+      // synchronously at the top of onCommit. Otherwise a workspaceStatus broadcast arriving in the
+      // 200ms debounce window would pass applyEverywhere's guard, resolve the still-stale pre-commit
+      // curve, and both revert the on-screen edit and get persisted over it. commitTarget's own
+      // applyEverywhere still runs because the flag is already false at this point.
+      interacting.current = false;
       commitTarget(bandsRef.current, gainRef.current);
     }, 200);
   }, [commitTarget]);
@@ -414,7 +419,14 @@ export function useEngine() {
   );
 
   const toggleCapture = useCallback(() => io.toBackground('toggleCapture', { on: !capturing }), [capturing]);
-  const stopTab = useCallback((id: number) => io.toOffscreen('disconnectTab', { tabId: id }), []);
+  // The active tab's Stop must route through the background so its id lands in the stoppedTabs set
+  // (same as the main "Stop EQing" button); a direct disconnect leaves the tab un-remembered, so the
+  // next popup open auto-captures and re-EQs it. Non-active tabs are never the auto-capture target,
+  // so a direct disconnect is fine for them.
+  const stopTab = useCallback((id: number) => {
+    if (id === activeIdRef.current) io.toBackground('toggleCapture', { on: false });
+    else io.toOffscreen('disconnectTab', { tabId: id });
+  }, []);
 
   // On the current site: reset to flat. Unruled → the global profile; ruled → remove the rule.
   const resetAll = useCallback(() => {

@@ -348,6 +348,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, activeTabId = n
                 className={editable ? 'cursor-grab' : 'cursor-default'}
                 tabIndex={editable ? 0 : -1}
                 role="slider"
+                aria-disabled={!editable}
                 aria-label={`${bandZone(i)} ${freqLabel(bands[i].frequency)} Hz`}
                 aria-valuemin={DB_BOTTOM}
                 aria-valuemax={DB_TOP}

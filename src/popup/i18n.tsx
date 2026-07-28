@@ -45,6 +45,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'tabs.none': "No tabs are being EQ'd. Start with EQ This Tab.",
     'tabs.stop': 'Stop',
     'tabs.local': 'local',
+    'tabs.untitled': '(untitled)',
 
     'more.title': 'More',
     'more.theme': 'Theme',
@@ -58,6 +59,7 @@ const DICT: Record<Lang, Record<string, string>> = {
 
     'share.copyCode': 'Copy code',
     'share.pasteCode': 'Paste code',
+    'share.import': 'Import',
 
     'howto.title': 'How to use Umbra EQ',
     'howto.eq.h': 'The graph',
@@ -169,6 +171,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'tabs.none': 'Ни одна вкладка не эквализируется. Нажми «Включить на вкладке».',
     'tabs.stop': 'Стоп',
     'tabs.local': 'локально',
+    'tabs.untitled': 'Без названия',
 
     'more.title': 'Ещё',
     'more.theme': 'Тема',
@@ -182,6 +185,7 @@ const DICT: Record<Lang, Record<string, string>> = {
 
     'share.copyCode': 'Копировать код',
     'share.pasteCode': 'Вставить код',
+    'share.import': 'Импорт',
 
     'howto.title': 'Как пользоваться Umbra EQ',
     'howto.eq.h': 'График',
