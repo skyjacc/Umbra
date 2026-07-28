@@ -1,6 +1,6 @@
 # Privacy Policy — Umbra EQ
 
-_Last updated: 2026-07-06_
+_Last updated: 2026-07-13_
 
 Umbra EQ ("the extension") is a browser audio equalizer. This policy explains what
 it does and does not do with your data.
@@ -16,14 +16,22 @@ All audio processing and all settings stay on your own device.
   captures the audio of the current tab and routes it through a local Web Audio
   equalizer. The audio is processed in real time inside your browser and is **never
   recorded, stored, or transmitted** anywhere.
-- **The active tab's title and favicon (via `activeTab`)** — shown only in the
-  "Active Tabs" list inside the popup so you can tell which tabs are being equalized.
-  This information never leaves your browser.
-- **Your EQ settings and presets (via `storage`)** — filter values, master volume,
-  and named presets are saved locally with `chrome.storage`. Presets you save may be
-  synced across your own signed-in Chrome profile using Chrome's built-in Sync (this
-  is Google's sync of your own data to your own account; the extension operates no
-  server and receives none of it).
+- **The active tab's address, title, and favicon (via `activeTab`)** — the extension
+  reads the current tab's URL to work out (a) whether the tab's audio can be captured
+  at all (browser-internal pages like `chrome://` cannot be) and (b) its hostname, e.g.
+  `youtube.com`. The hostname is what per-site rules match against, so the right saved
+  sound is applied to the right site; it is also shown in the Rules tab for the
+  "rule for this site" shortcut. The title and favicon are shown in the "Active Tabs"
+  list so you can tell which tabs are being equalized. None of this is recorded as
+  browsing history, and none of it leaves your browser.
+- **Your EQ settings, presets, and domain rules (via `storage`)** — filter values,
+  master volume, named presets, and domain rules (the hostname patterns you type
+  yourself to assign a sound to a site, e.g. `youtube.`) are saved locally with
+  `chrome.storage`. Presets and domain rules may be synced across your own signed-in
+  Chrome profile using Chrome's built-in Sync (this is Google's sync of your own data
+  to your own account; the extension operates no server and receives none of it). The
+  extension never reads your browsing history — the only site names it holds are the
+  patterns you enter yourself.
 
 ## What the extension does NOT do
 
@@ -35,9 +43,9 @@ All audio processing and all settings stay on your own device.
 
 | Permission   | Why it is needed                                                        |
 | ------------ | ----------------------------------------------------------------------- |
-| `activeTab`  | Read the active tab's audio/title/favicon when you invoke the extension |
+| `activeTab`  | Read the active tab's audio, address (for per-site rules and capturability), title, and favicon when you invoke the extension |
 | `tabCapture` | Capture the tab's audio stream to run it through the equalizer          |
-| `storage`    | Save your EQ settings and presets on your device                        |
+| `storage`    | Save your EQ settings, presets, and domain rules on your device        |
 | `offscreen`  | Host the Web Audio graph (service workers cannot use Web Audio)         |
 
 ## Contact

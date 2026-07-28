@@ -5,10 +5,11 @@ stands**. For narrower docs see the [Documentation index](#15-documentation-inde
 
 - **Name:** Umbra EQ — Equalizer & Bass Boost
 - **Type:** Browser extension, Manifest V3 (Chromium: Chrome, Edge, Opera)
-- **Version:** 2.2.0 (see `CHANGELOG.md`; the version lives in six lock-step places — §11)
+- **Version:** 2.3.0 (see `CHANGELOG.md`; the version lives in six lock-step places — §11)
 - **License:** MIT (author: skyjacc) — see `LICENSE`
-- **Status:** feature-complete, security-audited, and **published** (public repo
-  `skyjacc/Umbra`; GitHub Release + tag `v2.2.0`). Firefox is a planned separate port
+- **Status:** feature-complete, security-audited, and **live on the Chrome Web Store**
+  (item `plkncppcgglcjdkmcdeajhbfccbnnoee`, version 2.3.0; public repo `skyjacc/Umbra`,
+  GitHub Release + tag `v2.3.0`). Firefox is a planned separate port
   (see §13, `FIREFOX_PORT.md`).
 
 > **Stack:** the popup is a **React + TypeScript** app (Vite + CRXJS, Tailwind +
@@ -140,8 +141,14 @@ preserved; ids use `crypto.randomUUID()`.
   from it. (Old v1 `DEQ.*` per-site keys may linger, unused.)
 - **`chrome.storage.sync`** — named presets under the `PRESETS.` prefix, and the ordered
   `RULES` array. Chrome syncs these across the user's signed-in browsers.
-- **`localStorage`** (popup only, per-install) — UI prefs: `THEME`, `THEME_HUE`,
-  `SHOW_VISUALIZER`, `SHOW_ROLES`, `HIDDEN_BUILTINS`.
+- **`chrome.storage.session`** (service worker) — `stoppedTabs`: the ids of tabs the user
+  explicitly **Stopped**. In-memory only would not survive an MV3 service-worker eviction
+  (~30 s idle), so a Stop would be silently undone the next time the popup auto-EQs the
+  tab; the SW hydrates the Set on cold start before deciding. Cleared on browser restart.
+- **`localStorage`** (per-install, shared by the popup and the onboarding page — same
+  `chrome-extension://` origin) — UI prefs: `THEME`, `THEME_HUE`, `SHOW_VISUALIZER`,
+  `SHOW_ROLES`, `HIDDEN_BUILTINS`, and `UMBRA_LANG` (the RU/EN choice behind the §3
+  language switch; falls back to `navigator.language` when unset).
 - **Resolution is live:** on every engine status the popup re-resolves and pushes each
   captured tab, so a rule / global-profile / preset change updates all EQ'd tabs at once
   (skipped mid-drag so a live edit isn't clobbered).
@@ -160,7 +167,7 @@ preserved; ids use `crypto.randomUUID()`.
   lightness/chroma so any color stays readable and equally bright.
 - **Fonts (bundled, SIL OFL 1.1):** Inter Variable (UI) + Geist Mono (labels/axes),
   self-hosted via `@font-face` — no Google Fonts / CDN. Licenses ship in `public/fonts/`.
-- **Icons:** lucide-react (MIT), plus an original inline **crescent-eclipse** logo mark
+- **Icons:** lucide-react (ISC), plus an original inline **crescent-eclipse** logo mark
   tinted with the active accent. **No emoji** anywhere in the UI or docs.
 - **Hard rule:** never put a CSS `transform` / `filter` on any ancestor of the graph
   SVG — the drag reads live element rectangles and a transformed ancestor breaks
@@ -226,7 +233,7 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-
 ## 12. Tests & CI
 
 - **`npm test`** (Vitest) — pure-logic suites in `src/lib`: `logic.test.ts`,
-  `rules.test.ts`, `share.test.ts` (**46 tests**). **`npm run typecheck`** (`tsc
+  `rules.test.ts`, `share.test.ts`, `invariants.test.ts` (**64 tests**). **`npm run typecheck`** (`tsc
   --noEmit`) must pass.
 - **CI** (`.github/workflows/build.yml`, Windows runner) runs typecheck + test + build +
   package on push/PR to `main` and on `v*` tags; on a tag it verifies `manifest.version
@@ -240,13 +247,19 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-
 model-v2 popup resolution (global profile + rules), built-in + user presets with
 self-heal + prototype-pollution guards, share-by-code, RU/EN UI, 4 themes + custom hue,
 band guide, full-window global editor, onboarding, bundled OFL fonts, own crescent logo,
-security audit GO, 46/46 tests, CWS-valid zip, **public repo + GitHub Release**.
+two adversarial audits closed, 64/64 tests, CI + branch protection, **public repo +
+GitHub Release**, and **published on the Chrome Web Store** with store assets and a
+keyword-dense listing (`STORE_LISTING.md`).
+
+**In flight:** branch `feat/2.4.0-band-guide-onboarding` — zone-based band-guide labels
+and a rebuilt onboarding page. Not merged, not released. Details in `HANDOFF.md` §11.
 
 **Pending / optional:**
-1. Verify the name "Umbra EQ" is free on each store + not trademarked.
-2. Prepare 1–5 store screenshots (1280×800 or 640×400).
-3. Submit to Chrome Web Store, then reuse the same zip for Edge Add-ons + Opera; fill
-   each store's data-safety form ("no data collected").
+1. **Localize the store listing** (RU, RO, ES, DE, PT-BR). Discovery is the bottleneck:
+   the listing draws almost no organic store-search traffic.
+2. Record the demo GIF (the README placeholder is still commented out).
+3. Reuse the same zip for Edge Add-ons + Opera listings; fill each store's data-safety
+   form ("no data collected").
 4. **Firefox:** separate content-script port — see `FIREFOX_PORT.md` (deferred).
 
 ## 14. Roadmap

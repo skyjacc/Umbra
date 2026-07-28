@@ -16,8 +16,9 @@ following third-party components, each under its own license.
 - **Tailwind CSS** — MIT License — (c) Tailwind Labs, Inc.
 - **shadcn/ui** — MIT License — (c) shadcn.
 - **lucide-react** — ISC License — (c) Lucide Contributors.
-- **Radix UI** (`@radix-ui/react-slot`), **class-variance-authority**, **clsx**,
-  **tailwind-merge** — MIT License.
+- **Radix UI** (`@radix-ui/react-slot`), **clsx**, **tailwind-merge** — MIT License.
+- **class-variance-authority** — Apache License 2.0 — (c) 2022 Joe Bell.
+  See http://www.apache.org/licenses/LICENSE-2.0.
 
 Build tooling (Vite, CRXJS, TypeScript, Vitest, PostCSS, Autoprefixer) runs at build
 time only and is not redistributed in the extension package.

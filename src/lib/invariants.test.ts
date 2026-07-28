@@ -24,7 +24,11 @@ describe('cross-file invariants', () => {
       engineIo: grab(engineIoSrc, /BUILD\s*=\s*'([^']+)'/)
     };
     for (const [name, v] of Object.entries(places)) expect(v, name).toBe(pkg);
-    expect(changelogSrc).toContain(`[${pkg}]`);
+    // the newest DATED release heading must be this version (an [Unreleased] section may sit above it)
+    const head = changelogSrc.match(/^## \[(?!Unreleased\])([^\]]+)\] — (\d{4}-\d{2}-\d{2})\s*$/m);
+    expect(head, 'CHANGELOG: no "## [x.y.z] — YYYY-MM-DD" heading found').not.toBeNull();
+    expect(head![1], 'changelog').toBe(pkg);
+    expect(Number.isNaN(Date.parse(head![2])), 'changelog date').toBe(false);
   });
 
   it('frequency clamp ceiling matches between the popup and the engine', () => {
