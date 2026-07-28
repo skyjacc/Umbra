@@ -651,4 +651,25 @@ Full-window) · `engineStatus` считается но не рендерится
 tsc 0 · 66 тестов · build ✓. На merge PR #20 бампнуть doc-счётчик тестов 64 → 66 (HANDOFF §2/§9/§14,
 PROJECT.md, vault Testing/Code Map).
 
+**2026-07-27 — band guide + переписанный онбординг (2.4.0-кандидат, commit `16c4155`)**
+
+Ветка `feat/2.4.0-band-guide-onboarding`, версия НЕ бампалась (все 6 мест остаются 2.3.0,
+CHANGELOG под `[Unreleased]`). Тестов не добавляет — 64 без изменений.
+
+- **Band guide.** `EqGraph.tsx` звал `bandZone(i)` на каждую из 11 точек, поэтому гид рисовал
+  одно слово под каждой точкой — «Bass Bass Bass Mids Mids Mids Mids Treble Treble Air Air» —
+  и на низах (20/40/80 Гц в паре пикселей друг от друга) слова налезали. Заменено на таблицу
+  спанов `BAND_ZONES`: **один центрированный лейбл на зону** (BASS / MIDS / TREBLE / AIR),
+  приглушённой легендой сверху. `bandZone(i)` оставлен только для per-dot `aria-label`.
+- **Иконка тоггла** band-guide в хедере: lucide `Tags` → `Captions` (`App.tsx`) — читается как
+  «показать подписи».
+- **Онбординг переписан** (`public/onboarding.html` + `onboarding.js`). Раньше учил пиннингу, но
+  не показывал продукт. Теперь ведёт живым мокапом попапа (настоящий хедер, band guide, EQ-кривая,
+  анимированный CSS FFT-спектр, нижний навбар). Pin-flow — чистая CSS-анимация (тулбар → меню
+  расширений → курсор → пин) с reduced-motion статик-фолбэком, вместо запечённого WebP. Кривая
+  статична (это настройка), живёт только FFT.
+- **Удалены** `public/onboarding-pin.webp` и `onboarding-pin-static.webp` — больше не используются.
+
+Vault засинкан: `Fixes & Findings.md` несёт этот же блок (см. секцию «In flight»).
+
 <!-- сюда пишем дальше -->
