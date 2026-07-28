@@ -23,6 +23,11 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
 - [ ] Update the Obsidian vault (`C:\Users\oblako\Documents\Umbra`): the version in
       `Umbra EQ.md`, plus `Fixes & Findings.md` / affected notes (see the vault's
       `Maintenance.md`). Mirror the fix log in `docs/AUDIT.md`.
+- [ ] Refresh `PROJECT.md` — the **Version:** line in the header block and the release
+      tag `vX.Y.Z` in the **Status** bullet (hand-maintained; outside the six, NOT
+      covered by `src/lib/invariants.test.ts`).
+- [ ] Post-release: re-add an empty `## [Unreleased]` section to `CHANGELOG.md` above the
+      new `## [x.y.z]` heading, so the next cycle's per-PR entries have a home.
 
 ## Pre-submit
 

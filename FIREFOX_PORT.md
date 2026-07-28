@@ -24,11 +24,11 @@ background event page (DOM) holds shared state / messaging
 popup ← → content script  (same UI, same SVG graph, same presets)
 ```
 
-- Reuse **all** of `popup.*` (UI, graph, presets, themes) unchanged.
+- Reuse **all** of `src/popup/` (React UI, SVG graph, presets, themes) and `src/lib/` unchanged.
 - Replace the `background.js` + `offscreen.js` capture/engine pair with:
   - `content.js` — builds the Web Audio chain on each media element it finds, listens
-    for `modifyFilter` / `applySettings` / `modifyGain` messages, and re-attaches when
-    the SPA swaps media elements (MutationObserver).
+    for `applySettings` (the live per-band path) and `modifyGain` messages, and
+    re-attaches when the SPA swaps media elements (MutationObserver).
   - A Firefox `manifest.json` variant: `browser_specific_settings.gecko`, no
     `tabCapture`/`offscreen` permissions, `background.scripts` instead of a service
     worker, and content-script registration.

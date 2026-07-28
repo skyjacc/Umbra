@@ -331,7 +331,7 @@ nobody finds it. Ranked by expected impact:
 1. **Localize the store listing** (not just the UI). Romania is 21–28 % of installs but sees
    an English listing. Priority: RU, RO, ES, DE, PT-BR. Each locale is a separate ranking
    surface in the store — the single largest lever available.
-2. **Record the demo GIF.** The README still carries a commented-out placeholder. A 10–15 s
+2. **Record the demo GIF.** There is none today — the README falls back to two static screenshots. A 10–15 s
    loop of dragging the curve on a playing tab is the most persuasive asset the project can
    have, and it feeds the README, the store's video slot, and social posts.
 3. **Reconsider the store name.** "Umbra EQ — Equalizer & Bass Boost" leads with a brand
@@ -373,7 +373,7 @@ index.
 | **No UI or E2E tests** | The 64 tests cover `src/lib` only. Every regression in the popup, the service worker, or the engine is caught by hand. A Playwright smoke test that loads the unpacked extension and drives one band would cover the riskiest path. |
 | **Clamps duplicated in two files** | `src/lib/audio.ts` and `public/offscreen.js` must agree numerically but cannot share a module (the engine is outside the bundler). `invariants.test.ts` guards it, but it is still copy-paste. |
 | **`build-zip.ps1` is PowerShell-only** | Releasing from macOS or Linux needs a rewrite of the packaging step. |
-| **No demo GIF** | The README placeholder has been commented out for several releases. |
+| **No demo GIF** | The README ships static screenshots only (`docs/screenshot-eq.png`, `docs/screenshot-rules.png`). A short loop of the curve being dragged is the single most persuasive asset the project lacks. |
 | **Store listing is English-only** | Directly caps discovery (see [§12](#12-roadmap)). |
 | **`public/offscreen.js` is unbundled and untyped** | Deliberate — the offscreen document cannot take module imports — but it means no type safety on the audio hot path. |
 | **Manual smoke-test checklist** | `DEPLOY.md` lists roughly fifteen manual checks per release. Slow, and easy to skip under pressure. |

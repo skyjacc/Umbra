@@ -91,7 +91,7 @@ Umbra EQ is a lightweight, private sound equalizer for the browser — a paramet
 
 ## Other Chromium stores (same package)
 
-The exact `dist/umbra-eq-<version>.zip` is accepted by all three; only the listing
+The exact `release/umbra-eq-<version>.zip` is accepted by all three; only the listing
 dashboards differ:
 
 - **Microsoft Edge Add-ons** — https://partner.microsoft.com/dashboard/microsoftedge

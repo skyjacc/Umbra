@@ -55,7 +55,7 @@ On Edge or Opera, or to run your own build, load it unpacked (about a minute):
 - **Bass boost, volume past 100%, output limiter** — big boosts stay clean, no clipping.
 - **Presets** — Bass Boost / Vocal / Movie / Warm + your own; export as a file or share code.
 - **Live spectrum, band guide, full-window editor.**
-- **Keyboard + screen-reader friendly**, RU/EN, four themes. No account, no network, no analytics.
+- **Keyboard + screen-reader friendly**, RU/EN, four themes + a custom accent colour. No account, no network, no analytics.
 
 ## How to use
 
@@ -112,7 +112,7 @@ Working on Umbra? [`HANDOFF.md`](HANDOFF.md) is the full developer handoff — a
 
 ## Privacy
 
-100% local — no network requests, no analytics; audio is never recorded or sent; settings and presets stay in your browser. Details in [`PRIVACY.md`](PRIVACY.md).
+100% local — the extension makes no network requests of its own, has no analytics, and audio is never recorded or sent. Settings stay on your device; saved presets and rules live in `chrome.storage.sync`, so Chrome replicates them across your own signed-in profiles. Details in [`PRIVACY.md`](PRIVACY.md).
 
 ## Stack
 

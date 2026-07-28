@@ -6,10 +6,15 @@ Thanks for your interest! Umbra EQ is MIT-licensed and contributions are welcome
 
 See [`PROJECT.md`](PROJECT.md) for the full architecture reference. In short:
 
-- `background.js` — MV3 service worker: offscreen lifecycle + tab-capture stream ids.
-- `offscreen.js` — the Web Audio engine (11 biquads, click-free glides).
-- `popup.js` / `popup.html` / `popup.css` — the UI, SVG EQ graph, presets, themes.
-- `test/` — browser-run self-check suites (excluded from the store zip).
+- `src/background.js` — MV3 service worker: offscreen lifecycle + tab-capture stream ids.
+- `public/offscreen.js` — the Web Audio engine (11 biquads, click-free glides). Vanilla JS,
+  loaded as a static `<script>` outside the bundler; a dumb applier — the popup resolves settings.
+- `src/popup/` — the React + TypeScript UI: `App.tsx`, `main.tsx`, `index.html`, `index.css`,
+  `i18n.tsx` (en + ru strings), `theme.ts`, `useEngine.ts`, and `components/` (`EqGraph.tsx`
+  SVG EQ graph, `RulesView.tsx`, `BottomNav.tsx`, `ShareRow.tsx`, `VerticalVolume.tsx`,
+  `GuideOverlay.tsx`, `Select.tsx`).
+- `src/lib/` — pure logic shared by the popup (`audio.ts`, `rules.ts`, `presets.ts`,
+  `builtins.ts`, `engine-io.ts`, `utils.ts`) plus the Vitest suites (`*.test.ts`).
 
 ## Run it locally
 
@@ -29,8 +34,8 @@ up the new build.
 npm test        # Vitest — pure audio/preset logic in src/lib
 ```
 
-Add cases for behavior changes. (The audio engine in `public/offscreen.js` is unchanged
-vanilla; its browser suites live on the `main` branch.)
+Add cases for behavior changes. The Vitest suites cover `src/lib` only; the audio engine in
+`public/offscreen.js` is vanilla and is verified by loading the unpacked `dist/` in Chrome.
 
 ## Coding conventions
 
@@ -39,14 +44,16 @@ vanilla; its browser suites live on the `main` branch.)
   Vite bundle satisfies this — keep it that way (no `new Function`, no runtime script injection).
 - Never put a CSS `transform`/`filter`/`backdrop-filter` on any ancestor of the EQ graph
   SVGs — drag hit-testing reads live element rectangles and those break it.
-- Keep the `BUILD` constants (`src/background.js`, `public/offscreen.js`, `src/lib/engine-io.ts`)
-  and the manifest `version` (`src/manifest.config.ts`) in sync.
+- The version lives in **six** places that must match — `package.json`, `src/manifest.config.ts`,
+  the three `BUILD` constants (`src/background.js`, `public/offscreen.js`, `src/lib/engine-io.ts`),
+  and `CHANGELOG.md`. The popup compares its `BUILD` against the engine's; a mismatch shows
+  "STALE — reload extension". Use the checklist in [`DEPLOY.md`](DEPLOY.md) — it is the source of truth.
 
 ## Pull requests
 
 - Keep changes focused; describe what and why.
 - Update `CHANGELOG.md` under `[Unreleased]`.
-- Bump the version (manifest + the three `BUILD` constants) only for a real release.
+- Bump the version only for a real release, and bump all six places together (see [`DEPLOY.md`](DEPLOY.md)).
 
 ## Build the store package
 
