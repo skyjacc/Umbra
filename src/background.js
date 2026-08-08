@@ -130,16 +130,25 @@ function isCapturableUrl(url) {
   );
 }
 
+// Tell the popup WHY no capture happened. Both early returns below used to write only to the
+// debug log, so the popup rendered a dead, unexplained equalizer. Broadcast (not sendResponse):
+// the toggleCapture route is fire-and-forget and has no response channel.
+function reportSkip(reason) {
+  chrome.runtime.sendMessage({ type: 'captureSkipped', reason }).catch(() => {});
+}
+
 async function startCaptureOnActiveTab(auto) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   dlog('startCapture: tab', tab && tab.id, 'url', tab && tab.url, auto ? '(auto)' : '(manual)');
   if (!tab || !isCapturableUrl(tab.url)) {
     dlog('tab not capturable, aborting');
+    reportSkip('uncapturable');
     return;
   }
   await stoppedReady; // a cold service worker must hydrate the Stopped set before deciding
   if (auto && stoppedTabs.has(tab.id)) {
     dlog('auto-capture skipped — user stopped this tab', tab.id);
+    reportSkip('stopped');
     return;
   }
   if (stoppedTabs.delete(tab.id)) persistStopped(); // manual EQ (or a fresh auto) re-arms it
@@ -191,6 +200,9 @@ async function stopCaptureOnActiveTab() {
   await stoppedReady; // hydrate first, or persistStopped() would truncate the saved Set to just this id
   stoppedTabs.add(tab.id); // remember: don't auto-re-capture until the user manually EQs again
   persistStopped();
+  // Say so, or the popup sees "no capture, no reason" and reports the generic idle state right
+  // after the user pressed Stop.
+  reportSkip('stopped');
   if (!(await hasOffscreenDocument())) return;
   chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id }).catch(() => {});
 }

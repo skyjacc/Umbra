@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
 import { matchRule, newRuleId, type Rule } from '@/lib/rules';
+import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/capture-state';
 import { BUILTIN_PRESETS } from '@/lib/builtins';
 import { t } from './i18n';
 import * as io from '@/lib/engine-io';
@@ -35,6 +36,15 @@ export function useEngine() {
   const [activeTabId, setActiveTabId] = useState<number | null>(null);
   const [activeHost, setActiveHost] = useState('');
   const [capturable, setCapturable] = useState(true);
+  // Why there is no capture, when the background knows. Both are cleared the moment a capture
+  // succeeds or the user asks for one, so a stale reason can't outlive the condition.
+  const [skipReason, setSkipReason] = useState<CaptureSkipReason | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  // Mirrors autoTried so the render reads it; a ref alone would not re-render when it flips.
+  const [autoAttempted, setAutoAttempted] = useState(false);
+  // A capture was asked for and hasn't reported back. Capture startup is a popup -> background ->
+  // offscreen -> getUserMedia round trip; without this the UI would say "not running" throughout it.
+  const [inFlight, setInFlight] = useState(false);
 
   const [bands, setBands] = useState<Band[]>(io.flatBands);
   const [gain, setGain] = useState(1);
@@ -138,6 +148,31 @@ export function useEngine() {
   // Editing needs a live capture on the active tab. In the standalone dev preview
   // (no extension APIs) the graph stays interactive so it can be demoed/screenshotted.
   const canEdit = capturing || globalEditor || !io.hasChrome();
+  // What the UI should say about capture — see src/lib/capture-state.ts for the priority order.
+  // In the standalone dev preview there are no extension APIs, so present the working screen.
+  const captureState = io.hasChrome()
+    ? captureUIState({ globalEditor, capturing, capturable, skipReason, lastError, autoTried: autoAttempted, inFlight })
+    : 'active';
+
+  // Mark a capture request as outstanding, and stop waiting after a few seconds so a dropped
+  // background message degrades to a real state instead of spinning on "pending" forever.
+  const flightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const beginFlight = useCallback(() => {
+    setInFlight(true);
+    if (flightTimer.current) clearTimeout(flightTimer.current);
+    flightTimer.current = setTimeout(() => {
+      flightTimer.current = null;
+      setInFlight(false);
+    }, 4000);
+  }, []);
+  const endFlight = useCallback(() => {
+    if (flightTimer.current) {
+      clearTimeout(flightTimer.current);
+      flightTimer.current = null;
+    }
+    setInFlight(false);
+  }, []);
+  useEffect(() => () => void (flightTimer.current && clearTimeout(flightTimer.current)), []);
 
   const showNotice = useCallback((t: string) => {
     setNoticeState(t);
@@ -149,9 +184,11 @@ export function useEngine() {
     if (autoTried.current) return;
     if (activeIdRef.current == null || !gotFirstStatus.current) return;
     autoTried.current = true;
+    setAutoAttempted(true);
     if (list.some((t) => t.id === activeIdRef.current)) return; // already captured
+    beginFlight();
     io.toBackground('toggleCapture', { on: true, auto: true }); // Ears-style: open popup = EQ the tab (skips tabs the user Stopped)
-  }, []);
+  }, [beginFlight]);
 
   const handleStatus = useCallback(
     (msg: any) => {
@@ -174,6 +211,12 @@ export function useEngine() {
         activePreset: t.activePreset || ''
       }));
       setTabs(list);
+      // A live capture on the active tab settles the question: drop any reason we were showing.
+      if (activeIdRef.current != null && list.some((t) => t.id === activeIdRef.current)) {
+        setSkipReason(null);
+        setLastError(null);
+        endFlight();
+      }
       if (msg.sampleRate) setSampleRate(msg.sampleRate);
       if (msg.presets && Object.keys(msg.presets).length) setPresets(msg.presets);
       setEngineStatus('connected');
@@ -250,11 +293,18 @@ export function useEngine() {
     const onMsg = (m: any) => {
       if (m.type === 'workspaceStatus') handleStatus(m);
       else if (m.type === 'engineError') setEngineStatus('error');
-      else if (m.type === 'captureError') {
+      else if (m.type === 'captureSkipped') {
+        // Only reasons the state machine understands; an unknown one must not be relabelled into
+        // a known-looking value.
+        if (m.reason === 'stopped' || m.reason === 'uncapturable') setSkipReason(m.reason);
+        endFlight();
+      } else if (m.type === 'captureError') {
         const e = String(m.error || '');
+        endFlight();
         if (/active stream|already|in use/i.test(e)) {
           io.toOffscreen('getStatus', {}, (resp: any) => resp && resp.type === 'workspaceStatus' && handleStatus(resp));
         } else {
+          setLastError(e);
           showNotice(t('note.couldNotEq', { err: e }));
         }
       }
@@ -422,7 +472,27 @@ export function useEngine() {
     []
   );
 
-  const toggleCapture = useCallback(() => io.toBackground('toggleCapture', { on: !capturing }), [capturing]);
+  // The graph is unmounted whenever capture goes away — which can happen MID-DRAG, because the
+  // browser revokes the stream on navigation (offscreen: track.onended -> disconnectTab). React
+  // then detaches the SVG that holds the pointer capture, so eqUp never runs, onCommit is never
+  // scheduled, and `interacting` stays true: applyEverywhere would return early for the rest of
+  // the popup session and no rule, preset or resolved curve would ever reach the engine again.
+  // Route through onCommit so the dragged curve is still persisted, exactly as pointerup would.
+  useEffect(() => {
+    if (!showsGraph(captureState) && interacting.current) onCommit();
+  }, [captureState, onCommit]);
+
+  const toggleCapture = useCallback(() => {
+    const on = !capturing;
+    // Asking for a capture invalidates whatever reason we were showing; a fresh one arrives if it
+    // fails again. On Stop the background reports 'stopped', so nothing to clear there.
+    if (on) {
+      setSkipReason(null);
+      setLastError(null);
+      beginFlight();
+    }
+    io.toBackground('toggleCapture', { on });
+  }, [capturing, beginFlight]);
   // The active tab's Stop must route through the background so its id lands in the stoppedTabs set
   // (same as the main "Stop EQing" button); a direct disconnect leaves the tab un-remembered, so the
   // next popup open auto-captures and re-EQs it. Non-active tabs are never the auto-capture target,
@@ -657,6 +727,8 @@ export function useEngine() {
     notice,
     capturing,
     canEdit,
+    captureState,
+    lastError,
     spectrum,
     showRoles,
     // actions

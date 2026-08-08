@@ -12,8 +12,20 @@ import { useT, useLang } from './i18n';
 import { applyThemeId, applyCustomHue, type ThemeId } from './theme';
 import { hasChrome } from '@/lib/engine-io';
 import { BUILTIN_ORDER } from '@/lib/builtins';
+import { showsGraph, offersCapture, type CaptureUIState } from '@/lib/capture-state';
 
 const THEMES = ['eclipse', 'nocturne', 'aurora', 'solar'] as const;
+
+// Copy for the states that replace the graph. The three graph states never reach this map.
+const CAPTURE_COPY: Record<CaptureUIState, string> = {
+  globalEditor: '',
+  active: '',
+  pending: '',
+  uncapturable: 'capture.uncapturable',
+  stopped: 'capture.stopped',
+  idle: 'capture.idle',
+  error: 'capture.error'
+};
 
 export default function App() {
   const eng = useEngine();
@@ -143,8 +155,9 @@ export default function App() {
                 title={tr('eq.roles')}
                 aria-label={tr('eq.roles')}
                 aria-pressed={eng.showRoles}
+                disabled={!showsGraph(eng.captureState)}
                 className={
-                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40 ' +
                   (eng.showRoles
                     ? 'border-accent/50 bg-accent/20 text-accent'
                     : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
@@ -157,8 +170,9 @@ export default function App() {
                 title={tr('eq.spectrum')}
                 aria-label={tr('eq.spectrum')}
                 aria-pressed={eng.spectrum}
+                disabled={!showsGraph(eng.captureState)}
                 className={
-                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40 ' +
                   (eng.spectrum
                     ? 'border-accent/50 bg-accent/20 text-accent'
                     : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
@@ -176,24 +190,51 @@ export default function App() {
               boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
             }}
           >
-            <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
-            <EqGraph
-              bands={eng.bands}
-              sampleRate={eng.sampleRate}
-              spectrumOn={eng.spectrum}
-              visible={view === 'eq'}
-              activeTabId={eng.activeTabId}
-              showRoles={eng.showRoles}
-              onBands={eng.onBandsLive}
-              onCommit={eng.onCommit}
-              editable={eng.canEdit}
-            />
+            {showsGraph(eng.captureState) ? (
+              <>
+                <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
+                <EqGraph
+                  bands={eng.bands}
+                  sampleRate={eng.sampleRate}
+                  spectrumOn={eng.spectrum}
+                  visible={view === 'eq'}
+                  activeTabId={eng.activeTabId}
+                  showRoles={eng.showRoles}
+                  onBands={eng.onBandsLive}
+                  onCommit={eng.onCommit}
+                  editable={eng.canEdit}
+                />
+              </>
+            ) : (
+              // No capture: say why instead of rendering a full-size, inert equalizer that reads
+              // as broken. Same height as the graph so the popup doesn't jump between states.
+              // Announcement is handled by the always-mounted live region below — a region that
+              // is inserted together with its text is not reliably read by assistive tech.
+              <div className="flex h-[252px] flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <TriangleAlert className="size-5 opacity-40" aria-hidden="true" />
+                <p className="text-[12.5px] leading-relaxed text-muted-foreground">{tr(CAPTURE_COPY[eng.captureState])}</p>
+                {eng.captureState === 'error' && eng.lastError && (
+                  // Keep the cause on screen: the toast that carries it expires after 5s.
+                  <p className="max-w-full truncate text-[11px] text-muted-foreground/70" title={eng.lastError}>
+                    {eng.lastError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
-            <TriangleAlert className="size-3.5 opacity-70" />
-            {tr('eq.loud')}
-          </div>
+          {/* Always mounted so it is already a live region when its text changes — that is what
+              makes a capture-state change audible to a screen reader. Empty while the graph shows. */}
+          <span role="status" aria-live="polite" className="sr-only">
+            {showsGraph(eng.captureState) ? '' : tr(CAPTURE_COPY[eng.captureState])}
+          </span>
+
+          {showsGraph(eng.captureState) && (
+            <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
+              <TriangleAlert className="size-3.5 opacity-70" />
+              {tr('eq.loud')}
+            </div>
+          )}
 
           <div className="flex gap-2">
             {eng.globalEditor ? (
@@ -203,7 +244,8 @@ export default function App() {
                 <Globe className="size-4 text-accent" />
                 <span>{tr('eq.globalProfile')}</span>
               </div>
-            ) : (
+            ) : offersCapture(eng.captureState) ? (
+              // Omitted on a browser system page: there is nothing the button could achieve there.
               <Button
                 variant="outline"
                 onClick={eng.toggleCapture}
@@ -215,19 +257,26 @@ export default function App() {
                 }
               >
                 <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
-                <span>{eng.capturing ? tr('eq.stop') : tr('eq.eqThisTab')}</span>
+                <span>
+                  {eng.capturing ? tr('eq.stop') : eng.captureState === 'error' ? tr('capture.retry') : tr('eq.eqThisTab')}
+                </span>
                 {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
               </Button>
+            ) : null}
+            {/* Hidden on a browser system page: there is no per-tab sound to reset there, and with
+                an empty host Reset would silently flatten the GLOBAL profile — while being the only
+                button left on screen. */}
+            {eng.captureState !== 'uncapturable' && (
+              <Button
+                variant="outline"
+                title={eng.globalEditor || !eng.activeHost ? tr('eq.resetGlobalTitle') : tr('eq.resetTitle')}
+                className="h-10 rounded-xl backdrop-blur-md"
+                onClick={eng.resetAll}
+              >
+                <RotateCcw />
+                {tr('eq.reset')}
+              </Button>
             )}
-            <Button
-              variant="outline"
-              title={eng.globalEditor ? tr('eq.resetGlobalTitle') : tr('eq.resetTitle')}
-              className="h-10 rounded-xl backdrop-blur-md"
-              onClick={eng.resetAll}
-            >
-              <RotateCcw />
-              {tr('eq.reset')}
-            </Button>
           </div>
         </section>
 
