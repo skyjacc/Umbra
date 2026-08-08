@@ -3,6 +3,7 @@ import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
 import { matchRule, newRuleId, patternForHost, type Rule } from '@/lib/rules';
 import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/capture-state';
+import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
 import {
   NO_PREVIEW,
   NO_BASELINE,
@@ -102,6 +103,11 @@ export function useEngine() {
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const interacting = useRef(false); // true mid-drag — don't let a broadcast clobber the curve
+  // "There is an edit storage does not have yet." NOT the same as "a debounce timer is armed":
+  // the timer is only set when a gesture SETTLES, so mid-drag there is unsaved state and no timer.
+  // Keying the flush off the timer meant a popup closed mid-drag flushed nothing, and that window
+  // is the whole drag rather than the 200ms debounce.
+  const dirty = useRef(false);
   const gotFirstStatus = useRef(false);
   const autoTried = useRef(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -213,6 +219,10 @@ export function useEngine() {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNoticeState(''), 5000);
   }, []);
+  // Lets the commit path report a failed write without taking showNotice as a dependency, which
+  // would re-create commitTarget and every callback built on it.
+  const showNoticeRef = useRef(showNotice);
+  showNoticeRef.current = showNotice;
 
   const maybeAutoCapture = useCallback((list: TabState[]) => {
     if (autoTried.current) return;
@@ -412,6 +422,8 @@ export function useEngine() {
   const commitTarget = useCallback(
     (bands: Band[], gain: number, presetName = '') => {
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+      // The edit is about to reach storage; anything after this point is a fresh change.
+      dirty.current = false;
       if (mr) {
         // Write the applied preset's name (or '' for a hand-tweak) so a ruled site's label reflects
         // the curve that actually plays, instead of a stale earlier preset name.
@@ -420,10 +432,22 @@ export function useEngine() {
         );
         rulesRef.current = next; // so applyEverywhere resolves with the new rule immediately
         setRules(next);
-        io.writeRules(next);
+        // A ruled site writes to storage.sync, which caps writes per minute AND per hour. Dropping
+        // this result made a refused write invisible: the UI kept showing the new sound as saved.
+        io.writeRulesResult(next).then((res) => {
+          if (!res.ok) {
+            dirty.current = true; // still unsaved — a later flush or commit can try again
+            showNoticeRef.current(t('note.rulesSaveFailed'));
+          }
+        });
       } else {
         globalRef.current = { bands, gain };
-        io.writeDefaultEq(bands, gain);
+        io.writeDefaultEq(bands, gain).then((res) => {
+          if (!res.ok) {
+            dirty.current = true;
+            showNoticeRef.current(t('note.rulesSaveFailed'));
+          }
+        });
       }
       applyEverywhere(tabsRef.current);
     },
@@ -439,6 +463,7 @@ export function useEngine() {
     (nb: Band[]) => {
       if (!interacting.current) captureBaseline(); // first movement of this drag
       interacting.current = true;
+      dirty.current = true; // unsaved from the first move, not only once the gesture settles
       previewRef.current = previewForDrag(); // engine now plays the editing buffer, not resolved
       bandsRef.current = nb;
       bandsPending.current = nb;
@@ -465,6 +490,7 @@ export function useEngine() {
     (g: number) => {
       if (!interacting.current) captureBaseline(); // first movement of this drag
       interacting.current = true;
+      dirty.current = true;
       previewRef.current = previewForDrag();
       gainRef.current = g;
       gainPending.current = g;
@@ -487,8 +513,24 @@ export function useEngine() {
   // storage.sync write on a ruled site (120/min quota) — committing per keydown silently drops the
   // final save past quota. Drag-end also routes here, so this collapses a burst into one write.
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitWindowOpenedAt = useRef(0);
   const onCommit = useCallback(() => {
+    // A plain trailing debounce never fires while an arrow key is held: auto-repeat resets it every
+    // ~33ms. The ceiling turns "delay the write" into "delay it, but not forever".
+    const decision = commitDecision({
+      armed: commitTimer.current != null,
+      windowOpenedAt: commitWindowOpenedAt.current,
+      now: performance.now()
+    });
+    if (decision === 'schedule') commitWindowOpenedAt.current = performance.now();
     if (commitTimer.current) clearTimeout(commitTimer.current);
+    if (decision === 'commit-now') {
+      commitTimer.current = null;
+      interacting.current = false;
+      previewRef.current = NO_PREVIEW;
+      commitTarget(bandsRef.current, gainRef.current);
+      return;
+    }
     commitTimer.current = setTimeout(() => {
       commitTimer.current = null;
       // Clear the mid-edit guard only here — one statement before the authoritative write — not
@@ -501,32 +543,72 @@ export function useEngine() {
       // Cleared BEFORE commitTarget, whose applyEverywhere would otherwise skip the active tab.
       previewRef.current = NO_PREVIEW;
       commitTarget(bandsRef.current, gainRef.current);
-    }, 200);
+    }, COMMIT_DEBOUNCE_MS);
   }, [commitTarget]);
-  // Cancel any queued frame / pending commit on unmount so no callback fires on a dead tree.
+  // Write a pending edit NOW instead of waiting out the debounce. Idempotent: it is a no-op when
+  // nothing is scheduled, so the lifecycle listener and the unmount cleanup can both call it.
+  //
+  // It commits the state that has already ACCUMULATED (bandsRef/gainRef) rather than recomputing
+  // anything — those refs are updated synchronously on every pointer move, so they are the pending
+  // state. Keeping a second copy of the curve just to label it "pending" would give two holders of
+  // the same data and a way for them to drift.
+  const flushPendingCommit = useCallback(() => {
+    if (!dirty.current) return; // idempotent, and true mid-drag when no timer is armed yet
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    interacting.current = false;
+    previewRef.current = NO_PREVIEW;
+    commitTarget(bandsRef.current, gainRef.current);
+  }, [commitTarget]);
+
+  // Cancel any queued frame on unmount so no callback fires on a dead tree. The commit timer is
+  // deliberately NOT cancelled here — see the lifecycle effect below.
   useEffect(
     () => () => {
       if (bandsFrame.current) cancelAnimationFrame(bandsFrame.current);
       if (gainFrame.current) cancelAnimationFrame(gainFrame.current);
-      if (commitTimer.current) clearTimeout(commitTimer.current);
     },
     []
   );
+
+  // A popup dies on any focus loss — closing it, pressing Ctrl+R on the page, clicking away — and
+  // it can die INSIDE the 200ms commit debounce. Cancelling the pending write there (what this
+  // used to do) loses the edit while the engine keeps playing it: the tab still sounds edited, so
+  // the user believes it was saved, and the next popup open resolves from storage and silently
+  // reverts it. Live audio and persistence are two paths; this guarantees the second one always
+  // has an exit.
+  useEffect(() => {
+    const onHide = () => flushPendingCommit();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushPendingCommit();
+    };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+      flushPendingCommit(); // last resort if the page went away without either event
+    };
+  }, [flushPendingCommit]);
 
   // The graph is unmounted whenever capture goes away — which can happen MID-DRAG, because the
   // browser revokes the stream on navigation (offscreen: track.onended -> disconnectTab). React
   // then detaches the SVG that holds the pointer capture, so eqUp never runs, onCommit is never
   // scheduled, and `interacting` stays true: applyEverywhere would return early for the rest of
   // the popup session and no rule, preset or resolved curve would ever reach the engine again.
-  // Route through onCommit so the dragged curve is still persisted, exactly as pointerup would.
   // Also drops any preview: an override must not outlive the tab it was overriding. The active
   // tab cannot change during a popup session (setActiveTabId only runs at boot), but it can leave
   // the captured set — the user presses Stop, or the browser revokes the stream.
   useEffect(() => {
     if (showsGraph(captureState)) return;
-    if (interacting.current) onCommit();
-    else previewRef.current = NO_PREVIEW;
-  }, [captureState, onCommit]);
+    // Flush rather than onCommit(): arming a fresh 200ms fuse is the wrong move when the thing
+    // that just happened is the tab disappearing underneath the drag.
+    flushPendingCommit();
+    interacting.current = false;
+    previewRef.current = NO_PREVIEW;
+  }, [captureState, flushPendingCommit]);
 
   const toggleCapture = useCallback(() => {
     const on = !capturing;

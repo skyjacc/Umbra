@@ -76,13 +76,23 @@ export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number } |
   }
   return null;
 }
-export async function writeDefaultEq(bands: Band[], gain: number) {
-  if (!hasChrome() || !chrome.storage) return;
+/**
+ * Outcome of a persistence attempt. Returned rather than swallowed: a write that fails silently
+ * leaves the UI claiming a sound is saved while storage disagrees, which is the hardest class of
+ * bug to notice and the easiest to lose data to.
+ */
+export type PersistResult = { ok: true } | { ok: false; error: string };
+
+const persistFailed = (e: unknown): PersistResult => ({ ok: false, error: (e as Error)?.message || String(e) });
+
+export async function writeDefaultEq(bands: Band[], gain: number): Promise<PersistResult> {
+  if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   const filters = bands.map((b) => ({ f: b.frequency, g: b.gain, q: b.q }));
   try {
     await chrome.storage.local.set({ [DEFAULT_EQ_KEY]: { v: 1, filters, gain: clampMasterGain(gain), updatedAt: Date.now() } });
-  } catch {
-    /* ignore */
+    return { ok: true };
+  } catch (e) {
+    return persistFailed(e);
   }
 }
 
@@ -223,12 +233,17 @@ export async function readRules(): Promise<Rule[]> {
 }
 
 export async function writeRules(rules: Rule[]): Promise<boolean> {
-  if (!hasChrome() || !chrome.storage) return false;
+  return (await writeRulesResult(rules)).ok;
+}
+
+/** Same write, with the reason when it fails — sync enforces both a per-minute and an hourly cap. */
+export async function writeRulesResult(rules: Rule[]): Promise<PersistResult> {
+  if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {
     await chrome.storage.sync.set({ [RULES_KEY]: rules });
-    return true;
-  } catch {
-    return false; // sync quota exceeded
+    return { ok: true };
+  } catch (e) {
+    return persistFailed(e); // typically the sync write quota
   }
 }
 

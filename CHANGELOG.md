@@ -12,6 +12,13 @@ All notable changes to Umbra EQ are documented here. The format follows
   page), on a tab you stopped by hand, or when audio capture fails, the popup explains what is
   happening instead of showing a full-size equalizer that doesn't respond — which looked broken.
 
+### Fixed
+
+- **An EQ change made just before the popup closes is no longer lost.** Adjusting the sound and then
+  immediately reloading the page or closing the popup could leave the tab playing the new sound
+  while it was never actually saved — so it kept playing, seemed saved, and then reverted the next
+  time you opened Umbra.
+
 ### Changed
 
 - **Better multi-tab behaviour while editing.** Adjusting the sound on one tab no longer stops other

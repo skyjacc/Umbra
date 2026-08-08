@@ -97,6 +97,15 @@ flat**), and pushes the bands via `applySettings`. Do NOT reintroduce rule/prese
 resolution into the engine — it would silently no-op (no storage). See the invariants in
 `CLAUDE.md`.
 
+**State rule — every applied sound must have a path to storage.** Anything pushed to the audio
+engine is either already persisted or has a *guaranteed* commit path. Live audio and persistence are
+deliberately two paths (the engine is fed ~30×/s during a drag; storage is written once, debounced,
+to protect the `storage.sync` quota) — but the second path must never be simply cancelled. If it is,
+the tab keeps playing a curve that storage does not have: the user hears their edit, believes it
+saved, and the next popup open resolves from storage and silently reverts it. The popup dies on any
+focus loss, so the debounce is flushed on `pagehide` / visibility-hidden / unmount rather than
+dropped. Any future writer of sound state (reset, per-site save, A/B) must satisfy the same rule.
+
 **Binding model:** capture is authorized by the user opening the popup (Chrome forbids
 zero-interaction tab capture). Opening the popup auto-EQs the active tab (skipping tabs
 the user explicitly Stopped). Each tab is captured and shaped **independently**.
