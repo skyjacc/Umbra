@@ -4,6 +4,19 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **The equalizer now says why it isn't running.** On a page Umbra can't work on (a browser system
+  page), on a tab you stopped by hand, or when audio capture fails, the popup explains what is
+  happening instead of showing a full-size equalizer that doesn't respond — which looked broken.
+
+### Changed
+
+- **Better multi-tab behaviour while editing.** Adjusting the sound on one tab no longer stops other
+  tabs from picking up preset and rule changes.
+
 ## [2.4.1] — 2026-07-29
 
 ### Changed

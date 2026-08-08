@@ -87,3 +87,31 @@ export function matchRule(host: string, rules: Rule[]): Rule | null {
 
 // Collision-free rule id (crypto.randomUUID is available in the popup's secure context).
 export const newRuleId = (): string => 'r_' + crypto.randomUUID();
+
+export type PatternScope = 'exact' | 'anyTld' | 'anySub';
+
+// Known second-level labels sitting under a 2-letter ccTLD. Without this, bbc.co.uk would yield
+// "co", and ".co." would then match amazon.co.jp and half the web.
+const SECOND_LEVEL = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'or', 'ne', 'go']);
+
+/**
+ * Build the pattern a one-click "rule for this site" should use.
+ *
+ * Lives here rather than in the popup because it is pattern-language logic that must agree with
+ * hostMatchesPattern, and because it is the only part of that flow a unit test can reach — the
+ * hook around it needs a chrome runtime.
+ *
+ * Heuristic, not a Public Suffix List: multi-part TLDs are approximated, same caveat as matching.
+ */
+export function patternForHost(host: string, scope: PatternScope): string {
+  const h = normHost(host);
+  if (!h) return '';
+  if (scope === 'exact') return h;
+
+  const labels = h.split('.');
+  let baseIdx = labels.length - 2;
+  if (baseIdx >= 1 && SECOND_LEVEL.has(labels[baseIdx]) && labels[labels.length - 1].length === 2) baseIdx -= 1;
+  const base = baseIdx >= 0 ? labels[baseIdx] : h; // registrable name label
+
+  return scope === 'anyTld' ? base + '.' : '.' + base + '.';
+}

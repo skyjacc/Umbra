@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NUM_FILTERS, sanitizeFilter, type Band } from '@/lib/audio';
 import { type PresetBands } from '@/lib/presets';
-import { matchRule, newRuleId, type Rule } from '@/lib/rules';
+import { matchRule, newRuleId, patternForHost, type Rule } from '@/lib/rules';
 import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/capture-state';
+import {
+  NO_PREVIEW,
+  NO_BASELINE,
+  previewForDrag,
+  captureBaseline as latchBaseline,
+  type Preview,
+  type Baseline
+} from '@/lib/edit-state';
 import { BUILTIN_PRESETS } from '@/lib/builtins';
 import { t } from './i18n';
 import * as io from '@/lib/engine-io';
@@ -103,6 +111,27 @@ export function useEngine() {
   // (rule → global → flat), and pushes the bands to the engine (a dumb applier).
   const globalRef = useRef<{ bands: Band[]; gain: number } | null>(null);
 
+  // The engine is playing something other than resolvedFor(activeHost) — a live drag today, a
+  // bypass or an A/B slot later. Ephemeral by design: it is never written to storage, and it dies
+  // with the popup. See src/lib/edit-state.ts for why it holds no copy of the curve.
+  const previewRef = useRef<Preview>(NO_PREVIEW);
+  // The stored profile as it stood before this popup session first changed it. Latched once so a
+  // later "save this to the site instead" can put back what it displaced; later commits must not
+  // replace it, or the restore would restore the damage.
+  const baselineRef = useRef<Baseline>(NO_BASELINE);
+
+  // Every writer of saved state calls this BEFORE its first mutation. There are four today
+  // (commitTarget, resetAll, applyPreset, and saveForThisSite once it lands); missing one means a
+  // silent loss of the global profile, so keep this list and the call sites in step.
+  const captureBaseline = useCallback(() => {
+    const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+    baselineRef.current = latchBaseline(baselineRef.current, {
+      target: mr ? { kind: 'rule', id: mr.id } : { kind: 'global' },
+      global: globalRef.current,
+      rule: mr
+    });
+  }, []);
+
   const resolvedFor = useCallback((host: string): { bands: Band[]; gain: number; presetName: string } => {
     const mr = host ? matchRule(host, rulesRef.current) : null;
     if (mr) {
@@ -124,11 +153,16 @@ export function useEngine() {
   // the graph. Skips while the user is mid-drag (don't clobber a live edit).
   const applyEverywhere = useCallback(
     (tabsList: { id: number; host: string }[]) => {
-      if (interacting.current) return;
+      // The guard is per tab, not global. A preview or a live drag owns the ACTIVE tab only —
+      // every other captured tab must still receive its resolved sound, so a rule or preset change
+      // keeps propagating while the user is shaping this one.
+      const held = () => interacting.current || previewRef.current.has;
       for (const t of tabsList) {
+        if (t.id === activeIdRef.current && held()) continue;
         const r = resolvedFor(t.host);
         io.toOffscreen('applySettings', { tabId: t.id, eqFilters: r.bands, gain: r.gain, activePreset: r.presetName });
       }
+      if (held()) return; // don't mirror over the curve the user is editing / previewing
       const cur = tabsList.find((t) => t.id === activeIdRef.current);
       if (cur) {
         const r = resolvedFor(cur.host);
@@ -403,7 +437,9 @@ export function useEngine() {
   const bandsFrame = useRef(0);
   const onBandsLive = useCallback(
     (nb: Band[]) => {
+      if (!interacting.current) captureBaseline(); // first movement of this drag
       interacting.current = true;
+      previewRef.current = previewForDrag(); // engine now plays the editing buffer, not resolved
       bandsRef.current = nb;
       bandsPending.current = nb;
       if (!bandsFrame.current) {
@@ -419,7 +455,7 @@ export function useEngine() {
       if (id == null) return;
       send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: '' }));
     },
-    [send]
+    [send, captureBaseline]
   );
   // Coalesce the volume drag to one setGain per frame (same rationale as onBandsLive); keep gainRef
   // synchronous so a commit uses the latest value regardless of the pending frame.
@@ -427,7 +463,9 @@ export function useEngine() {
   const gainFrame = useRef(0);
   const onGainLive = useCallback(
     (g: number) => {
+      if (!interacting.current) captureBaseline(); // first movement of this drag
       interacting.current = true;
+      previewRef.current = previewForDrag();
       gainRef.current = g;
       gainPending.current = g;
       if (!gainFrame.current) {
@@ -443,7 +481,7 @@ export function useEngine() {
       if (id == null) return;
       send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: '' }));
     },
-    [send]
+    [send, captureBaseline]
   );
   // Persist once, trailing-debounced. Keyboard nudges auto-repeat (~30/s) and each commit can be a
   // storage.sync write on a ruled site (120/min quota) — committing per keydown silently drops the
@@ -459,6 +497,9 @@ export function useEngine() {
       // curve, and both revert the on-screen edit and get persisted over it. commitTarget's own
       // applyEverywhere still runs because the flag is already false at this point.
       interacting.current = false;
+      // The commit makes the stored profile equal what is playing, so the override is over.
+      // Cleared BEFORE commitTarget, whose applyEverywhere would otherwise skip the active tab.
+      previewRef.current = NO_PREVIEW;
       commitTarget(bandsRef.current, gainRef.current);
     }, 200);
   }, [commitTarget]);
@@ -478,8 +519,13 @@ export function useEngine() {
   // scheduled, and `interacting` stays true: applyEverywhere would return early for the rest of
   // the popup session and no rule, preset or resolved curve would ever reach the engine again.
   // Route through onCommit so the dragged curve is still persisted, exactly as pointerup would.
+  // Also drops any preview: an override must not outlive the tab it was overriding. The active
+  // tab cannot change during a popup session (setActiveTabId only runs at boot), but it can leave
+  // the captured set — the user presses Stop, or the browser revokes the stream.
   useEffect(() => {
-    if (!showsGraph(captureState) && interacting.current) onCommit();
+    if (showsGraph(captureState)) return;
+    if (interacting.current) onCommit();
+    else previewRef.current = NO_PREVIEW;
   }, [captureState, onCommit]);
 
   const toggleCapture = useCallback(() => {
@@ -505,7 +551,9 @@ export function useEngine() {
   // On the current site: reset to flat. Unruled → the global profile; ruled → remove the rule.
   const resetAll = useCallback(() => {
     const flat = io.flatBands();
+    captureBaseline(); // writer #2 — this one bypasses commitTarget entirely
     interacting.current = false;
+    previewRef.current = NO_PREVIEW;
     const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
     if (mr) {
       // On a ruled site, "reset" removes the rule → the site falls back to the global profile.
@@ -525,7 +573,7 @@ export function useEngine() {
     setBands(r.bands);
     setGain(r.gain);
     setActivePreset(r.presetName);
-  }, [applyEverywhere, resolvedFor]);
+  }, [applyEverywhere, resolvedFor, captureBaseline]);
 
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
@@ -551,20 +599,13 @@ export function useEngine() {
   // pattern scope off the hostname (exact / any-tld / any-subdomain).
   const quickAddRule = useCallback(
     (scope: 'exact' | 'anyTld' | 'anySub') => {
-      const host = (activeHostRef.current || '').replace(/^www\./, '');
-      if (!host) {
+      // Pattern building lives in rules.ts: it is pattern-language logic that must agree with
+      // hostMatchesPattern, and it is the only part of this flow a unit test can reach.
+      const pattern = patternForHost(activeHostRef.current || '', scope);
+      if (!pattern) {
         showNotice(t('note.noSite'));
         return;
       }
-      const labels = host.split('.');
-      // Pick the registrable-name label. Guard multi-part TLDs (bbc.co.uk → "bbc", not "co", which
-      // as ".co." would match amazon.co.jp and half the web). Heuristic: if the second-to-last label
-      // is a known second-level under a 2-letter ccTLD, step one further left.
-      const SECOND_LEVEL = new Set(['co', 'com', 'net', 'org', 'ac', 'gov', 'edu', 'or', 'ne', 'go']);
-      let baseIdx = labels.length - 2;
-      if (baseIdx >= 1 && SECOND_LEVEL.has(labels[baseIdx]) && labels[labels.length - 1].length === 2) baseIdx -= 1;
-      const base = baseIdx >= 0 ? labels[baseIdx] : host; // registrable name label
-      const pattern = scope === 'anyTld' ? base + '.' : scope === 'anySub' ? '.' + base + '.' : host;
       const rule: Rule = {
         id: newRuleId(),
         patterns: [pattern],
@@ -645,7 +686,9 @@ export function useEngine() {
         return;
       }
       const nb = io.presetToBands(p);
+      captureBaseline(); // writer #3 — commits immediately, with no debounce to hide behind
       setBands(nb);
+      bandsRef.current = nb; // keep the save buffer in step; commitTarget below uses nb directly
       setActivePreset(name);
       // Apply live to the active tab for instant feedback, then commit it to the global
       // profile (or the site's rule) so it becomes the sound everywhere / for that site.
@@ -653,7 +696,7 @@ export function useEngine() {
       if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: name });
       commitTarget(nb, gainRef.current, name);
     },
-    [showNotice, commitTarget]
+    [showNotice, commitTarget, captureBaseline]
   );
 
   const savePreset = useCallback(
