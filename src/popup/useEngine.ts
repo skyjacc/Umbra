@@ -6,6 +6,7 @@ import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/captur
 import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
 import { makeJournal, planReplay, ruleFingerprint, type RuleFingerprint } from '@/lib/journal';
 import { planResetProfile, makeResetSnapshot, resetControls, type ResetSnapshot } from '@/lib/reset';
+import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
   NO_BASELINE,
@@ -43,6 +44,9 @@ const bandsEqual = (a: Band[], b: Band[]): boolean =>
 
 // The popup's engine. The editable curve tracks the ACTIVE tab; each captured tab
 // holds its own EQ (offscreen), and a tab's curve is remembered per hostname.
+// The planner mints rule ids through this so tests can pin them; the popup wants the real thing.
+setRuleIdFactory(newRuleId);
+
 export function useEngine() {
   const [tabs, setTabs] = useState<TabState[]>([]);
   const [activeTabId, setActiveTabId] = useState<number | null>(null);
@@ -801,6 +805,73 @@ export function useEngine() {
     mirrorResolved();
   }, [applyEverywhere, mirrorResolved]);
 
+  // Turn the sound you are hearing into a rule for this site.
+  //
+  // On a site with no rule, editing has ALREADY written the global profile — that is the committed
+  // behaviour — so this is "save here, and put back what that displaced". The plan and the write
+  // ordering both live in lib/save-for-site.ts, where they are tested; this is the executor.
+  const saveForThisSite = useCallback(
+    async (scope: 'exact' | 'anyTld' | 'anySub' = 'exact') => {
+      // First, and before anything else: a queued commit must not land after the rule is written,
+      // match it, and rewrite it with a stale curve.
+      if (commitTimer.current) {
+        clearTimeout(commitTimer.current);
+        commitTimer.current = null;
+      }
+      interacting.current = false;
+
+      const plan = planSaveForSite({
+        host: activeHostRef.current,
+        rules: rulesRef.current,
+        matchedRule: activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null,
+        bands: io.bandsToPreset(bandsRef.current), // the editing buffer — bypass never touches it
+        gain: gainRef.current,
+        presetName: activeRef.current || '',
+        scope,
+        baselineGlobal: baselineRef.current.global,
+        owesGlobalRestore: baselineRef.current.has && baselineRef.current.target?.kind === 'global'
+      });
+
+      if (plan.action === 'none') {
+        showNoticeRef.current(t('note.noSite'));
+        return;
+      }
+
+      const writers: SaveWriters = {
+        writeRules: (next) => io.writeRulesResult(next),
+        writeGlobal: (bands, gain) => io.writeDefaultEq(bands, gain),
+        clearGlobal: () => io.clearDefaultEq(),
+        clearJournal: () => io.clearJournal()
+      };
+      const outcome = await applySavePlan(plan, writers);
+
+      if (outcome === 'rule-write-failed') {
+        // Nothing changed. The edit is still on the global profile and the journal still describes
+        // it, which is exactly where the user was a moment ago — say so rather than fail silently.
+        showNoticeRef.current(t('note.rulesSaveFailed'));
+        return;
+      }
+
+      rulesRef.current = plan.rules;
+      setRules(plan.rules);
+      if (plan.globalRollback) globalRef.current = plan.globalRollback.to;
+      previewRef.current = NO_PREVIEW;
+      setPreviewOn(false);
+      setBypassed(false);
+      dirty.current = false;
+      baselineRef.current = NO_BASELINE;
+      applyEverywhere(tabsRef.current);
+      mirrorResolved();
+
+      showNoticeRef.current(
+        outcome === 'saved-global-not-restored'
+          ? t('note.savedForSitePartial', { host: activeHostRef.current })
+          : t(plan.created ? 'note.savedForSite' : 'note.ruleUpdated', { host: activeHostRef.current })
+      );
+    },
+    [applyEverywhere, mirrorResolved]
+  );
+
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
     (next: Rule[]) => {
@@ -1010,6 +1081,7 @@ export function useEngine() {
     stopTab,
     bypassed,
     toggleBypass,
+    saveForThisSite,
     resetChanges,
     resetProfile,
     undoReset,

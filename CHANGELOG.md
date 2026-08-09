@@ -17,6 +17,11 @@ All notable changes to Umbra EQ are documented here. The format follows
   where the toolbar is hidden: enter fullscreen first, then switch Umbra on with the shortcut and
   fullscreen stays real.
 
+- **Save for this site** — a button next to the equalizer turns the sound you are hearing into a
+  rule for the site you are on, and puts your everywhere-sound back to what it was. On a site that
+  already has a rule it says **Update** and replaces that rule's sound instead, leaving its name,
+  its address patterns and whether it is switched on exactly as they were.
+
 - **Bypass** — a button in the equalizer header plays the tab unchanged for a moment, so you can hear
   what your settings are actually doing. It changes nothing that is saved: switch it off and the
   sound comes straight back.

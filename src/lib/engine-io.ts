@@ -106,6 +106,19 @@ export async function writeDefaultEq(bands: Band[], gain: number): Promise<Persi
   }
 }
 
+/**
+ * Remove the stored global profile entirely. Not the same as writing a flat one: on a fresh install
+ * there was no profile at all, and putting things "back" has to restore that absence.
+ */
+export async function clearDefaultEq(): Promise<void> {
+  if (!hasChrome() || !chrome.storage) return;
+  try {
+    await chrome.storage.local.remove(DEFAULT_EQ_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function writeJournal(journal: unknown): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {

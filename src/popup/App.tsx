@@ -292,6 +292,21 @@ export default function App() {
                 {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
               </Button>
             ) : null}
+            {/* Turn what you are hearing into a rule for this site. Only where there is a site to
+                attach it to, and only while the tab is actually being shaped. */}
+            {!eng.globalEditor && eng.activeHost && showsGraph(eng.captureState) && (
+              <Button
+                variant="outline"
+                title={eng.matchedRule ? tr('eq.updateRuleTitle') : tr('eq.saveForSiteTitle')}
+                className="h-10 rounded-xl backdrop-blur-md"
+                onClick={() => void eng.saveForThisSite()}
+              >
+                <Globe />
+                <span className="max-w-[150px] truncate">
+                  {eng.matchedRule ? tr('eq.updateRule', { host: eng.activeHost }) : tr('eq.saveForSite', { host: eng.activeHost })}
+                </span>
+              </Button>
+            )}
             {/* No reset button here at all. The destructive one lives in More; the harmless one
                 would need a state that does not exist yet — a drag auto-commits, so "there is an
                 unsaved edit to discard" survives only the ~200ms debounce. It comes back in the
