@@ -147,7 +147,7 @@ export default function App() {
           button — pushed the nav off the edge of the popup. The content scrolls inside its own box
           now and the nav stays put, which also gives the fixed notice something it can only ever
           cover temporarily: scrollable content the user can move out from under it. */}
-      <div className={'flex-1 overflow-y-auto ' + (eng.notice.text ? 'pb-[56px]' : '')}>
+      <div className="flex-1 overflow-y-auto">
         {/* ================= EQ ================= */}
         <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
@@ -678,28 +678,33 @@ export default function App() {
         </section>
       </div>
 
-      <BottomNav view={view} onView={setView} />
-
+      {/* In the flow, between the scrolling content and the nav — not floating over either.
+          A notice that carries an Undo has to be clickable, so it cannot be allowed to land on
+          top of something else that is: it used to cover the Undo button in More exactly, with no
+          way to tell what was underneath or whether waiting would help. Sitting here it covers
+          nothing, and the content simply gets a shorter viewport for the five seconds it shows. */}
       {eng.notice.text && (
         <div
           role="status"
           aria-live="polite"
           aria-atomic="true"
-          className="fixed inset-x-3 bottom-[64px] z-50 rounded-xl border border-primary/40 bg-secondary/90 px-3.5 py-2.5 text-[11.5px] text-foreground shadow-lg backdrop-blur-md"
+          className="flex shrink-0 items-center gap-2 border-t border-primary/30 bg-primary/[.07] px-3.5 py-2 text-[11.5px] text-foreground"
         >
-          <span>{eng.notice.text}</span>
+          <span className="min-w-0 flex-1 truncate">{eng.notice.text}</span>
           {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
               slot alone, so any later unrelated notice inherited a live Undo. */}
           {eng.notice.undo && eng.canUndoReset && (
             <button
               onClick={eng.undoReset}
-              className="ml-2 rounded-md border border-primary/50 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/20"
+              className="shrink-0 rounded-md border border-primary/50 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/20"
             >
               {tr('eq.undo')}
             </button>
           )}
         </div>
       )}
+
+      <BottomNav view={view} onView={setView} />
 
       {['stale', 'error', 'notResponding'].includes(eng.engineStatus) && (
         <div
