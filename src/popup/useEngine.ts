@@ -20,6 +20,7 @@ import { planResetProfile, makeResetSnapshot, applyUndoReset, resetControls } fr
 import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo';
 import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } from '@/lib/reset-changes';
 import { AUTO_GAIN_DEFAULT, outputGain } from '@/lib/auto-gain';
+import { refreshFor } from '@/lib/storage-events';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
@@ -438,8 +439,11 @@ export function useEngine() {
         // executor. Note the order: write canonically FIRST, clear the journal only on success.
         const plan = planReplay({ journal, canonicalUpdatedAt: g?.updatedAt ?? null, rules: rules0 });
         if (plan.action === 'apply-global') {
-          globalRef.current = { bands: io.presetToBands(plan.bands), gain: plan.gain };
-          const res = await io.writeDefaultEq(globalRef.current.bands, plan.gain);
+          // Keep the provenance the stored profile already had: EditJournal records the curve,
+          // not which preset it came from, so replaying an edit must not blank the name — a
+          // recovered "Based on Vocal" would come back reading "None".
+          globalRef.current = { bands: io.presetToBands(plan.bands), gain: plan.gain, presetName: g?.presetName ?? '' };
+          const res = await io.writeDefaultEq(globalRef.current.bands, plan.gain, globalRef.current.presetName);
           if (res.ok) await io.clearJournal();
           else showNoticeRef.current(t('note.rulesSaveFailed'));
         } else if (plan.action === 'apply-rule') {
@@ -515,11 +519,21 @@ export function useEngine() {
       }
     };
     const onChanged = (changes: any, area: string) => {
-      if (area !== 'sync') return;
-      if (Object.keys(changes).some((k) => k.startsWith(io.PRESET_PREFIX))) {
-        io.refreshPresets().then((p) => mounted && setPresets(p));
+      const want = refreshFor(area, Object.keys(changes || {}));
+      if (want.presets) io.refreshPresets().then((p) => mounted && setPresets(p));
+      if (want.rules) io.readRules().then((rs) => mounted && setRules(rs));
+      if (want.global) {
+        // The everywhere-sound changed under us — most likely the other window of this extension.
+        // Re-read rather than trust the incoming value: this also fires for our OWN writes, and a
+        // read is the one answer that is right in both cases.
+        io.readDefaultEq().then((g) => {
+          if (!mounted) return;
+          globalRef.current = g;
+          // applyEverywhere will not touch the editing buffer while there is unsaved work — see
+          // mayMirrorBuffer — so this cannot pull a curve out from under a live drag.
+          applyEverywhere(tabsRef.current);
+        });
       }
-      if (io.RULES_KEY in changes) io.readRules().then((rs) => mounted && setRules(rs));
     };
     if (io.hasChrome()) {
       chrome.runtime.onMessage.addListener(onMsg);

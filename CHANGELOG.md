@@ -62,6 +62,15 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Fixed
 
+- **The Full window editor and the popup could overwrite each other.** Umbra's full-window page
+  edits the sound used everywhere, and it is an ordinary tab you can leave open. It never heard
+  about changes made from the popup, so touching one band there could put back a curve from
+  whenever the page was opened. Both now follow the same stored sound.
+
+- **A sound recovered after a crash forgot which preset it was based on.** The curve came back
+  correctly and the header dropped to "None".
+
+
 - **Undo after a profile reset could be thrown away by a button that did nothing.** After Reset
   removed a site's rule, the ⟲ button next to Save stayed on screen — and pressing it consumed the
   offer to undo the reset without putting anything back, because the rule it would have restored

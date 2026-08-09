@@ -257,6 +257,13 @@ describe('cross-file invariants', () => {
     expect(resetChangesSrc, 'the restore applier must pass it on').toContain('w.writeGlobal(to.bands, to.gain, to.presetName)');
     expect(resetSrc, 'and so must the undo applier').toContain('w.writeGlobal(g.bands, g.gain, g.presetName)');
     expect(resetSrc, 'the snapshot must carry it in the first place').toContain('presetName: global.presetName');
+
+    // Crash recovery had the name in hand and dropped it: EditJournal stores the curve, not the
+    // preset it came from, so the replay has to carry the stored profile's own provenance across.
+    const replay = useEngineSrc.match(/if \(plan\.action === 'apply-global'\)[\s\S]*?\n        \}/)?.[0] ?? '';
+    expect(replay, 'the global replay branch not found').toBeTruthy();
+    expect(replay, 'replay must not blank the provenance').toContain('presetName: g?.presetName');
+    expect(replay, 'and must pass it to the write').toMatch(/writeDefaultEq\([^)]*presetName\)/);
   });
 
   it('Auto Gain changes what is played and never what is stored', () => {
@@ -351,6 +358,22 @@ describe('cross-file invariants', () => {
     expect(block, "noteUndoEvent must be gated on the 'restored' outcome").toMatch(
       /outcome === 'restored'\s*\)\s*noteUndoEvent\('commit'\)/
     );
+  });
+
+  it('the storage listener routes by the tested decision, not by its own area check', () => {
+    // The lost update: DEFAULT_EQ lives in `local` and the handler returned early for every area
+    // but `sync`, so the long-lived Full-window editor never learned the popup had changed the
+    // everywhere-sound and its next edit wrote a stale curve back over it.
+    //
+    // Asserting that refreshFor is called is not enough — re-adding the early return ABOVE it
+    // restores the bug while leaving the call in place, which is exactly what a first attempt at
+    // this test failed to catch. So the handler must contain no area comparison of its own.
+    const h = useEngineSrc.match(/const onChanged = \(changes: any, area: string\) => \{[\s\S]*?\n    \};/)?.[0] ?? '';
+    expect(h, 'onChanged not found').toBeTruthy();
+    const code = h.replace(/\/\/.*$/gm, '');
+    expect(code, 'the routing decision belongs in storage-events.ts').toContain('refreshFor(area,');
+    expect(code, 'the handler must not second-guess the area itself').not.toMatch(/area\s*[!=]==/);
+    expect(code, 'and must act on the global profile').toContain('want.global');
   });
 
   it('every i18n key exists in both en and ru', () => {
