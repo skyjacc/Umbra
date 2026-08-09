@@ -42,6 +42,17 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Fixed
 
+- **A curve shaped under Bypass could be lost by closing the popup right after switching Bypass
+  off.** Nothing shaped while bypassed is written until you leave Bypass, so at that moment the
+  work existed in one place only, and the save that follows is asynchronous — closing the popup in
+  the same instant raced it. It is now recorded before the save, the same way an ordinary edit is,
+  so it survives.
+
+- **Restoring the everywhere-sound kept the curve but forgot which preset it came from.** Both
+  Reset and the rollback that runs after Save for this site put the sound back and left the header
+  reading "None" for a curve that was still, visibly, Vocal.
+
+
 - **An old Undo button could appear on an unrelated message and roll back your rules.** After a
   profile reset, the offer to undo it never expired, while the message carrying it disappeared
   after five seconds — so the next "Saved" or "Copied" notice showed up with a live Undo attached

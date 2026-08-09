@@ -28,7 +28,7 @@ const base = {
   gain: 2,
   presetName: '',
   scope: 'exact' as const,
-  baselineGlobal: { bands: A, gain: 1 },
+  baselineGlobal: { bands: A, gain: 1, presetName: 'Vocal' },
   owesGlobalRestore: true
 };
 
@@ -52,8 +52,11 @@ describe('planSaveForSite — creating', () => {
     // saving it for one site must not leave it applying to all the others.
     const plan = planSaveForSite(base);
     if (plan.action !== 'save') throw new Error('unreachable');
-    expect(plan.globalRollback).toEqual({ to: { bands: A, gain: 1 } });
+    expect(plan.globalRollback).toEqual({ to: { bands: A, gain: 1, presetName: 'Vocal' } });
     expect(plan.globalRollback!.to!.bands[0].gain).toBe(1); // A, not B
+    // Provenance is part of the profile. Restoring the curve but not the name it came from would
+    // leave every other site reading "Preset: None" for a sound that is still, visibly, Vocal.
+    expect(plan.globalRollback!.to!.presetName).toBe('Vocal');
   });
 
   it('plans to clear the profile when there was none before', () => {
@@ -187,6 +190,21 @@ describe('applySavePlan — write ordering', () => {
     expect(calls).toEqual(['writeRules', 'clearJournal']);
   });
 
+  it('hands the writer the provenance, not just the curve', async () => {
+    // A writer declared with fewer parameters is still assignable, so the popup's
+    // `writeGlobal: (bands, gain) => ...` typechecked while silently dropping the name. The only
+    // way to catch that is to look at what the writer was actually called with.
+    const seen: unknown[] = [];
+    const w: SaveWriters = {
+      writeRules: async () => ({ ok: true }),
+      writeGlobal: async (...args) => (seen.push(args), { ok: true }),
+      clearGlobal: async () => {},
+      clearJournal: async () => {}
+    };
+    await applySavePlan(planSaveForSite(base), w);
+    expect(seen).toEqual([[A, 1, 'Vocal']]);
+  });
+
   it('does nothing for a plan with no host', async () => {
     const { w, calls } = spyWriters();
     expect(await applySavePlan(planSaveForSite({ ...base, host: '' }), w)).toBe('nothing-to-do');
@@ -223,7 +241,7 @@ describe('the Rules chips share the persistence, not the targeting', () => {
   it('still puts the global profile back — the point of the fix', () => {
     const plan = planSaveForSite({ ...base, rules: [existing], matchedRule: null });
     if (plan.action !== 'save') throw new Error('unreachable');
-    expect(plan.globalRollback).toEqual({ to: { bands: A, gain: 1 } });
+    expect(plan.globalRollback).toEqual({ to: { bands: A, gain: 1, presetName: 'Vocal' } });
   });
 
   it('keeps the any-TLD pattern exactly as it was', () => {

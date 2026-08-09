@@ -30,7 +30,7 @@ export type ResetChangesPlan =
       bands: Band[];
       gain: number;
       /** Storage work, or null when nothing has reached storage yet and none is needed. */
-      global: { to: { bands: Band[]; gain: number } | null } | null;
+      global: { to: { bands: Band[]; gain: number; presetName: string } | null } | null;
       rules: Rule[] | null;
     };
 
@@ -60,7 +60,9 @@ export function planResetChanges(input: { baseline: Baseline; rules: Rule[]; com
       gain,
       // Nothing has been written yet: cancelling the pending commit is the whole job, and a write
       // here would spend a storage.sync slot to store what is already stored.
-      global: input.committed ? { to: b.global ? { bands: cloneBands(b.global.bands), gain: b.global.gain } : null } : null,
+      global: input.committed
+        ? { to: b.global ? { bands: cloneBands(b.global.bands), gain: b.global.gain, presetName: b.global.presetName } : null }
+        : null,
       rules: null // a global edit is no reason to rewrite the rules array
     };
   }

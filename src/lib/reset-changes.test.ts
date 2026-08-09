@@ -19,9 +19,9 @@ const rule = (id: string, over: Partial<Rule> = {}): Rule => ({
   ...over
 });
 
-const globalBaseline: Baseline = { has: true, target: { kind: 'global' }, global: { bands: A, gain: 1 }, rule: null };
+const globalBaseline: Baseline = { has: true, target: { kind: 'global' }, global: { bands: A, gain: 1, presetName: '' }, rule: null };
 const RULE_A = rule('r1', { curve: { frequencies: [20], gains: [2], qs: [0.7] }, gain: 1, preset: 'Vocal', enabled: false });
-const ruleBaseline: Baseline = { has: true, target: { kind: 'rule', id: 'r1' }, global: { bands: A, gain: 1 }, rule: RULE_A };
+const ruleBaseline: Baseline = { has: true, target: { kind: 'rule', id: 'r1' }, global: { bands: A, gain: 1, presetName: '' }, rule: RULE_A };
 
 describe('when the button is there at all', () => {
   it('is absent before the session has changed anything', () => {
@@ -54,7 +54,7 @@ describe('what it puts back', () => {
   it('restores the global profile the session displaced', () => {
     const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed: true });
     if (plan.action !== 'restore') throw new Error('unreachable');
-    expect(plan.global).toEqual({ to: { bands: A, gain: 1 } });
+    expect(plan.global).toEqual({ to: { bands: A, gain: 1, presetName: '' } });
     expect(plan.rules).toBeNull(); // a global edit is no reason to rewrite the rules array
   });
 
@@ -111,6 +111,16 @@ describe('what it puts back', () => {
       expect(plan.bands).toEqual(A);
       expect(plan.gain).toBe(1);
     }
+  });
+
+  it('puts the provenance back with the profile', () => {
+    // Same rule as the Save-for-site rollback: a profile restored without the preset it came from
+    // reads "Preset: None" for a curve that is still, visibly, Vocal. The baseline is a complete
+    // snapshot, so both paths restore the same three things.
+    const withName: Baseline = { ...globalBaseline, global: { bands: A, gain: 1, presetName: 'Vocal' } };
+    const plan = planResetChanges({ baseline: withName, rules: [], committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    expect(plan.global!.to!.presetName).toBe('Vocal');
   });
 
   it('does not alias the baseline it restores from', () => {

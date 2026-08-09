@@ -21,7 +21,7 @@ const RULE: SavedTarget = { kind: 'rule', id: 'r1' };
 
 
 describe('captureBaseline', () => {
-  const g = { bands: curve(1), gain: 1 };
+  const g = { bands: curve(1), gain: 1, presetName: '' };
 
   it('latches the global profile and the target', () => {
     const b = captureBaseline(NO_BASELINE, { target: GLOBAL, global: g, rule: null });
@@ -31,7 +31,7 @@ describe('captureBaseline', () => {
   });
 
   it('snapshots rather than aliasing the live array', () => {
-    const live = { bands: curve(1), gain: 1 };
+    const live = { bands: curve(1), gain: 1, presetName: '' };
     const b = captureBaseline(NO_BASELINE, { target: GLOBAL, global: live, rule: null });
     live.bands[0].gain = 99; // the popup keeps mutating its own arrays
     expect(b.global!.bands[0].gain).toBe(1);
@@ -50,19 +50,19 @@ describe('captureBaseline', () => {
     // `if (!has) capture()` and another calls capture() unconditionally, so the second commit
     // overwrites the baseline with an already-mutated value and a later restore "restores" the
     // damage. Runs all four writers from invariant 8 back to back.
-    const original = { bands: curve(0), gain: 1 };
+    const original = { bands: curve(0), gain: 1, presetName: '' };
     let b: Baseline = captureBaseline(NO_BASELINE, { target: GLOBAL, global: original, rule: null });
 
     // commitTarget (drag), commitTarget (second drag), applyPreset, resetProfile
     for (const mutated of [curve(3), curve(5), curve(7), curve(9)]) {
-      b = captureBaseline(b, { target: GLOBAL, global: { bands: mutated, gain: 1 }, rule: null });
+      b = captureBaseline(b, { target: GLOBAL, global: { bands: mutated, gain: 1, presetName: '' }, rule: null });
     }
 
     expect(b.global!.bands.every((x) => x.gain === 0)).toBe(true);
   });
 
   it('keeps the first target even if a later mutation would pick a different one', () => {
-    let b = captureBaseline(NO_BASELINE, { target: GLOBAL, global: { bands: curve(0), gain: 1 }, rule: null });
+    let b = captureBaseline(NO_BASELINE, { target: GLOBAL, global: { bands: curve(0), gain: 1, presetName: '' }, rule: null });
     b = captureBaseline(b, { target: RULE, global: null, rule: { id: 'r1' } });
     expect(b.target).toEqual(GLOBAL);
   });
@@ -77,7 +77,7 @@ describe('captureBaseline', () => {
 
 describe('owesGlobalRestore', () => {
   it('is owed when the session first mutated the global profile', () => {
-    const b = captureBaseline(NO_BASELINE, { target: GLOBAL, global: { bands: curve(0), gain: 1 }, rule: null });
+    const b = captureBaseline(NO_BASELINE, { target: GLOBAL, global: { bands: curve(0), gain: 1, presetName: '' }, rule: null });
     expect(owesGlobalRestore(b)).toBe(true);
   });
 

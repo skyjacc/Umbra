@@ -33,6 +33,13 @@ export interface Preview {
 export interface BaselineValue {
   bands: Band[];
   gain: number;
+  /**
+   * Which preset this curve came from. Part of the snapshot rather than an extra, because putting
+   * a profile back without its provenance is not putting it back: the header would read "None"
+   * for a curve that is still, and visibly, Vocal. Empty on profiles stored before the field
+   * existed, which is what "came from nowhere" means.
+   */
+  presetName: string;
 }
 
 export interface Baseline {
@@ -92,13 +99,13 @@ export function previewForBypass(flat: Band[]): Preview {
  */
 export function captureBaseline(
   current: Baseline,
-  next: { target: SavedTarget; global: BaselineValue | null; rule: unknown | null }
+  next: { target: SavedTarget; global: { bands: Band[]; gain: number; presetName?: string } | null; rule: unknown | null }
 ): Baseline {
   if (current.has) return current;
   return {
     has: true,
     target: next.target,
-    global: next.global ? { bands: cloneBands(next.global.bands), gain: next.global.gain } : null,
+    global: next.global ? { bands: cloneBands(next.global.bands), gain: next.global.gain, presetName: next.global.presetName ?? '' } : null,
     rule: next.rule ? JSON.parse(JSON.stringify(next.rule)) : null
   };
 }

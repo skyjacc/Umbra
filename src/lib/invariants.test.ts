@@ -92,6 +92,15 @@ describe('cross-file invariants', () => {
     expect(leave, 'leaveBypass not found').toBeTruthy();
     expect(leave, 'leaving bypass must be able to write the draft').toContain('commitTarget(');
     expect(leave, 'and must not write when no draft was made').toContain('commitOnUnbypass(');
+
+    // Durability. A bypass draft is deliberately kept out of the journal while bypass is on, so at
+    // this moment it exists in exactly one place: memory. commitTarget's storage write is async and
+    // the popup can be destroyed the instant the user clicks away, so the write-ahead record has to
+    // go first — otherwise "bypass, shape it, switch off, close" loses the draft outright.
+    const jIdx = leave!.indexOf('recordJournal(true)');
+    const cIdx = leave!.indexOf('commitTarget(');
+    expect(jIdx, 'leaveBypass must write the draft ahead of committing it').toBeGreaterThan(-1);
+    expect(jIdx, 'and must do it BEFORE the commit, not after').toBeLessThan(cIdx);
   });
 
   it('the sync write quantizes the curve, and the read leaves it alone', () => {
@@ -222,6 +231,16 @@ describe('cross-file invariants', () => {
     expect(useEngineSrc, 'the shipped answer must come from the tested predicate').toContain('canResetChanges({');
     expect(useEngineSrc, 'and must know whether anything reached storage').toContain('committedSinceBaseline');
     expect(useEngineSrc, 'a landed commit keeps it offerable').toMatch(/committedSinceBaseline\.current = true;\s*\n\s*refreshResettable\(\);/);
+  });
+
+  it('a restored global profile keeps the preset it came from', () => {
+    // TypeScript will not catch this one: a writer declared with fewer parameters is still
+    // assignable, so `writeGlobal: (bands, gain) => io.writeDefaultEq(bands, gain)` typechecked
+    // while dropping the name on every Save-for-this-site rollback.
+    expect(useEngineSrc, 'the save rollback must forward provenance').toContain(
+      'writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName)'
+    );
+    expect(useEngineSrc, 'and so must Reset').toContain('plan.global.to.presetName');
   });
 
   it('every i18n key exists in both en and ru', () => {

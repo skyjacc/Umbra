@@ -24,8 +24,8 @@ export interface SavePlanInput {
   gain: number;
   presetName: string;
   scope: PatternScope;
-  /** The global profile as it stood before this session first changed it. */
-  baselineGlobal: { bands: Band[]; gain: number } | null;
+  /** The global profile as it stood before this session first changed it, provenance included. */
+  baselineGlobal: { bands: Band[]; gain: number; presetName: string } | null;
   /** True when this session's first mutation went to the global profile, so it owes a rollback. */
   owesGlobalRestore: boolean;
 }
@@ -39,7 +39,7 @@ export type SavePlan =
       /** The full next rules array, in the original order. */
       rules: Rule[];
       /** null = nothing to put back. `{ to: null }` = there was no stored profile; clear the key. */
-      globalRollback: { to: { bands: Band[]; gain: number } | null } | null;
+      globalRollback: { to: { bands: Band[]; gain: number; presetName: string } | null } | null;
     };
 
 const cloneBands = (b: PresetBands): PresetBands => ({
@@ -67,7 +67,17 @@ export function planSaveForSite(input: SavePlanInput): SavePlan {
   if (!pattern) return { action: 'none', reason: 'no-host' };
 
   const globalRollback = input.owesGlobalRestore
-    ? { to: input.baselineGlobal ? { bands: input.baselineGlobal.bands.map((b) => ({ ...b })), gain: input.baselineGlobal.gain } : null }
+    ? {
+        to: input.baselineGlobal
+          ? {
+              bands: input.baselineGlobal.bands.map((b) => ({ ...b })),
+              gain: input.baselineGlobal.gain,
+              // Putting the profile back without the name it came from is not putting it back:
+              // the header would read "None" for a curve that is still, visibly, Vocal.
+              presetName: input.baselineGlobal.presetName
+            }
+          : null
+      }
     : null;
 
   if (input.matchedRule) {
@@ -101,7 +111,7 @@ export function setRuleIdFactory(fn: () => string) {
 
 export interface SaveWriters {
   writeRules(rules: Rule[]): Promise<{ ok: boolean }>;
-  writeGlobal(bands: Band[], gain: number): Promise<{ ok: boolean }>;
+  writeGlobal(bands: Band[], gain: number, presetName: string): Promise<{ ok: boolean }>;
   clearGlobal(): Promise<void>;
   clearJournal(): Promise<void>;
 }
@@ -133,7 +143,7 @@ export async function applySavePlan(plan: SavePlan, w: SaveWriters): Promise<Sav
 
   if (plan.globalRollback) {
     const { to } = plan.globalRollback;
-    const ok = to ? (await w.writeGlobal(to.bands, to.gain)).ok : (await w.clearGlobal(), true);
+    const ok = to ? (await w.writeGlobal(to.bands, to.gain, to.presetName)).ok : (await w.clearGlobal(), true);
     if (!ok) return 'saved-global-not-restored';
   }
 

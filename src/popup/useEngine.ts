@@ -843,9 +843,16 @@ export function useEngine() {
     }
     interacting.current = false;
     setPreview(NO_PREVIEW);
-    if (owed) commitTarget(bandsRef.current, gainRef.current, activeRef.current);
-    else applyEverywhere(tabsRef.current); // commitTarget does its own applyEverywhere
-  }, [applyEverywhere, commitTarget, setPreview]);
+    if (owed) {
+      // Write ahead FIRST, and synchronously. Everything shaped under bypass was deliberately kept
+      // out of the journal, so this draft has no recovery copy anywhere — and commitTarget's own
+      // storage write is asynchronous while the popup can be destroyed the instant the user clicks
+      // away. Without this line, "bypass, shape it, switch bypass off, close" races that write and
+      // loses the whole draft. commitTarget clears the journal itself once the write lands.
+      recordJournal(true);
+      commitTarget(bandsRef.current, gainRef.current, activeRef.current);
+    } else applyEverywhere(tabsRef.current); // commitTarget does its own applyEverywhere
+  }, [applyEverywhere, commitTarget, recordJournal, setPreview]);
 
   const toggleBypass = useCallback(() => {
     if (isBypassed(previewRef.current)) leaveBypass();
@@ -885,7 +892,7 @@ export function useEngine() {
     if (plan.global) {
       if (plan.global.to) {
         globalRef.current = plan.global.to;
-        void io.writeDefaultEq(plan.global.to.bands, plan.global.to.gain);
+        void io.writeDefaultEq(plan.global.to.bands, plan.global.to.gain, plan.global.to.presetName);
       } else {
         globalRef.current = null;
         void io.clearDefaultEq();
@@ -980,7 +987,7 @@ export function useEngine() {
 
       const writers: SaveWriters = {
         writeRules: (next) => io.writeRulesResult(next),
-        writeGlobal: (bands, gain) => io.writeDefaultEq(bands, gain),
+        writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName),
         clearGlobal: () => io.clearDefaultEq(),
         clearJournal: () => io.clearJournal()
       };
