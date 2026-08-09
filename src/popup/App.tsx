@@ -141,11 +141,13 @@ export default function App() {
   const hide = (v: ViewId) => (view === v ? '' : 'hidden');
 
   return (
-    <div className="flex min-h-[500px] flex-col">
-      {/* The notice is a fixed overlay sitting just above the nav, so any content at that height
-          is hidden AND unclickable while it shows. Reserving the space is better than moving the
-          toast: it works for whatever happens to be down there, not just today's layout. */}
-      <div className={'flex-1 ' + (eng.notice.text ? 'pb-[56px]' : '')}>
+    <div className="flex min-h-[500px] max-h-screen flex-col overflow-hidden">
+      {/* An app shell, not a document. Before this the content and the nav simply ran one after
+          the other and the whole page scrolled, so anything added at the bottom — a notice, a new
+          button — pushed the nav off the edge of the popup. The content scrolls inside its own box
+          now and the nav stays put, which also gives the fixed notice something it can only ever
+          cover temporarily: scrollable content the user can move out from under it. */}
+      <div className={'flex-1 overflow-y-auto ' + (eng.notice.text ? 'pb-[56px]' : '')}>
         {/* ================= EQ ================= */}
         <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
