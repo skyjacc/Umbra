@@ -17,6 +17,10 @@ All notable changes to Umbra EQ are documented here. The format follows
   where the toolbar is hidden: enter fullscreen first, then switch Umbra on with the shortcut and
   fullscreen stays real.
 
+- **Bypass** — a button in the equalizer header plays the tab unchanged for a moment, so you can hear
+  what your settings are actually doing. It changes nothing that is saved: switch it off and the
+  sound comes straight back.
+
 ### Fixed
 
 - **An EQ change made just before the popup closes is no longer lost.** Adjusting the sound and then

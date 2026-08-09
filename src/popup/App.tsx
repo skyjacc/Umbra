@@ -173,6 +173,21 @@ export default function App() {
                 <Captions className="size-4" />
               </button>
               <button
+                onClick={eng.toggleBypass}
+                title={tr('eq.bypassTitle')}
+                aria-label={tr('eq.bypassTitle')}
+                aria-pressed={eng.bypassed}
+                disabled={!showsGraph(eng.captureState) || !eng.canEdit}
+                className={
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40 ' +
+                  (eng.bypassed
+                    ? 'border-destructive/50 bg-destructive/20 text-destructive'
+                    : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
+                }
+              >
+                <Power className="size-4" />
+              </button>
+              <button
                 onClick={eng.toggleSpectrum}
                 title={tr('eq.spectrum')}
                 aria-label={tr('eq.spectrum')}
@@ -200,6 +215,7 @@ export default function App() {
             {showsGraph(eng.captureState) ? (
               <>
                 <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
+                <div className={'contents ' + (eng.bypassed ? 'opacity-40' : '')} aria-hidden={false}>
                 <EqGraph
                   bands={eng.bands}
                   sampleRate={eng.sampleRate}
@@ -209,8 +225,9 @@ export default function App() {
                   showRoles={eng.showRoles}
                   onBands={eng.onBandsLive}
                   onCommit={eng.onCommit}
-                  editable={eng.canEdit}
+                  editable={eng.canEdit && !eng.bypassed}
                 />
+                </div>
               </>
             ) : (
               // No capture: say why instead of rendering a full-size, inert equalizer that reads
@@ -240,6 +257,11 @@ export default function App() {
             <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
               <TriangleAlert className="size-3.5 opacity-70" />
               {tr('eq.loud')}
+              {eng.bypassed && (
+                <span className="ml-auto shrink-0 rounded border border-destructive/40 px-1.5 py-0.5 font-semibold text-destructive">
+                  {tr('eq.bypassOn')}
+                </span>
+              )}
             </div>
           )}
 

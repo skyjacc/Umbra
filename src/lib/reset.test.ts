@@ -106,43 +106,46 @@ describe('makeResetSnapshot', () => {
 });
 
 describe('hasDiscardableChanges', () => {
-  it('is true while a preview is showing', () => {
-    expect(hasDiscardableChanges({ previewOn: true, dirty: false })).toBe(true);
+  it('is true while a drag preview is showing', () => {
+    expect(hasDiscardableChanges({ previewSource: 'drag', dirty: false })).toBe(true);
+  });
+
+  it('is FALSE while bypass is on, however long it lasts', () => {
+    // Bypass is not an edit: the stored sound is simply not being applied. Counting it would put a
+    // "discard your change" button next to the bypass toggle, doing the same thing under a name
+    // that describes something else.
+    expect(hasDiscardableChanges({ previewSource: 'bypass', dirty: false })).toBe(false);
   });
 
   it('is true while an edit is waiting to be written', () => {
-    // The debounce window: the drag is over but the write has not happened, and discarding it is
-    // still meaningful.
-    expect(hasDiscardableChanges({ previewOn: false, dirty: true })).toBe(true);
+    expect(hasDiscardableChanges({ previewSource: null, dirty: true })).toBe(true);
   });
 
   it('is false when everything on screen is already stored', () => {
-    expect(hasDiscardableChanges({ previewOn: false, dirty: false })).toBe(false);
+    expect(hasDiscardableChanges({ previewSource: null, dirty: false })).toBe(false);
   });
 });
 
 describe('resetControls — placement contract', () => {
-  it('offers Reset changes in the main row only when there is something to discard', () => {
-    expect(resetControls({ previewOn: true, dirty: false }).changesInMainRow).toBe(true);
-    expect(resetControls({ previewOn: false, dirty: true }).changesInMainRow).toBe(true);
-    expect(resetControls({ previewOn: false, dirty: false }).changesInMainRow).toBe(false);
+  it('offers Reset changes in the main row only for a real edit', () => {
+    expect(resetControls({ previewSource: 'drag', dirty: false }).changesInMainRow).toBe(true);
+    expect(resetControls({ previewSource: null, dirty: true }).changesInMainRow).toBe(true);
+    expect(resetControls({ previewSource: 'bypass', dirty: false }).changesInMainRow).toBe(false);
+    expect(resetControls({ previewSource: null, dirty: false }).changesInMainRow).toBe(false);
   });
 
   it('keeps Reset profile in More in every state', () => {
     for (const s of [
-      { previewOn: true, dirty: true },
-      { previewOn: true, dirty: false },
-      { previewOn: false, dirty: true },
-      { previewOn: false, dirty: false }
+      { previewSource: 'drag' as const, dirty: true },
+      { previewSource: 'bypass' as const, dirty: false },
+      { previewSource: null, dirty: false }
     ]) {
       expect(resetControls(s).profileInMore).toBe(true);
     }
   });
 
   it('never puts the destructive reset where the harmless one lives', () => {
-    // The invariant behind the split: whatever the state, the main row can only ever hold
-    // "Reset changes". A future refactor that promotes Reset profile into that slot fails here.
-    const shape = Object.keys(resetControls({ previewOn: false, dirty: false }));
+    const shape = Object.keys(resetControls({ previewSource: null, dirty: false }));
     expect(shape).toEqual(['changesInMainRow', 'profileInMore']);
   });
 });

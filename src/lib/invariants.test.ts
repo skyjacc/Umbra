@@ -8,6 +8,7 @@ import engineIoSrc from './engine-io.ts?raw';
 import audioSrc from './audio.ts?raw';
 import changelogSrc from '../../CHANGELOG.md?raw';
 import i18nSrc from '../popup/i18n.tsx?raw';
+import useEngineSrc from '../popup/useEngine.ts?raw';
 
 // Guards three hand-maintained invariants so they can't silently drift:
 //  1. the six-place version / BUILD bump (a mismatch makes the popup show "STALE — reload"),
@@ -64,6 +65,24 @@ describe('cross-file invariants', () => {
     const engine = grab(offscreenSrc, /clampFrequency\s*=.*Math\.min\((\d+),/);
     expect(popup).not.toBeNull();
     expect(popup).toBe(engine);
+  });
+
+  it('bypass calls no storage writer', () => {
+    // Bypass is a listening mode: it must never change what is stored. That is an architectural
+    // rule, and a behavioural test would not catch breaking it — a stray commitTarget() in the
+    // handler would still leave the UI looking right. So assert it on the source instead.
+    const block = useEngineSrc.match(/--- bypass:start[\s\S]*?--- bypass:end/)?.[0];
+    expect(block, 'bypass:start / bypass:end markers not found in useEngine.ts').toBeTruthy();
+
+    // Strip comments first: the block deliberately NAMES these writers to explain the rule.
+    const code = block!.replace(/\/\/.*$/gm, '');
+    for (const writer of ['commitTarget', 'writeDefaultEq', 'writeRules', 'writeRulesResult', 'writeJournal', 'clearJournal', 'recordJournal']) {
+      expect(code, `bypass must not call ${writer}`).not.toContain(writer);
+    }
+    // It must also leave the editing buffer alone, so the graph keeps showing the real curve.
+    for (const mutator of ['bandsRef.current =', 'setBands(', 'gainRef.current =', 'setGain(']) {
+      expect(code, `bypass must not touch ${mutator}`).not.toContain(mutator);
+    }
   });
 
   it('every i18n key exists in both en and ru', () => {

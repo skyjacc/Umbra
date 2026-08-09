@@ -10,6 +10,7 @@ import {
   NO_PREVIEW,
   NO_BASELINE,
   previewForDrag,
+  previewForBypass,
   captureBaseline as latchBaseline,
   type Preview,
   type Baseline
@@ -60,6 +61,8 @@ export function useEngine() {
   const [previewOn, setPreviewOn] = useState(false);
   // What the last Reset profile overwrote. One step, one operation, dropped after the notice.
   const [canUndoReset, setCanUndoReset] = useState(false);
+  // Bypass is a listening mode, not an edit: the stored EQ is simply not applied for a while.
+  const [bypassed, setBypassed] = useState(false);
 
   const [bands, setBands] = useState<Band[]>(io.flatBands);
   const [gain, setGain] = useState(1);
@@ -673,6 +676,7 @@ export function useEngine() {
     flushPendingCommit();
     interacting.current = false;
     previewRef.current = NO_PREVIEW;
+    setBypassed(false);
   }, [captureState, flushPendingCommit]);
 
   const toggleCapture = useCallback(() => {
@@ -706,6 +710,30 @@ export function useEngine() {
     setActivePreset(r.presetName);
   }, [resolvedFor]);
 
+  // --- bypass:start ---------------------------------------------------------------------------
+  // Play the tab unshaped for a moment. Deliberately NOT a writer: it must not call commitTarget,
+  // writeDefaultEq, writeRules or writeJournal, must not touch bandsRef/setBands (so the graph
+  // keeps showing the real curve, dimmed), and must not touch the master volume — "bypass the EQ"
+  // means the equalizer, not the user's volume. Turning it off restores exactly what was playing
+  // before, by re-resolving rather than by remembering. invariants.test.ts asserts the no-writer
+  // part structurally, because a UI test would happily pass with a stray save in here.
+  const toggleBypass = useCallback(() => {
+    const on = !previewRef.current.has || previewRef.current.source !== 'bypass';
+    if (on) {
+      previewRef.current = previewForBypass(io.flatBands());
+      setBypassed(true);
+      const id = activeIdRef.current;
+      // No activePreset in the payload: the engine only overwrites the label when it is defined,
+      // so the tab keeps showing which preset it is on while muted-flat.
+      if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: io.flatBands(), gain: gainRef.current });
+    } else {
+      previewRef.current = NO_PREVIEW;
+      setBypassed(false);
+      applyEverywhere(tabsRef.current);
+    }
+  }, [applyEverywhere]);
+  // --- bypass:end -----------------------------------------------------------------------------
+
   // Throw away the edit in progress. Touches NO storage — it only stops the un-committed change
   // from being written and puts the stored sound back on screen and in the engine.
   const resetChanges = useCallback(() => {
@@ -717,6 +745,7 @@ export function useEngine() {
     dirty.current = false;
     previewRef.current = NO_PREVIEW;
     setPreviewOn(false);
+    setBypassed(false);
     void io.clearJournal(); // the recovery copy described an edit the user just abandoned
     applyEverywhere(tabsRef.current);
     mirrorResolved();
@@ -736,6 +765,7 @@ export function useEngine() {
     dirty.current = false;
     previewRef.current = NO_PREVIEW;
     setPreviewOn(false);
+    setBypassed(false);
 
     resetSnapshot.current = makeResetSnapshot(rulesRef.current, globalRef.current);
     const plan = planResetProfile(activeHostRef.current, rulesRef.current);
@@ -978,12 +1008,14 @@ export function useEngine() {
     onCommit,
     toggleCapture,
     stopTab,
+    bypassed,
+    toggleBypass,
     resetChanges,
     resetProfile,
     undoReset,
     canUndoReset,
     previewOn,
-    resetControls: resetControls({ previewOn, dirty: dirty.current }),
+    resetControls: resetControls({ previewSource: previewRef.current.source, dirty: dirty.current }),
     addRule,
     updateRule,
     deleteRule,

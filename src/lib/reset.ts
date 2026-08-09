@@ -53,9 +53,16 @@ export function makeResetSnapshot(rules: Rule[], global: { bands: Band[]; gain: 
   };
 }
 
-/** True when there is an edit that `Reset changes` would discard. */
-export function hasDiscardableChanges(input: { previewOn: boolean; dirty: boolean }): boolean {
-  return input.previewOn || input.dirty;
+/**
+ * True when there is an EDIT to discard.
+ *
+ * Keyed on what the preview IS, not merely that one exists. A drag preview is an alternative state
+ * the user built and might want to throw away. A bypass preview is the opposite: the stored EQ is
+ * simply not being applied for a moment, so there is nothing to discard — offering to would put a
+ * second control next to the bypass toggle doing the same thing under a misleading name.
+ */
+export function hasDiscardableChanges(input: { previewSource: 'drag' | 'bypass' | null; dirty: boolean }): boolean {
+  return input.previewSource === 'drag' || input.dirty;
 }
 
 /**
@@ -74,6 +81,6 @@ export interface ResetControls {
   profileInMore: boolean;
 }
 
-export function resetControls(input: { previewOn: boolean; dirty: boolean }): ResetControls {
+export function resetControls(input: { previewSource: 'drag' | 'bypass' | null; dirty: boolean }): ResetControls {
   return { changesInMainRow: hasDiscardableChanges(input), profileInMore: true };
 }
