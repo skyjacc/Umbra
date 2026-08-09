@@ -62,14 +62,24 @@ export function isFullWindowTab(): Promise<boolean> {
 // Global profile (v2 source of truth) — the sound played on every tab with no matching rule.
 // The popup writes it (writeDefaultEq) and resolves each tab from it. Stored as a curve.
 export const DEFAULT_EQ_KEY = 'DEFAULT_EQ';
-export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number } | null> {
+// Write-ahead record of the edit in progress. Deliberately in `local`: it is written often during a
+// drag, and local has no write-rate quota (sync caps writes per minute AND per hour). It is also
+// per-machine by nature — a half-finished edit is not something to sync to other devices.
+export const JOURNAL_KEY = 'EDIT_JOURNAL';
+/**
+ * `updatedAt` has always been written here; it just wasn't read back. The edit journal needs it to
+ * tell "my unsaved edit is newer" from "a normal save already superseded it", so it is surfaced
+ * now. Absent on records written before this field existed, hence nullable.
+ */
+export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number; updatedAt: number | null } | null> {
   if (!hasChrome() || !chrome.storage) return null;
   try {
     const r: any = await chrome.storage.local.get(DEFAULT_EQ_KEY);
     const v = r[DEFAULT_EQ_KEY];
     if (v && Array.isArray(v.filters) && v.filters.length === NUM_FILTERS) {
       const bands = v.filters.map((b: any, i: number) => sanitizeFilter({ frequency: b.f, gain: b.g, q: b.q }, i));
-      return { bands, gain: clampMasterGain(v.gain ?? 1) };
+      const updatedAt = typeof v.updatedAt === 'number' && Number.isFinite(v.updatedAt) ? v.updatedAt : null;
+      return { bands, gain: clampMasterGain(v.gain ?? 1), updatedAt };
     }
   } catch {
     /* ignore */
@@ -93,6 +103,40 @@ export async function writeDefaultEq(bands: Band[], gain: number): Promise<Persi
     return { ok: true };
   } catch (e) {
     return persistFailed(e);
+  }
+}
+
+export async function writeJournal(journal: unknown): Promise<PersistResult> {
+  if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
+  try {
+    await chrome.storage.local.set({ [JOURNAL_KEY]: journal });
+    return { ok: true };
+  } catch (e) {
+    return persistFailed(e);
+  }
+}
+
+/** Raw, unvalidated — the caller decides whether it is usable (see lib/journal.ts). */
+export async function readJournal(): Promise<unknown> {
+  if (!hasChrome() || !chrome.storage) return null;
+  try {
+    const r: any = await chrome.storage.local.get(JOURNAL_KEY);
+    return r[JOURNAL_KEY] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Only ever called after the canonical write succeeded. Dropping the journal on a failed write
+ * would discard the one copy of the edit at the exact moment it is the only copy.
+ */
+export async function clearJournal(): Promise<void> {
+  if (!hasChrome() || !chrome.storage) return;
+  try {
+    await chrome.storage.local.remove(JOURNAL_KEY);
+  } catch {
+    /* ignore */
   }
 }
 

@@ -4,6 +4,7 @@ import { type PresetBands } from '@/lib/presets';
 import { matchRule, newRuleId, patternForHost, type Rule } from '@/lib/rules';
 import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/capture-state';
 import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
+import { makeJournal, planReplay, ruleFingerprint, type RuleFingerprint } from '@/lib/journal';
 import {
   NO_PREVIEW,
   NO_BASELINE,
@@ -108,6 +109,13 @@ export function useEngine() {
   // Keying the flush off the timer meant a popup closed mid-drag flushed nothing, and that window
   // is the whole drag rather than the 200ms debounce.
   const dirty = useRef(false);
+  // Write-ahead copy of the edit in progress. The popup is destroyed on any focus loss and cannot
+  // be relied on to finish a write on the way out, so the record has to already exist. Throttled in
+  // memory — a storage write per pointermove would just move the cost, not remove it.
+  const journalThrottle = useRef(io.makeThrottle(150)).current;
+  // How the edited rule looked when THIS edit began. Re-taken per drag (unlike the once-per-session
+  // baseline), because a second edit starts from what the first one saved.
+  const journalTargetWas = useRef<RuleFingerprint | null>(null);
   const gotFirstStatus = useRef(false);
   const autoTried = useRef(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,6 +145,21 @@ export function useEngine() {
       rule: mr
     });
   }, []);
+
+  // Write the edit-in-progress ahead of the debounced canonical save. Cheap: storage.local has no
+  // write-rate quota (unlike sync), and the throttle keeps it to a few writes per drag.
+  const recordJournal = useCallback((immediate = false) => {
+    const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+    const j = makeJournal(
+      mr ? { kind: 'rule', id: mr.id } : { kind: 'global' },
+      io.bandsToPreset(bandsRef.current),
+      gainRef.current,
+      Date.now(),
+      mr ? journalTargetWas.current : null
+    );
+    if (immediate) void io.writeJournal(j);
+    else journalThrottle(() => void io.writeJournal(j));
+  }, [journalThrottle]);
 
   const resolvedFor = useCallback((host: string): { bands: Band[]; gain: number; presetName: string } => {
     const mr = host ? matchRule(host, rulesRef.current) : null;
@@ -281,17 +304,39 @@ export function useEngine() {
     // Load presets + rules together, then re-resolve. Both are read async; a preset-mode rule
     // resolves to null (→ flat) if applyEverywhere runs before its preset finished loading, so set
     // the refs directly (not only via the re-render) and push one fresh resolve once both are in.
-    Promise.all([io.readInitialState(), io.readRules()]).then(([init, rs]) => {
-      if (!mounted) return;
-      presetsRef.current = init.presets;
-      setPresets(init.presets);
-      rulesRef.current = rs;
-      setRules(rs);
-      applyEverywhere(tabsRef.current);
-    });
-    io.readDefaultEq().then((g) => {
-      if (mounted) globalRef.current = g;
-    });
+    // Boot: load presets + rules, then replay any edit the previous popup didn't finish saving,
+    // and only then resolve. The journal is read exactly once, here — it is a recovery record, not
+    // a second source of truth, and nothing plays from it directly.
+    Promise.all([io.readInitialState(), io.readRules(), io.readDefaultEq(), io.readJournal()]).then(
+      async ([init, rs, g, journal]) => {
+        if (!mounted) return;
+        presetsRef.current = init.presets;
+        setPresets(init.presets);
+        rulesRef.current = rs;
+        setRules(rs);
+        globalRef.current = g;
+
+        // The whole recovery decision lives in planReplay so it is testable; this is just the
+        // executor. Note the order: write canonically FIRST, clear the journal only on success.
+        const plan = planReplay({ journal, canonicalUpdatedAt: g?.updatedAt ?? null, rules: rs });
+        if (plan.action === 'apply-global') {
+          globalRef.current = { bands: io.presetToBands(plan.bands), gain: plan.gain };
+          const res = await io.writeDefaultEq(globalRef.current.bands, plan.gain);
+          if (res.ok) await io.clearJournal();
+          else showNoticeRef.current(t('note.rulesSaveFailed'));
+        } else if (plan.action === 'apply-rule') {
+          rulesRef.current = plan.rules;
+          setRules(plan.rules);
+          const res = await io.writeRulesResult(plan.rules);
+          if (res.ok) await io.clearJournal();
+          else showNoticeRef.current(t('note.rulesSaveFailed'));
+        } else if (plan.action === 'discard') {
+          await io.clearJournal(); // superseded, unusable, or aimed at something that is gone
+        }
+
+        if (mounted) applyEverywhere(tabsRef.current);
+      }
+    );
     if (io.hasChrome()) {
       io.isFullWindowTab().then((full) => {
         if (!mounted) return;
@@ -435,7 +480,8 @@ export function useEngine() {
         // A ruled site writes to storage.sync, which caps writes per minute AND per hour. Dropping
         // this result made a refused write invisible: the UI kept showing the new sound as saved.
         io.writeRulesResult(next).then((res) => {
-          if (!res.ok) {
+          if (res.ok) void io.clearJournal(); // ONLY on success — a failed write must keep the record
+          else {
             dirty.current = true; // still unsaved — a later flush or commit can try again
             showNoticeRef.current(t('note.rulesSaveFailed'));
           }
@@ -443,7 +489,8 @@ export function useEngine() {
       } else {
         globalRef.current = { bands, gain };
         io.writeDefaultEq(bands, gain).then((res) => {
-          if (!res.ok) {
+          if (res.ok) void io.clearJournal();
+          else {
             dirty.current = true;
             showNoticeRef.current(t('note.rulesSaveFailed'));
           }
@@ -461,11 +508,16 @@ export function useEngine() {
   const bandsFrame = useRef(0);
   const onBandsLive = useCallback(
     (nb: Band[]) => {
-      if (!interacting.current) captureBaseline(); // first movement of this drag
+      if (!interacting.current) {
+        captureBaseline(); // first movement of this drag
+        const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+        journalTargetWas.current = mr ? ruleFingerprint(mr) : null;
+      }
       interacting.current = true;
       dirty.current = true; // unsaved from the first move, not only once the gesture settles
       previewRef.current = previewForDrag(); // engine now plays the editing buffer, not resolved
       bandsRef.current = nb;
+      recordJournal();
       bandsPending.current = nb;
       if (!bandsFrame.current) {
         bandsFrame.current = requestAnimationFrame(() => {
@@ -480,7 +532,7 @@ export function useEngine() {
       if (id == null) return;
       send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: '' }));
     },
-    [send, captureBaseline]
+    [send, captureBaseline, recordJournal]
   );
   // Coalesce the volume drag to one setGain per frame (same rationale as onBandsLive); keep gainRef
   // synchronous so a commit uses the latest value regardless of the pending frame.
@@ -488,11 +540,16 @@ export function useEngine() {
   const gainFrame = useRef(0);
   const onGainLive = useCallback(
     (g: number) => {
-      if (!interacting.current) captureBaseline(); // first movement of this drag
+      if (!interacting.current) {
+        captureBaseline();
+        const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+        journalTargetWas.current = mr ? ruleFingerprint(mr) : null;
+      }
       interacting.current = true;
       dirty.current = true;
       previewRef.current = previewForDrag();
       gainRef.current = g;
+      recordJournal();
       gainPending.current = g;
       if (!gainFrame.current) {
         gainFrame.current = requestAnimationFrame(() => {
@@ -507,7 +564,7 @@ export function useEngine() {
       if (id == null) return;
       send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: '' }));
     },
-    [send, captureBaseline]
+    [send, captureBaseline, recordJournal]
   );
   // Persist once, trailing-debounced. Keyboard nudges auto-repeat (~30/s) and each commit can be a
   // storage.sync write on a ruled site (120/min quota) — committing per keydown silently drops the

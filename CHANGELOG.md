@@ -22,7 +22,8 @@ All notable changes to Umbra EQ are documented here. The format follows
 - **An EQ change made just before the popup closes is no longer lost.** Adjusting the sound and then
   immediately reloading the page or closing the popup could leave the tab playing the new sound
   while it was never actually saved — so it kept playing, seemed saved, and then reverted the next
-  time you opened Umbra.
+  time you opened Umbra. Umbra now keeps a recovery copy of the change you are making and restores
+  it the next time it opens.
 
 ### Changed
 
