@@ -142,31 +142,38 @@ export default function App() {
 
   return (
     <div className="flex min-h-[500px] flex-col">
-      {/* The notice lives at the TOP, in the flow. Down at the bottom it either covered the Undo
-          button in More or, once it stopped covering things, forced an inner scroll container that
-          made every view feel like it was sliding inside a fixed frame. Up here it pushes the page
-          down by its own height and nothing else changes: no overlay, no second scroll area, and
-          the popup goes back to sizing itself to its content. */}
-      {eng.notice.text && (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="sticky top-0 z-40 flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/70 px-3.5 py-2 text-[11.5px] text-foreground shadow-[0_2px_10px_rgba(0,0,0,.35)] backdrop-blur-xl"
-        >
-          <span className="min-w-0 flex-1 truncate">{eng.notice.text}</span>
-          {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
-              slot alone, so any later unrelated notice inherited a live Undo. */}
-          {eng.notice.undo && eng.canUndoReset && (
-            <button
-              onClick={eng.undoReset}
-              className="shrink-0 rounded-md border border-primary/50 bg-primary/10 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/25"
-            >
-              {tr('eq.undo')}
-            </button>
-          )}
-        </div>
-      )}
+      {/* A slot that is ALWAYS here, whether or not there is anything to say.
+          Chrome sizes a popup to its content, so anything that appears and disappears in the flow
+          resizes the window under the pointer — which is what putting the notice at the top fixed
+          about covering things and immediately reintroduced as a jump. Holding the space costs a
+          row of blank at the top and buys a popup that never changes size: no overlay to bury a
+          button, no inner scroll container, no resize. The live region is mounted permanently too,
+          which is what makes a screen reader announce a change of text rather than an insertion. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className={
+          'sticky top-0 z-40 flex h-9 shrink-0 items-center gap-2 px-3.5 text-[11.5px] text-foreground transition-colors ' +
+          (eng.notice.text ? 'border-b border-primary/30 bg-secondary/70 shadow-[0_2px_10px_rgba(0,0,0,.35)] backdrop-blur-xl' : '')
+        }
+      >
+        {eng.notice.text && (
+          <>
+            <span className="min-w-0 flex-1 truncate">{eng.notice.text}</span>
+            {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
+                slot alone, so any later unrelated notice inherited a live Undo. */}
+            {eng.notice.undo && eng.canUndoReset && (
+              <button
+                onClick={eng.undoReset}
+                className="shrink-0 rounded-md border border-primary/50 bg-primary/10 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/25"
+              >
+                {tr('eq.undo')}
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="flex-1">
         {/* ================= EQ ================= */}
