@@ -38,8 +38,9 @@ Thin bass on laptop speakers, one video mixed too quiet, another too harsh — a
 
 - **11-band parametric EQ** — drag the curve to boost or cut any frequency, live. Or type the
   numbers: every band's frequency, gain and Q can be entered by hand.
-- **One global sound + site rules** — one EQ everywhere, or per-site overrides by address pattern
-  (first match wins). Each tab keeps its own chain.
+- **Per-site profiles** — keep your everyday sound everywhere, then give individual sites their
+  own. YouTube can have one curve and Spotify another while the global profile stays untouched.
+  Rules match by address pattern, first match wins, and each tab keeps its own filter chain.
 - **Save for this site** — turn the sound you are hearing into a rule for the site you are on,
   without changing how everything else sounds.
 - **Reset** — put the sound back to what it was when you opened Umbra. Not one step back; all the
