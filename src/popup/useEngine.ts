@@ -5,6 +5,7 @@ import { matchRule, newRuleId, patternForHost, type Rule } from '@/lib/rules';
 import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/capture-state';
 import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
 import { makeJournal, planReplay, ruleFingerprint, type RuleFingerprint } from '@/lib/journal';
+import { planResetProfile, makeResetSnapshot, resetControls, type ResetSnapshot } from '@/lib/reset';
 import {
   NO_PREVIEW,
   NO_BASELINE,
@@ -55,6 +56,10 @@ export function useEngine() {
   // A capture was asked for and hasn't reported back. Capture startup is a popup -> background ->
   // offscreen -> getUserMedia round trip; without this the UI would say "not running" throughout it.
   const [inFlight, setInFlight] = useState(false);
+  // Mirrors previewRef for rendering — the ref alone would not re-render the action row.
+  const [previewOn, setPreviewOn] = useState(false);
+  // What the last Reset profile overwrote. One step, one operation, dropped after the notice.
+  const [canUndoReset, setCanUndoReset] = useState(false);
 
   const [bands, setBands] = useState<Band[]>(io.flatBands);
   const [gain, setGain] = useState(1);
@@ -516,6 +521,7 @@ export function useEngine() {
       interacting.current = true;
       dirty.current = true; // unsaved from the first move, not only once the gesture settles
       previewRef.current = previewForDrag(); // engine now plays the editing buffer, not resolved
+      setPreviewOn(true);
       bandsRef.current = nb;
       recordJournal();
       bandsPending.current = nb;
@@ -548,6 +554,7 @@ export function useEngine() {
       interacting.current = true;
       dirty.current = true;
       previewRef.current = previewForDrag();
+      setPreviewOn(true);
       gainRef.current = g;
       recordJournal();
       gainPending.current = g;
@@ -599,6 +606,7 @@ export function useEngine() {
       // The commit makes the stored profile equal what is playing, so the override is over.
       // Cleared BEFORE commitTarget, whose applyEverywhere would otherwise skip the active tab.
       previewRef.current = NO_PREVIEW;
+      setPreviewOn(false);
       commitTarget(bandsRef.current, gainRef.current);
     }, COMMIT_DEBOUNCE_MS);
   }, [commitTarget]);
@@ -688,31 +696,80 @@ export function useEngine() {
   }, []);
 
   // On the current site: reset to flat. Unruled → the global profile; ruled → remove the rule.
-  const resetAll = useCallback(() => {
-    const flat = io.flatBands();
-    captureBaseline(); // writer #2 — this one bypasses commitTarget entirely
-    interacting.current = false;
-    previewRef.current = NO_PREVIEW;
-    const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
-    if (mr) {
-      // On a ruled site, "reset" removes the rule → the site falls back to the global profile.
-      const next = rulesRef.current.filter((r) => r.id !== mr.id);
-      rulesRef.current = next;
-      setRules(next);
-      io.writeRules(next);
-    } else {
-      globalRef.current = { bands: flat, gain: 1 };
-      io.writeDefaultEq(flat, 1);
-    }
-    applyEverywhere(tabsRef.current);
-    // Reflect the reset in the editor graph directly — the active "tab" may not be in the
-    // pushed list (e.g. the global editor's own non-captured tab), so applyEverywhere's
-    // active-tab mirror wouldn't fire.
+  // Mirror the resolved sound into the editor directly. applyEverywhere only mirrors tabs it
+  // pushed to, and the active "tab" may not be among them (the global editor's own tab isn't
+  // captured), so without this the graph would keep showing the discarded curve.
+  const mirrorResolved = useCallback(() => {
     const r = resolvedFor(activeHostRef.current);
     setBands(r.bands);
     setGain(r.gain);
     setActivePreset(r.presetName);
-  }, [applyEverywhere, resolvedFor, captureBaseline]);
+  }, [resolvedFor]);
+
+  // Throw away the edit in progress. Touches NO storage — it only stops the un-committed change
+  // from being written and puts the stored sound back on screen and in the engine.
+  const resetChanges = useCallback(() => {
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    interacting.current = false;
+    dirty.current = false;
+    previewRef.current = NO_PREVIEW;
+    setPreviewOn(false);
+    void io.clearJournal(); // the recovery copy described an edit the user just abandoned
+    applyEverywhere(tabsRef.current);
+    mirrorResolved();
+  }, [applyEverywhere, mirrorResolved]);
+
+  const resetSnapshot = useRef<ResetSnapshot | null>(null);
+
+  // The destructive one: on a ruled site it DELETES the rule, elsewhere it flattens the profile
+  // every tab without a rule plays. Snapshot first so the notice can offer an undo.
+  const resetProfile = useCallback(() => {
+    captureBaseline(); // writer #2 — bypasses commitTarget entirely
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    interacting.current = false;
+    dirty.current = false;
+    previewRef.current = NO_PREVIEW;
+    setPreviewOn(false);
+
+    resetSnapshot.current = makeResetSnapshot(rulesRef.current, globalRef.current);
+    const plan = planResetProfile(activeHostRef.current, rulesRef.current);
+    if (plan.action === 'delete-rule') {
+      rulesRef.current = plan.rules;
+      setRules(plan.rules);
+      void io.writeRules(plan.rules);
+    } else {
+      const flat = io.flatBands();
+      globalRef.current = { bands: flat, gain: 1 };
+      void io.writeDefaultEq(flat, 1);
+    }
+    void io.clearJournal();
+    applyEverywhere(tabsRef.current);
+    mirrorResolved();
+    setCanUndoReset(true);
+    showNoticeRef.current(t('note.profileReset'));
+  }, [applyEverywhere, mirrorResolved, captureBaseline]);
+
+  // Put back exactly what resetProfile overwrote. The snapshot is deep, so it survived the reset
+  // replacing those very arrays.
+  const undoReset = useCallback(() => {
+    const snap = resetSnapshot.current;
+    if (!snap) return;
+    resetSnapshot.current = null;
+    setCanUndoReset(false);
+    rulesRef.current = snap.rules;
+    setRules(snap.rules);
+    void io.writeRules(snap.rules);
+    globalRef.current = snap.global;
+    if (snap.global) void io.writeDefaultEq(snap.global.bands, snap.global.gain);
+    applyEverywhere(tabsRef.current);
+    mirrorResolved();
+  }, [applyEverywhere, mirrorResolved]);
 
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
@@ -921,7 +978,12 @@ export function useEngine() {
     onCommit,
     toggleCapture,
     stopTab,
-    resetAll,
+    resetChanges,
+    resetProfile,
+    undoReset,
+    canUndoReset,
+    previewOn,
+    resetControls: resetControls({ previewOn, dirty: dirty.current }),
     addRule,
     updateRule,
     deleteRule,

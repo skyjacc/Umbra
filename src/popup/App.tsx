@@ -36,6 +36,8 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
   const [guideOpen, setGuideOpen] = useState(false);
+  // Two-step arm for the destructive reset; cleared whenever the user leaves the More view.
+  const [confirmReset, setConfirmReset] = useState(false);
   const [hiddenBuiltins, setHiddenBuiltins] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.HIDDEN_BUILTINS || '[]');
@@ -126,6 +128,11 @@ export default function App() {
     r.readAsText(f);
     if (fileRef.current) fileRef.current.value = '';
   };
+
+  // Disarm the destructive reset when the user navigates away, so it can't stay armed unseen.
+  useEffect(() => {
+    if (view !== 'more') setConfirmReset(false);
+  }, [view]);
 
   const hide = (v: ViewId) => (view === v ? '' : 'hidden');
 
@@ -263,20 +270,10 @@ export default function App() {
                 {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
               </Button>
             ) : null}
-            {/* Hidden on a browser system page: there is no per-tab sound to reset there, and with
-                an empty host Reset would silently flatten the GLOBAL profile — while being the only
-                button left on screen. */}
-            {eng.captureState !== 'uncapturable' && (
-              <Button
-                variant="outline"
-                title={eng.globalEditor || !eng.activeHost ? tr('eq.resetGlobalTitle') : tr('eq.resetTitle')}
-                className="h-10 rounded-xl backdrop-blur-md"
-                onClick={eng.resetAll}
-              >
-                <RotateCcw />
-                {tr('eq.reset')}
-              </Button>
-            )}
+            {/* No reset button here at all. The destructive one lives in More; the harmless one
+                would need a state that does not exist yet — a drag auto-commits, so "there is an
+                unsaved edit to discard" survives only the ~200ms debounce. It comes back in the
+                Bypass PR, where a preview persists for as long as the user leaves it on. */}
           </div>
         </section>
 
@@ -511,6 +508,34 @@ export default function App() {
               <Maximize2 className="size-4" /> {tr('more.fullWindow')}
             </a>
           </div>
+
+          {/* The destructive reset lives only here. Two steps rather than a modal — the project has
+              no modal pattern and adding one for a single action isn't worth it — and the notice
+              that follows offers an undo, so a mis-click is recoverable either way. */}
+          <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+            <button
+              onClick={() => {
+                if (!confirmReset) {
+                  setConfirmReset(true);
+                  return;
+                }
+                setConfirmReset(false);
+                eng.resetProfile();
+              }}
+              className={
+                'inline-flex items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-semibold transition-colors [box-shadow:var(--shadow-border)] ' +
+                (confirmReset
+                  ? 'border-destructive/60 bg-destructive/15 text-foreground'
+                  : 'border-border bg-white/[.05] text-muted-foreground hover:text-foreground')
+              }
+            >
+              <RotateCcw className="size-4" />
+              {confirmReset ? tr('more.resetProfileConfirm') : tr('more.resetProfile')}
+            </button>
+            <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">
+              {eng.activeHost && eng.matchedRule ? tr('more.resetProfileRule', { host: eng.activeHost }) : tr('more.resetProfileGlobal')}
+            </p>
+          </div>
         </section>
       </div>
 
@@ -523,7 +548,15 @@ export default function App() {
           aria-atomic="true"
           className="fixed inset-x-3 bottom-[64px] z-50 rounded-xl border border-primary/40 bg-secondary/90 px-3.5 py-2.5 text-[11.5px] text-foreground shadow-lg backdrop-blur-md"
         >
-          {eng.notice}
+          <span>{eng.notice}</span>
+          {eng.canUndoReset && (
+            <button
+              onClick={eng.undoReset}
+              className="ml-2 rounded-md border border-primary/50 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/20"
+            >
+              {tr('eq.undo')}
+            </button>
+          )}
         </div>
       )}
 

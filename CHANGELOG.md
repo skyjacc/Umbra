@@ -27,6 +27,10 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Changed
 
+- **Reset no longer wipes a saved sound in one click.** The single Reset button deleted a site's
+  rule, or flattened the sound played on every tab, with no confirmation and no way back. It has
+  moved to **More**, asks twice, and can be undone from the message that follows.
+
 - **Better multi-tab behaviour while editing.** Adjusting the sound on one tab no longer stops other
   tabs from picking up preset and rule changes.
 
