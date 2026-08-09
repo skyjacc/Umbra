@@ -9,6 +9,7 @@ import audioSrc from './audio.ts?raw';
 import changelogSrc from '../../CHANGELOG.md?raw';
 import i18nSrc from '../popup/i18n.tsx?raw';
 import useEngineSrc from '../popup/useEngine.ts?raw';
+import appSrc from '../popup/App.tsx?raw';
 
 // Guards three hand-maintained invariants so they can't silently drift:
 //  1. the six-place version / BUILD bump (a mismatch makes the popup show "STALE — reload"),
@@ -67,22 +68,30 @@ describe('cross-file invariants', () => {
     expect(popup).toBe(engine);
   });
 
-  it('bypass calls no storage writer', () => {
-    // Bypass is a listening mode: it must never change what is stored. That is an architectural
-    // rule, and a behavioural test would not catch breaking it — a stray commitTarget() in the
-    // handler would still leave the UI looking right. So assert it on the source instead.
-    const block = useEngineSrc.match(/--- bypass:start[\s\S]*?--- bypass:end/)?.[0];
-    expect(block, 'bypass:start / bypass:end markers not found in useEngine.ts').toBeTruthy();
+  it('turning bypass ON writes nothing; turning it OFF is where the draft is saved', () => {
+    // Bypass is a draft mode: while it is on, nothing is persisted — not the debounced commit and
+    // not the write-ahead journal, because a journal entry written under bypass would be replayed
+    // by the next popup as an edit the user never confirmed. Leaving bypass is the one moment that
+    // draft becomes a save, so the two halves live in different functions and only the ON half is
+    // fenced. A behavioural test would pass with a stray save in here, so assert on the source.
+    const block = useEngineSrc.match(/--- bypass:on:start[\s\S]*?--- bypass:on:end/)?.[0];
+    expect(block, 'bypass:on:start / bypass:on:end markers not found in useEngine.ts').toBeTruthy();
 
     // Strip comments first: the block deliberately NAMES these writers to explain the rule.
     const code = block!.replace(/\/\/.*$/gm, '');
     for (const writer of ['commitTarget', 'writeDefaultEq', 'writeRules', 'writeRulesResult', 'writeJournal', 'clearJournal', 'recordJournal']) {
-      expect(code, `bypass must not call ${writer}`).not.toContain(writer);
+      expect(code, `entering bypass must not call ${writer}`).not.toContain(writer);
     }
     // It must also leave the editing buffer alone, so the graph keeps showing the real curve.
     for (const mutator of ['bandsRef.current =', 'setBands(', 'gainRef.current =', 'setGain(']) {
-      expect(code, `bypass must not touch ${mutator}`).not.toContain(mutator);
+      expect(code, `entering bypass must not touch ${mutator}`).not.toContain(mutator);
     }
+
+    // The counterweight, so the guard above cannot be satisfied by never saving the draft at all.
+    const leave = useEngineSrc.match(/const leaveBypass = useCallback\([\s\S]*?\n  \}, \[/)?.[0];
+    expect(leave, 'leaveBypass not found').toBeTruthy();
+    expect(leave, 'leaving bypass must be able to write the draft').toContain('commitTarget(');
+    expect(leave, 'and must not write when no draft was made').toContain('commitOnUnbypass(');
   });
 
   it('the sync write quantizes the curve, and the read leaves it alone', () => {
@@ -147,6 +156,32 @@ describe('cross-file invariants', () => {
     // And the live-edit pushes must not blank the engine's per-tab label either, or the Tabs view
     // and the header would disagree about the same tab for the length of a drag.
     expect(useEngineSrc, 'a live edit must not blank the engine label').not.toContain("activePreset: ''");
+  });
+
+  it('the graph is editable whenever the tab is captured, bypass or not', () => {
+    // Bypass is an audio-path state. Every parametric EQ worth the name keeps its curve editable
+    // while bypassed, and the lock this replaces was load-bearing by accident — it was the only
+    // thing stopping an edit made against a stale buffer from reaching storage. Re-adding the term
+    // is a one-token edit that reads as harmless, so it is spelled out here.
+    expect(appSrc).not.toContain('eng.canEdit && !eng.bypassed');
+    expect(appSrc, 'the graph needs the flag to show what is audible').toContain('bypassed={eng.bypassed}');
+  });
+
+  it('a bypassed tab is sent flat, and a drag is not sent to it at all', () => {
+    const enter = useEngineSrc.match(/--- bypass:on:start[\s\S]*?--- bypass:on:end/)?.[0] ?? '';
+    expect(enter, 'entering bypass must send a flat curve').toContain('eqFilters: io.flatBands()');
+    expect(enter, 'and must keep the master volume it found').toContain('gain: gainRef.current');
+
+    // The live handlers each push their own message and never consulted the preview, so the guard
+    // has to be at those two sites. Only the eleven filters are gated: modifyGain keeps flowing,
+    // because bypassing the equalizer is not muting the user's volume.
+    const drag = useEngineSrc.match(/const onBandsLive = useCallback\([\s\S]*?\n  \);/)?.[0] ?? '';
+    expect(drag, 'onBandsLive must not push to a bypassed tab').toContain('sendsBandsToActiveTab(');
+    expect(drag, 'and must push the curve being dragged, not the stored one').toContain('eqFilters: nb');
+    expect(drag, 'a draft must not be journalled').toContain('persistsNow(');
+
+    const gain = useEngineSrc.match(/const onGainLive = useCallback\([\s\S]*?\n  \);/)?.[0] ?? '';
+    expect(gain, 'the master volume stays audible under bypass').not.toContain('sendsBandsToActiveTab(');
   });
 
   it('every i18n key exists in both en and ru', () => {

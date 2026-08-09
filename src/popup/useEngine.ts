@@ -7,6 +7,15 @@ import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
 import { makeJournal, planReplay, ruleFingerprint, type RuleFingerprint } from '@/lib/journal';
 import { quantizeRules } from '@/lib/quantize';
 import { provenanceOf } from '@/lib/provenance';
+import {
+  isBypassed,
+  previewAfterDrag,
+  previewAfterCommit,
+  persistsNow,
+  sendsBandsToActiveTab,
+  mayMirrorBuffer,
+  commitOnUnbypass
+} from '@/lib/bypass';
 import { planResetProfile, makeResetSnapshot, resetControls, type ResetSnapshot } from '@/lib/reset';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
@@ -161,6 +170,20 @@ export function useEngine() {
   // bypass or an A/B slot later. Ephemeral by design: it is never written to storage, and it dies
   // with the popup. See src/lib/edit-state.ts for why it holds no copy of the curve.
   const previewRef = useRef<Preview>(NO_PREVIEW);
+  /**
+   * The ONLY way to change what the engine is previewing.
+   *
+   * `previewRef`, `previewOn` and `bypassed` were three independently settable holders of one
+   * fact, and every bypass defect found in review was two of them drifting apart: a commit that
+   * cleared the ref but not the flag left the badge insisting the equalizer was off while the tab
+   * audibly played again. Setting them together makes that class unrepresentable.
+   */
+  const setPreview = useCallback((next: Preview) => {
+    previewRef.current = next;
+    setPreviewOn(next.has);
+    setBypassed(isBypassed(next));
+  }, []);
+
   // The stored profile as it stood before this popup session first changed it. Latched once so a
   // later "save this to the site instead" can put back what it displaced; later commits must not
   // replace it, or the restore would restore the damage.
@@ -229,13 +252,17 @@ export function useEngine() {
       // The guard is per tab, not global. A preview or a live drag owns the ACTIVE tab only —
       // every other captured tab must still receive its resolved sound, so a rule or preset change
       // keeps propagating while the user is shaping this one.
+      // AUDIO: a preview of any kind owns the active tab, so it is skipped. Unchanged.
       const held = () => interacting.current || previewRef.current.has;
       for (const t of tabsList) {
         if (t.id === activeIdRef.current && held()) continue;
         const r = resolvedFor(t.host);
         io.toOffscreen('applySettings', { tabId: t.id, eqFilters: r.bands, gain: r.gain, activePreset: r.presetName });
       }
-      if (held()) return; // don't mirror over the curve the user is editing / previewing
+      // BUFFER: a different question, and it used to share the flag above. A bypass has no claim
+      // on the editing buffer — freezing it for a whole bypass session let the graph keep showing
+      // a rule that had just been deleted, and the next commit wrote that curve somewhere else.
+      if (!mayMirrorBuffer({ interacting: interacting.current, dirty: dirty.current, preview: previewRef.current })) return;
       const cur = tabsList.find((t) => t.id === activeIdRef.current);
       if (cur) {
         const r = resolvedFor(cur.host);
@@ -558,10 +585,11 @@ export function useEngine() {
       }
       interacting.current = true;
       dirty.current = true; // unsaved from the first move, not only once the gesture settles
-      previewRef.current = previewForDrag(); // engine now plays the editing buffer, not resolved
-      setPreviewOn(true);
+      setPreview(previewAfterDrag(previewRef.current)); // a bypass outranks the drag and survives it
       bandsRef.current = nb;
-      recordJournal();
+      // Draft mode writes nothing, the journal included: an entry written under bypass would be
+      // replayed by the next popup as an edit the user never confirmed.
+      if (persistsNow(previewRef.current)) recordJournal();
       bandsPending.current = nb;
       if (!bandsFrame.current) {
         bandsFrame.current = requestAnimationFrame(() => {
@@ -571,6 +599,9 @@ export function useEngine() {
       }
       const id = activeIdRef.current;
       if (id == null) return;
+      // The eleven filters stop at the tab boundary while bypassed; the master volume below does
+      // not, because bypass is about the equalizer and not the user's volume.
+      if (!sendsBandsToActiveTab(previewRef.current)) return;
       send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: activeRef.current }));
     },
     [send, captureBaseline, recordJournal]
@@ -588,10 +619,9 @@ export function useEngine() {
       }
       interacting.current = true;
       dirty.current = true;
-      previewRef.current = previewForDrag();
-      setPreviewOn(true);
+      setPreview(previewAfterDrag(previewRef.current));
       gainRef.current = g;
-      recordJournal();
+      if (persistsNow(previewRef.current)) recordJournal();
       gainPending.current = g;
       if (!gainFrame.current) {
         gainFrame.current = requestAnimationFrame(() => {
@@ -611,6 +641,9 @@ export function useEngine() {
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commitWindowOpenedAt = useRef(0);
   const onCommit = useCallback(() => {
+    // Bypass is a draft: the edit stays in the buffer, `dirty` stays true, and leaveBypass writes
+    // it once when the user comes back to hearing the result.
+    if (!persistsNow(previewRef.current)) return;
     // A plain trailing debounce never fires while an arrow key is held: auto-repeat resets it every
     // ~33ms. The ceiling turns "delay the write" into "delay it, but not forever".
     const decision = commitDecision({
@@ -623,7 +656,7 @@ export function useEngine() {
     if (decision === 'commit-now') {
       commitTimer.current = null;
       interacting.current = false;
-      previewRef.current = NO_PREVIEW;
+      setPreview(previewAfterCommit(previewRef.current));
       commitTarget(bandsRef.current, gainRef.current, activeRef.current);
       return;
     }
@@ -637,8 +670,7 @@ export function useEngine() {
       interacting.current = false;
       // The commit makes the stored profile equal what is playing, so the override is over.
       // Cleared BEFORE commitTarget, whose applyEverywhere would otherwise skip the active tab.
-      previewRef.current = NO_PREVIEW;
-      setPreviewOn(false);
+      setPreview(previewAfterCommit(previewRef.current));
       commitTarget(bandsRef.current, gainRef.current, activeRef.current);
     }, COMMIT_DEBOUNCE_MS);
   }, [commitTarget]);
@@ -651,12 +683,13 @@ export function useEngine() {
   // the same data and a way for them to drift.
   const flushPendingCommit = useCallback(() => {
     if (!dirty.current) return; // idempotent, and true mid-drag when no timer is armed yet
+    if (!persistsNow(previewRef.current)) return; // a draft dies with the popup, by contract
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
       commitTimer.current = null;
     }
     interacting.current = false;
-    previewRef.current = NO_PREVIEW;
+    setPreview(previewAfterCommit(previewRef.current));
     commitTarget(bandsRef.current, gainRef.current, activeRef.current);
   }, [commitTarget]);
 
@@ -704,8 +737,7 @@ export function useEngine() {
     // that just happened is the tab disappearing underneath the drag.
     flushPendingCommit();
     interacting.current = false;
-    previewRef.current = NO_PREVIEW;
-    setBypassed(false);
+    setPreview(NO_PREVIEW);
   }, [captureState, flushPendingCommit]);
 
   const toggleCapture = useCallback(() => {
@@ -739,29 +771,49 @@ export function useEngine() {
     setActivePreset(r.presetName);
   }, [resolvedFor]);
 
-  // --- bypass:start ---------------------------------------------------------------------------
-  // Play the tab unshaped for a moment. Deliberately NOT a writer: it must not call commitTarget,
-  // writeDefaultEq, writeRules or writeJournal, must not touch bandsRef/setBands (so the graph
-  // keeps showing the real curve, dimmed), and must not touch the master volume — "bypass the EQ"
-  // means the equalizer, not the user's volume. Turning it off restores exactly what was playing
-  // before, by re-resolving rather than by remembering. invariants.test.ts asserts the no-writer
-  // part structurally, because a UI test would happily pass with a stray save in here.
-  const toggleBypass = useCallback(() => {
-    const on = !previewRef.current.has || previewRef.current.source !== 'bypass';
-    if (on) {
-      previewRef.current = previewForBypass(io.flatBands());
-      setBypassed(true);
-      const id = activeIdRef.current;
-      // No activePreset in the payload: the engine only overwrites the label when it is defined,
-      // so the tab keeps showing which preset it is on while muted-flat.
-      if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: io.flatBands(), gain: gainRef.current });
-    } else {
-      previewRef.current = NO_PREVIEW;
-      setBypassed(false);
-      applyEverywhere(tabsRef.current);
+  // --- bypass:on:start ------------------------------------------------------------------------
+  // Turning bypass ON writes NOTHING. Not commitTarget, not writeDefaultEq, not writeRules, not
+  // the journal; it must not touch bandsRef/setBands, so the graph keeps showing the real curve;
+  // and it must not touch the master volume, because "bypass the EQ" means the equalizer and not
+  // the user's volume. invariants.test.ts asserts the no-writer part on the source, because a
+  // behavioural test would happily pass with a stray save in here.
+  //
+  // Turning it OFF is a different thing and deliberately outside these markers: bypass is a draft
+  // mode, so leaving it is where the draft becomes a save.
+  const enterBypass = useCallback(() => {
+    setPreview(previewForBypass(io.flatBands()));
+    const id = activeIdRef.current;
+    // No activePreset in the payload: the engine only overwrites the label when it is defined, so
+    // the tab keeps showing which preset it is on while muted-flat.
+    if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: io.flatBands(), gain: gainRef.current });
+  }, [setPreview]);
+  // --- bypass:on:end --------------------------------------------------------------------------
+
+  /**
+   * Leave bypass, and settle up.
+   *
+   * Everything shaped while bypassed was a draft — no commit ran, no journal entry was written —
+   * so this is the one moment it can be saved. The order matters: write first, then re-resolve.
+   * applyEverywhere reads storage through resolvedFor, and commitTarget updates rulesRef/globalRef
+   * synchronously before its async write, so committing first is what makes the tab play the curve
+   * the user just built rather than the one it had before they started.
+   */
+  const leaveBypass = useCallback(() => {
+    const owed = commitOnUnbypass({ dirty: dirty.current });
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
     }
-  }, [applyEverywhere]);
-  // --- bypass:end -----------------------------------------------------------------------------
+    interacting.current = false;
+    setPreview(NO_PREVIEW);
+    if (owed) commitTarget(bandsRef.current, gainRef.current, activeRef.current);
+    else applyEverywhere(tabsRef.current); // commitTarget does its own applyEverywhere
+  }, [applyEverywhere, commitTarget, setPreview]);
+
+  const toggleBypass = useCallback(() => {
+    if (isBypassed(previewRef.current)) leaveBypass();
+    else enterBypass();
+  }, [enterBypass, leaveBypass]);
 
   // Throw away the edit in progress. Touches NO storage — it only stops the un-committed change
   // from being written and puts the stored sound back on screen and in the engine.
@@ -772,9 +824,7 @@ export function useEngine() {
     }
     interacting.current = false;
     dirty.current = false;
-    previewRef.current = NO_PREVIEW;
-    setPreviewOn(false);
-    setBypassed(false);
+    setPreview(NO_PREVIEW);
     void io.clearJournal(); // the recovery copy described an edit the user just abandoned
     applyEverywhere(tabsRef.current);
     mirrorResolved();
@@ -792,9 +842,7 @@ export function useEngine() {
     }
     interacting.current = false;
     dirty.current = false;
-    previewRef.current = NO_PREVIEW;
-    setPreviewOn(false);
-    setBypassed(false);
+    setPreview(NO_PREVIEW);
 
     resetSnapshot.current = makeResetSnapshot(rulesRef.current, globalRef.current);
     const plan = planResetProfile(activeHostRef.current, rulesRef.current);
@@ -879,9 +927,7 @@ export function useEngine() {
 
       setRulesMirror(plan.rules); // applySavePlan already stored it; keep the mirror in step
       if (plan.globalRollback) globalRef.current = plan.globalRollback.to;
-      previewRef.current = NO_PREVIEW;
-      setPreviewOn(false);
-      setBypassed(false);
+      setPreview(NO_PREVIEW);
       dirty.current = false;
       baselineRef.current = NO_BASELINE;
       applyEverywhere(tabsRef.current);
@@ -1001,6 +1047,13 @@ export function useEngine() {
       setActivePreset(name);
       // Apply live to the active tab for instant feedback, then commit it to the global
       // profile (or the site's rule) so it becomes the sound everywhere / for that site.
+      // Under bypass this is a draft like any other edit: the curve lands in the buffer and the
+      // graph, the tab keeps playing unshaped, and leaveBypass writes it. Without the dirty flag
+      // the draft would have nothing to tell leaveBypass it exists.
+      if (!persistsNow(previewRef.current)) {
+        dirty.current = true;
+        return;
+      }
       const id = activeIdRef.current;
       if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: name });
       commitTarget(nb, gainRef.current, name);

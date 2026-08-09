@@ -225,7 +225,6 @@ export default function App() {
             {showsGraph(eng.captureState) ? (
               <>
                 <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
-                <div className={'contents ' + (eng.bypassed ? 'opacity-40' : '')} aria-hidden={false}>
                 <EqGraph
                   bands={eng.bands}
                   sampleRate={eng.sampleRate}
@@ -235,9 +234,9 @@ export default function App() {
                   showRoles={eng.showRoles}
                   onBands={eng.onBandsLive}
                   onCommit={eng.onCommit}
-                  editable={eng.canEdit && !eng.bypassed}
+                  editable={eng.canEdit}
+                  bypassed={eng.bypassed}
                 />
-                </div>
               </>
             ) : (
               // No capture: say why instead of rendering a full-size, inert equalizer that reads

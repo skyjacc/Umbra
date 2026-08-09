@@ -8,6 +8,13 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Added
 
+- **You can shape the curve while Bypass is on.** The graph used to go dead when you bypassed the
+  equalizer, which no other EQ does. Now it stays live: drag bands while the tab plays unshaped,
+  then switch Bypass off to hear what you built. The flat line on the graph turns solid while
+  bypassed — that line is what you are actually hearing. Nothing is saved until you leave Bypass,
+  so it is a scratch pad: switch it off and the work is written in one go.
+
+
 - **The equalizer now says why it isn't running.** On a page Umbra can't work on (a browser system
   page), on a tab you stopped by hand, or when audio capture fails, the popup explains what is
   happening instead of showing a full-size equalizer that doesn't respond — which looked broken.

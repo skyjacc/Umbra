@@ -33,6 +33,7 @@ interface Props {
   onBands: (b: Band[]) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
   editable?: boolean; // dots draggable only when the active tab is captured
+  bypassed?: boolean; // the curve is being shaped but the tab is playing unshaped
 }
 
 // The rough zone each band sits in (11 fixed bands, low → high), shown as a small text
@@ -64,7 +65,7 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
@@ -266,6 +267,12 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   const zeroY = dbToY(0); // 0 dB baseline for the graph
   const active = hover ?? focusIdx; // mouse hover wins; else the keyboard-focused dot drives the readout
 
+  // Under bypass the flat line is what the tab is actually playing, so it stops being a faint
+  // reference and becomes the truth on screen, while the curve the user is shaping recedes. The
+  // dots stay at full strength: they are still draggable, and dimming them would read as disabled
+  // — which is the very thing this mode used to be.
+  const curveOpacity = bypassed ? 0.3 : 1;
+
   return (
     <svg
         ref={eqRef}
@@ -302,7 +309,15 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
             </text>
           </g>
         ))}
-        <line x1={0} y1={zeroY} x2={EQ_W} y2={zeroY} stroke={G('text')} strokeOpacity={0.22} strokeDasharray="1 4" />
+        <line
+          x1={0}
+          y1={zeroY}
+          x2={EQ_W}
+          y2={zeroY}
+          stroke={G('text')}
+          strokeOpacity={bypassed ? 0.75 : 0.22}
+          strokeDasharray={bypassed ? undefined : '1 4'}
+        />
         {dbTicks.map((t, i) => (
           <text key={'d' + i} x={8} y={t.y} fontSize={9} fill={G('text')} fillOpacity={t.label === '0' ? 0.85 : 0.62} dominantBaseline="middle">
             {t.label}
@@ -319,7 +334,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
 
         {/* combined curve — subtle fill first so it sits UNDER the per-band curves and
             never washes them out; the hero stroke sits above the ghosts */}
-        <path d={combined} fill="url(#umbraFill)" stroke="none" pointerEvents="none" />
+        <path d={combined} fill="url(#umbraFill)" stroke="none" pointerEvents="none" opacity={curveOpacity} />
 
         {/* ghost per-band curves — colored by band type, hover-highlighted so it's
             obvious which dot drives which bell */}
@@ -342,7 +357,16 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         })}
 
         {/* combined curve — hero stroke (gradient peak->shelf), above the ghosts */}
-        <path d={combinedStroke} fill="none" stroke="url(#umbraCurve)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+        <path
+          d={combinedStroke}
+          fill="none"
+          stroke="url(#umbraCurve)"
+          strokeWidth={2.25}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          pointerEvents="none"
+          opacity={curveOpacity}
+        />
 
         {/* filter dots — a dark knockout ring separates each dot from the curve and
             neighbours; the hovered dot grows + gets a soft accent halo */}
