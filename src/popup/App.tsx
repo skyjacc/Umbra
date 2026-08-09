@@ -154,7 +154,17 @@ export default function App() {
               Umbra<span className="text-primary">EQ</span>
             </span>
             <span className="ml-2 min-w-0 truncate text-[11px] text-muted-foreground" title={tr('eq.preset')}>
-              {tr('eq.preset')}: <span className="font-medium text-foreground/80">{eng.activePreset || tr('eq.presetNone')}</span>
+              {tr('eq.preset')}:{' '}
+              <span className="font-medium text-foreground/80">
+                {/* "Vocal" while the curve still is Vocal; "Based on Vocal" once it has been
+                    shaped away from it. Not "Vocal*" — an asterisk reads as unsaved, and the edit
+                    is saved. Not "Vocal (edited)" — that names a different preset, not a source. */}
+                {eng.provenance.kind === 'none'
+                  ? tr('eq.presetNone')
+                  : eng.provenance.kind === 'exact'
+                    ? eng.provenance.name
+                    : tr('eq.presetBasedOn', { name: eng.provenance.name })}
+              </span>
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               <button

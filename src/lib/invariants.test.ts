@@ -135,6 +135,20 @@ describe('cross-file invariants', () => {
     expect(useEngineSrc, 'no popup path may persist the preview override').not.toContain('overrideBands');
   });
 
+  it('a commit carries provenance instead of erasing it', () => {
+    // The bug this pins was invisible for 200ms. A drag kept "Vocal" on screen, then the debounced
+    // commit fired with presetName defaulted to '' and the header dropped to "None" on its own.
+    // Removing the default is what makes an omission a type error rather than a silent erase, so
+    // the absence of that default is the thing worth asserting.
+    const sig = useEngineSrc.match(/const commitTarget = useCallback\(\s*\n?\s*\(([^)]*)\)/)?.[1] ?? '';
+    expect(sig, 'commitTarget signature not found').toContain('presetName');
+    expect(sig, 'presetName must not default — omitting it has to fail the typecheck').not.toMatch(/presetName\s*=/);
+
+    // And the live-edit pushes must not blank the engine's per-tab label either, or the Tabs view
+    // and the header would disagree about the same tab for the length of a drag.
+    expect(useEngineSrc, 'a live edit must not blank the engine label').not.toContain("activePreset: ''");
+  });
+
   it('every i18n key exists in both en and ru', () => {
     const en = localeKeys(i18nSrc, 'en');
     const ru = localeKeys(i18nSrc, 'ru');

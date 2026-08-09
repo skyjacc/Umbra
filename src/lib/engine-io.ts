@@ -72,7 +72,7 @@ export const JOURNAL_KEY = 'EDIT_JOURNAL';
  * tell "my unsaved edit is newer" from "a normal save already superseded it", so it is surfaced
  * now. Absent on records written before this field existed, hence nullable.
  */
-export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number; updatedAt: number | null } | null> {
+export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number; presetName: string; updatedAt: number | null } | null> {
   if (!hasChrome() || !chrome.storage) return null;
   try {
     const r: any = await chrome.storage.local.get(DEFAULT_EQ_KEY);
@@ -80,7 +80,10 @@ export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number; up
     if (v && Array.isArray(v.filters) && v.filters.length === NUM_FILTERS) {
       const bands = v.filters.map((b: any, i: number) => sanitizeFilter({ frequency: b.f, gain: b.g, q: b.q }, i));
       const updatedAt = typeof v.updatedAt === 'number' && Number.isFinite(v.updatedAt) ? v.updatedAt : null;
-      return { bands, gain: clampMasterGain(v.gain ?? 1), updatedAt };
+      // `preset` is provenance — which preset this curve came from, not a claim it still equals
+      // it. Absent on records written before the field existed, which reads as 'came from nowhere'.
+      const presetName = typeof v.preset === 'string' ? v.preset : '';
+      return { bands, gain: clampMasterGain(v.gain ?? 1), presetName, updatedAt };
     }
   } catch {
     /* ignore */
@@ -96,11 +99,13 @@ export type PersistResult = { ok: true } | { ok: false; error: string };
 
 const persistFailed = (e: unknown): PersistResult => ({ ok: false, error: (e as Error)?.message || String(e) });
 
-export async function writeDefaultEq(bands: Band[], gain: number): Promise<PersistResult> {
+export async function writeDefaultEq(bands: Band[], gain: number, presetName = ''): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   const filters = bands.map((b) => ({ f: b.frequency, g: b.gain, q: b.q }));
   try {
-    await chrome.storage.local.set({ [DEFAULT_EQ_KEY]: { v: 1, filters, gain: clampMasterGain(gain), updatedAt: Date.now() } });
+    await chrome.storage.local.set({
+      [DEFAULT_EQ_KEY]: { v: 1, filters, gain: clampMasterGain(gain), preset: presetName, updatedAt: Date.now() }
+    });
     return { ok: true };
   } catch (e) {
     return persistFailed(e);

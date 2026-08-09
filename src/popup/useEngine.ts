@@ -6,6 +6,7 @@ import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/captur
 import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
 import { makeJournal, planReplay, ruleFingerprint, type RuleFingerprint } from '@/lib/journal';
 import { quantizeRules } from '@/lib/quantize';
+import { provenanceOf } from '@/lib/provenance';
 import { planResetProfile, makeResetSnapshot, resetControls, type ResetSnapshot } from '@/lib/reset';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
@@ -154,7 +155,7 @@ export function useEngine() {
   // The offscreen document has NO chrome.storage access, so the ENGINE can't resolve a tab's
   // sound. The POPUP is the source of truth: it holds the global profile, resolves each tab
   // (rule → global → flat), and pushes the bands to the engine (a dumb applier).
-  const globalRef = useRef<{ bands: Band[]; gain: number } | null>(null);
+  const globalRef = useRef<{ bands: Band[]; gain: number; presetName?: string } | null>(null);
 
   // The engine is playing something other than resolvedFor(activeHost) — a live drag today, a
   // bypass or an A/B slot later. Ephemeral by design: it is never written to storage, and it dies
@@ -192,6 +193,18 @@ export function useEngine() {
     else journalThrottle(() => void io.writeJournal(j));
   }, [journalThrottle]);
 
+  // Where the curve on screen came from, as the header renders it. Derived every render from the
+  // state that already exists — see lib/provenance.ts for why there is no second field.
+  const provenance = useMemo(() => {
+    const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+    const named = has(presets, activePreset)
+      ? presets[activePreset]
+      : has(BUILTIN_PRESETS, activePreset)
+        ? BUILTIN_PRESETS[activePreset]
+        : null;
+    return provenanceOf({ presetName: activePreset, current: io.bandsToPreset(bands), named });
+  }, [activePreset, bands, presets]);
+
   const resolvedFor = useCallback((host: string): { bands: Band[]; gain: number; presetName: string } => {
     const mr = host ? matchRule(host, rulesRef.current) : null;
     if (mr) {
@@ -205,7 +218,7 @@ export function useEngine() {
       }
     }
     const g = globalRef.current;
-    if (g) return { bands: g.bands, gain: g.gain, presetName: '' };
+    if (g) return { bands: g.bands, gain: g.gain, presetName: g.presetName ?? '' };
     return { bands: io.flatBands(), gain: 1, presetName: '' };
   }, []);
 
@@ -493,7 +506,7 @@ export function useEngine() {
   // Commit the current sound to WHERE it belongs: a ruled site edits that rule's curve, an
   // unruled site edits the global profile. reapplyAll then propagates to every captured tab.
   const commitTarget = useCallback(
-    (bands: Band[], gain: number, presetName = '') => {
+    (bands: Band[], gain: number, presetName: string) => {
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
       // The edit is about to reach storage; anything after this point is a fresh change.
       dirty.current = false;
@@ -517,8 +530,8 @@ export function useEngine() {
           }
         });
       } else {
-        globalRef.current = { bands, gain };
-        io.writeDefaultEq(bands, gain).then((res) => {
+        globalRef.current = { bands, gain, presetName };
+        io.writeDefaultEq(bands, gain, presetName).then((res) => {
           if (res.ok) void io.clearJournal();
           else {
             dirty.current = true;
@@ -553,15 +566,12 @@ export function useEngine() {
       if (!bandsFrame.current) {
         bandsFrame.current = requestAnimationFrame(() => {
           bandsFrame.current = 0;
-          if (bandsPending.current) {
-            setBands(bandsPending.current);
-            setActivePreset('');
-          }
+          if (bandsPending.current) setBands(bandsPending.current);
         });
       }
       const id = activeIdRef.current;
       if (id == null) return;
-      send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: '' }));
+      send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: activeRef.current }));
     },
     [send, captureBaseline, recordJournal]
   );
@@ -586,15 +596,12 @@ export function useEngine() {
       if (!gainFrame.current) {
         gainFrame.current = requestAnimationFrame(() => {
           gainFrame.current = 0;
-          if (gainPending.current != null) {
-            setGain(gainPending.current);
-            setActivePreset('');
-          }
+          if (gainPending.current != null) setGain(gainPending.current);
         });
       }
       const id = activeIdRef.current;
       if (id == null) return;
-      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: '' }));
+      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: activeRef.current }));
     },
     [send, captureBaseline, recordJournal]
   );
@@ -617,7 +624,7 @@ export function useEngine() {
       commitTimer.current = null;
       interacting.current = false;
       previewRef.current = NO_PREVIEW;
-      commitTarget(bandsRef.current, gainRef.current);
+      commitTarget(bandsRef.current, gainRef.current, activeRef.current);
       return;
     }
     commitTimer.current = setTimeout(() => {
@@ -632,7 +639,7 @@ export function useEngine() {
       // Cleared BEFORE commitTarget, whose applyEverywhere would otherwise skip the active tab.
       previewRef.current = NO_PREVIEW;
       setPreviewOn(false);
-      commitTarget(bandsRef.current, gainRef.current);
+      commitTarget(bandsRef.current, gainRef.current, activeRef.current);
     }, COMMIT_DEBOUNCE_MS);
   }, [commitTarget]);
   // Write a pending edit NOW instead of waiting out the debounce. Idempotent: it is a no-op when
@@ -650,7 +657,7 @@ export function useEngine() {
     }
     interacting.current = false;
     previewRef.current = NO_PREVIEW;
-    commitTarget(bandsRef.current, gainRef.current);
+    commitTarget(bandsRef.current, gainRef.current, activeRef.current);
   }, [commitTarget]);
 
   // Cancel any queued frame on unmount so no callback fires on a dead tree. The commit timer is
@@ -1057,6 +1064,7 @@ export function useEngine() {
     bands,
     gain,
     activePreset,
+    provenance,
     sampleRate,
     // per-tab + domain state
     tabs,

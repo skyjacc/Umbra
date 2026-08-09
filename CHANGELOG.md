@@ -28,6 +28,14 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Fixed
 
+- **A tweaked preset no longer forgets it was a preset.** Nudging one band used to blank the name
+  in the header, so a curve you built from Vocal became an anonymous "None" — and it happened
+  twice over: once on the first pointer move, and again 200 ms later when the edit was saved. The
+  header now reads **Based on Vocal**, and keeps reading it until you pick a different preset.
+  Drag the band back and it says **Vocal** again. Sites without a rule remember this too, which
+  they previously could not.
+
+
 - **Site rules stopped saving once you had about a dozen of them.** All rules share a single
   synced storage slot with a hard 8 KB limit, and a hand-shaped curve was stored at full floating
   point precision — around 700 bytes each, so the eleventh site could push the whole set over the
