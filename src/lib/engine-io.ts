@@ -12,6 +12,7 @@ import {
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
 import { parsePatterns, newRuleId, type Rule } from './rules';
 import { quantizeRules } from './quantize';
+import { dbg } from './debug-log';
 
 export const BUILD = '2.4.1';
 export const PRESET_PREFIX = 'PRESETS.';
@@ -106,6 +107,7 @@ export async function writeDefaultEq(bands: Band[], gain: number, presetName = '
     await chrome.storage.local.set({
       [DEFAULT_EQ_KEY]: { v: 1, filters, gain: clampMasterGain(gain), preset: presetName, updatedAt: Date.now() }
     });
+    dbg('write:global', { gain: clampMasterGain(gain), preset: presetName, b0: filters[0]?.g });
     return { ok: true };
   } catch (e) {
     return persistFailed(e);
@@ -119,6 +121,7 @@ export async function writeDefaultEq(bands: Band[], gain: number, presetName = '
 export async function clearDefaultEq(): Promise<void> {
   if (!hasChrome() || !chrome.storage) return;
   try {
+    dbg('write:global-cleared');
     await chrome.storage.local.remove(DEFAULT_EQ_KEY);
   } catch {
     /* ignore */
@@ -129,6 +132,7 @@ export async function writeJournal(journal: unknown): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {
     await chrome.storage.local.set({ [JOURNAL_KEY]: journal });
+    dbg('write:journal');
     return { ok: true };
   } catch (e) {
     return persistFailed(e);
@@ -153,6 +157,7 @@ export async function readJournal(): Promise<unknown> {
 export async function clearJournal(): Promise<void> {
   if (!hasChrome() || !chrome.storage) return;
   try {
+    dbg('write:journal-cleared');
     await chrome.storage.local.remove(JOURNAL_KEY);
   } catch {
     /* ignore */
@@ -164,7 +169,13 @@ export async function clearJournal(): Promise<void> {
 // fires when a receiver replies late or not at all (e.g. offscreen still waking).
 export function toOffscreen(type: string, extra: Record<string, unknown> = {}, cb?: (r: any) => void) {
   if (!hasChrome()) return;
-  const msg = { target: 'offscreen', type, ...extra };
+  const msg = { target: 'offscreen', type, ...extra } as any;
+  dbg('send:' + type, {
+    tabId: msg.tabId,
+    gain: msg.gain,
+    preset: msg.activePreset,
+    b0: msg.eqFilters?.[0]?.gain
+  });
   if (cb) {
     chrome.runtime.sendMessage(msg, (resp: any) => {
       void chrome.runtime.lastError;
@@ -307,6 +318,7 @@ export async function writeRulesResult(rules: Rule[]): Promise<PersistResult> {
     // dragged rule is 702 of them unrounded, so the array stops fitting at eleven saved sites.
     // See quantize.ts for why the write is the only place this is allowed to happen.
     await chrome.storage.sync.set({ [RULES_KEY]: quantizeRules(rules) });
+    dbg('write:rules', { n: rules.length, ids: rules.map((r) => r.id).join(',') });
     return { ok: true };
   } catch (e) {
     return persistFailed(e); // typically the sync write quota

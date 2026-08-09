@@ -3,6 +3,8 @@ import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, A
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { BandFields } from './components/BandFields';
+import { startDebug, stopDebug, clearDebug, dbg, debugOn, debugCount, debugDump, onDebugFlush, type DebugEntry } from '@/lib/debug-log';
+import * as engineIo from '@/lib/engine-io';
 import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
 import { GuideOverlay } from './components/GuideOverlay';
@@ -36,6 +38,100 @@ export default function App() {
   // Which band the editable readout under the graph is showing. Survives blur, unlike focus:
   // tabbing from a dot into a field must not empty the row you were about to type into.
   const [selBand, setSelBand] = useState<number | null>(null);
+
+  // ---- debug recorder (temporary; see lib/debug-log.ts and the DEPLOY.md removal note) --------
+  const [dbgRec, setDbgRec] = useState(false);
+  const [dbgN, setDbgN] = useState(0);
+  const [dbgCopied, setDbgCopied] = useState(false);
+
+  // The popup dies on any click outside it, so the log lives in session storage between opens.
+  // Throttled: a write per pointermove would cost more than it records.
+  const flushT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persist = (entries: DebugEntry[]) => {
+    setDbgN(entries.length);
+    if (flushT.current) return;
+    flushT.current = setTimeout(() => {
+      flushT.current = null;
+      try {
+        chrome.storage?.session?.set({ UMBRA_DEBUG: { on: true, entries: entries.slice(-3000) } });
+      } catch {
+        /* no session area */
+      }
+    }, 400);
+  };
+
+  useEffect(() => {
+    try {
+      chrome.storage?.session?.get('UMBRA_DEBUG', (r: any) => {
+        const d = r?.UMBRA_DEBUG;
+        if (!d?.on) return;
+        startDebug(Date.now(), d.entries || []);
+        onDebugFlush(persist);
+        setDbgRec(true);
+        setDbgN((d.entries || []).length);
+        dbg('popup:open', { h: window.innerHeight, w: window.innerWidth, view });
+      });
+    } catch {
+      /* no session area */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // What the user actually did, and what the window did in response.
+  useEffect(() => {
+    if (!dbgRec) return;
+    const lbl = (el: EventTarget | null) => {
+      const n = el as HTMLElement | null;
+      const b = (n?.closest?.('button,a,input,[role="slider"],[role="switch"]') || n) as HTMLElement | null;
+      return b?.getAttribute?.('aria-label') || b?.getAttribute?.('title') || b?.textContent?.trim().slice(0, 40) || b?.tagName || '?';
+    };
+    const down = (e: PointerEvent) => dbg('click', { on: lbl(e.target) });
+    const key = (e: KeyboardEvent) => dbg('key', { key: e.key, shift: e.shiftKey || undefined, alt: e.altKey || undefined, on: lbl(e.target) });
+    const size = () => dbg('window', { h: window.innerHeight, w: window.innerWidth, notice: eng.notice.text || undefined });
+    addEventListener('pointerdown', down, true);
+    addEventListener('keydown', key, true);
+    addEventListener('resize', size);
+    return () => {
+      removeEventListener('pointerdown', down, true);
+      removeEventListener('keydown', key, true);
+      removeEventListener('resize', size);
+    };
+  }, [dbgRec, eng.notice.text]);
+
+  // The window growing when a notice appears is exactly what this was built to catch.
+  useEffect(() => {
+    if (dbgRec) dbg('notice', { text: eng.notice.text || '(cleared)', undo: eng.notice.undo, h: window.innerHeight });
+  }, [eng.notice.text, eng.notice.undo, dbgRec]);
+
+  const dbgStart = () => {
+    clearDebug();
+    startDebug(Date.now());
+    onDebugFlush(persist);
+    setDbgRec(true);
+    setDbgN(0);
+    dbg('recording:start', { build: engineIo.BUILD, h: window.innerHeight, ua: navigator.userAgent.slice(0, 70) });
+  };
+  const dbgStop = () => {
+    dbg('recording:stop');
+    stopDebug();
+    onDebugFlush(null);
+    setDbgRec(false);
+    try {
+      chrome.storage?.session?.set({ UMBRA_DEBUG: { on: false, entries: [] } });
+    } catch {
+      /* no session area */
+    }
+  };
+  const dbgCopy = async () => {
+    const text = debugDump({ build: engineIo.BUILD, host: eng.activeHost, at: new Date().toISOString() });
+    try {
+      await navigator.clipboard.writeText(text);
+      setDbgCopied(true);
+      setTimeout(() => setDbgCopied(false), 1500);
+    } catch {
+      console.log(text);
+    }
+  };
   const [presetName, setPresetName] = useState('');
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
@@ -690,6 +786,34 @@ export default function App() {
                 means listening to something, which takes longer than any notice should stay on
                 screen — so it outlives the toast and is cleared by a later save instead of by a
                 timer. See lib/undo.ts. */}
+            {/* ── DEBUG RECORDER — remove before 2.5.0, see DEPLOY.md ─────────────────────── */}
+            <div className="mt-3 flex flex-col gap-1.5 border-t border-dashed border-border pt-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={dbgRec ? dbgStop : dbgStart}
+                  className={
+                    'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-semibold transition-colors ' +
+                    (dbgRec ? 'border-destructive/60 bg-destructive/15 text-foreground' : 'border-border bg-white/[.05] text-muted-foreground hover:text-foreground')
+                  }
+                >
+                  <span className={'size-2 rounded-full ' + (dbgRec ? 'animate-pulse bg-destructive' : 'bg-muted-foreground/50')} />
+                  {dbgRec ? `Recording — ${dbgN}` : 'Start debug recording'}
+                </button>
+                <button
+                  onClick={dbgCopy}
+                  disabled={dbgN === 0}
+                  className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border bg-white/[.05] px-3 py-2 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                >
+                  {dbgCopied ? 'Copied' : 'Copy log'}
+                </button>
+              </div>
+              <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">
+                Records what you click, what reaches storage and what the audio engine is told — and keeps recording while the
+                popup is closed. It cannot see page content or audio, but it does note the sites you visit while it runs. Nothing
+                leaves your machine until you press Copy.
+              </p>
+            </div>
+
             {eng.canUndoReset && (
               <div className="mt-1 flex flex-col gap-1">
                 <button

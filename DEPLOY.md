@@ -4,6 +4,18 @@ The popup is a React + TypeScript app (Vite + CRXJS); the audio engine is vanill
 (service worker + offscreen Web Audio). The loadable/uploadable extension is the
 **`dist/`** folder produced by `npm run build`.
 
+## Before anything else — take the debug recorder out
+
+Added for the 2.5 smoke run and never meant to ship. It is off unless started and nothing leaves
+the machine on its own, but a published extension should not carry a recorder nobody asked for.
+
+- [ ] Delete `src/lib/debug-log.ts` and `src/lib/debug-log.test.ts`
+- [ ] Remove the `dbg(...)` calls from `src/lib/engine-io.ts` and the `dbgState(...)` calls from
+      `src/popup/useEngine.ts`
+- [ ] Remove the recorder block from the More view in `src/popup/App.tsx`, and its state
+- [ ] Remove this section and the invariant test that points at it
+- [ ] `git grep -n "dbg\\|debug-log"` comes back empty, then rebuild
+
 ## Version bump (do this first — all in lock-step)
 
 The version string lives in **six** places and they MUST match. The popup compares its

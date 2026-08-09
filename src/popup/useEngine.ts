@@ -21,6 +21,7 @@ import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo
 import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } from '@/lib/reset-changes';
 import { AUTO_GAIN_DEFAULT, outputGain } from '@/lib/auto-gain';
 import { refreshFor } from '@/lib/storage-events';
+import { dbg, debugOn } from '@/lib/debug-log';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
@@ -217,6 +218,28 @@ export function useEngine() {
    * out with `dirty`.
    */
   const committedSinceBaseline = useRef(false);
+
+  /**
+   * Everything the reset / bypass / provenance bugs have turned out to hinge on, in one line of the
+   * log. All of it lives in refs, so a screenshot cannot show it and the React devtools cannot
+   * either — which is how several of these went unnoticed for a whole release.
+   */
+  const dbgState = useCallback((why: string) => {
+    if (!debugOn()) return;
+    dbg('state', {
+      why,
+      host: activeHostRef.current,
+      preview: previewRef.current.has ? previewRef.current.source : 'none',
+      dirty: dirty.current,
+      committed: committedSinceBaseline.current,
+      baseline: baselineRef.current.has ? baselineRef.current.target?.kind : 'none',
+      gain: gainRef.current,
+      b0: bandsRef.current[0]?.gain,
+      preset: activeRef.current,
+      rules: rulesRef.current.length,
+      globalGain: globalRef.current?.gain
+    });
+  }, []);
 
   const refreshResettable = useCallback(
     () =>
@@ -596,6 +619,7 @@ export function useEngine() {
   // unruled site edits the global profile. reapplyAll then propagates to every captured tab.
   const commitTarget = useCallback(
     (bands: Band[], gain: number, presetName: string) => {
+    dbgState('commitTarget');
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
       // The edit is about to reach storage; anything after this point is a fresh change.
       dirty.current = false;
@@ -848,6 +872,7 @@ export function useEngine() {
   // Turning it OFF is a different thing and deliberately outside these markers: bypass is a draft
   // mode, so leaving it is where the draft becomes a save.
   const enterBypass = useCallback(() => {
+    dbgState('enterBypass');
     setPreview(previewForBypass(io.flatBands()));
     const id = activeIdRef.current;
     // No activePreset in the payload: the engine only overwrites the label when it is defined, so
@@ -866,6 +891,7 @@ export function useEngine() {
    * the user just built rather than the one it had before they started.
    */
   const leaveBypass = useCallback(() => {
+    dbgState('leaveBypass');
     const owed = commitOnUnbypass({ dirty: dirty.current });
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
@@ -885,6 +911,7 @@ export function useEngine() {
   }, [applyEverywhere, commitTarget, recordJournal, setPreview]);
 
   const toggleAutoGain = useCallback(() => {
+    dbgState('toggleAutoGain');
     setAutoGain((v) => {
       const next = !v;
       autoGainRef.current = next; // applyEverywhere below reads the ref, not the pending state
@@ -923,6 +950,7 @@ export function useEngine() {
    * auditioning.
    */
   const resetChanges = useCallback(() => {
+    dbgState('resetChanges');
     const plan = planResetChanges({
       baseline: baselineRef.current,
       rules: rulesRef.current,
@@ -971,6 +999,7 @@ export function useEngine() {
   // The destructive one: on a ruled site it DELETES the rule, elsewhere it flattens the profile
   // every tab without a rule plays. Snapshot first so the notice can offer an undo.
   const resetProfile = useCallback(() => {
+    dbgState('resetProfile');
     captureBaseline(); // writer #2 — bypasses commitTarget entirely
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
@@ -1014,6 +1043,7 @@ export function useEngine() {
   // Put back exactly what resetProfile overwrote. The snapshot is deep, so it survived the reset
   // replacing those very arrays.
   const undoReset = useCallback(() => {
+    dbgState('undoReset');
     if (!undoSlot.armed) return;
     const snap = undoSlot.snapshot;
     // NOT disarmed here. This snapshot is the only copy of a rule Reset profile deleted, so it is
@@ -1039,6 +1069,7 @@ export function useEngine() {
   // ordering both live in lib/save-for-site.ts, where they are tested; this is the executor.
   const saveRuleFromCurrent = useCallback(
     async (scope: 'exact' | 'anyTld' | 'anySub', target: 'update-matching' | 'always-create') => {
+    dbgState('saveRuleFromCurrent');
       // First, and before anything else: a queued commit must not land after the rule is written,
       // match it, and rewrite it with a stale curve.
       if (commitTimer.current) {
@@ -1111,6 +1142,7 @@ export function useEngine() {
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
     (incoming: Rule[]) => {
+    dbgState('persistRules');
       noteUndoEvent('rules-write');
       const next = setRulesMirror(incoming);
       io.writeRules(next).then((ok) => {
@@ -1191,6 +1223,7 @@ export function useEngine() {
 
   const applyPreset = useCallback(
     async (name: string) => {
+    dbgState('applyPreset');
       let p = presetsRef.current[name];
       if (!p) {
         const fresh = await io.refreshPresets();

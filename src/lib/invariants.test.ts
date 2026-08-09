@@ -15,6 +15,7 @@ import bandFieldsSrc from '../popup/components/BandFields.tsx?raw';
 import bandInputSrc from './band-input.ts?raw';
 import resetSrc from './reset.ts?raw';
 import resetChangesSrc from './reset-changes.ts?raw';
+import deploySrc from '../../DEPLOY.md?raw';
 
 // Guards three hand-maintained invariants so they can't silently drift:
 //  1. the six-place version / BUILD bump (a mismatch makes the popup show "STALE — reload"),
@@ -374,6 +375,13 @@ describe('cross-file invariants', () => {
     expect(code, 'the routing decision belongs in storage-events.ts').toContain('refreshFor(area,');
     expect(code, 'the handler must not second-guess the area itself').not.toMatch(/area\s*[!=]==/);
     expect(code, 'and must act on the global profile').toContain('want.global');
+  });
+
+  it('the debug recorder is marked for removal and reaches the store nowhere', () => {
+    // Temporary instrumentation for the 2.5 smoke run. Harmless but not something to ship: a
+    // recorder nobody asked for does not belong in a published extension, however inert.
+    expect(appSrc, 'the UI must carry its own removal note').toContain('remove before 2.5.0');
+    expect(deploySrc, 'and DEPLOY.md must stop the release without it').toContain('debug recorder');
   });
 
   it('every i18n key exists in both en and ru', () => {
