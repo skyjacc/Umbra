@@ -85,18 +85,103 @@ export default function App() {
       const b = (n?.closest?.('button,a,input,[role="slider"],[role="switch"]') || n) as HTMLElement | null;
       return b?.getAttribute?.('aria-label') || b?.getAttribute?.('title') || b?.textContent?.trim().slice(0, 40) || b?.tagName || '?';
     };
-    const down = (e: PointerEvent) => dbg('click', { on: lbl(e.target) });
-    const key = (e: KeyboardEvent) => dbg('key', { key: e.key, shift: e.shiftKey || undefined, alt: e.altKey || undefined, on: lbl(e.target) });
-    const size = () => dbg('window', { h: window.innerHeight, w: window.innerWidth, notice: eng.notice.text || undefined });
+    /** Chrome sizes the popup to its content, so anything sticking out past the body widens the
+     *  window. Naming the element that does it is the whole point — guessing from a screenshot
+     *  is what turned a six-pixel question into three wrong answers. */
+    const overflowing = () => {
+      const limit = document.body.clientWidth;
+      let worst: { sel: string; right: number; w: number } | null = null;
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+        if (!el.offsetParent && el.tagName !== 'BODY') continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.right <= limit + 0.5) continue;
+        if (!worst || r.right > worst.right) {
+          const cls = (el.className || '').toString().split(' ').filter(Boolean).slice(0, 3).join('.');
+          worst = { sel: el.tagName.toLowerCase() + (cls ? '.' + cls : ''), right: Math.round(r.right), w: Math.round(r.width) };
+        }
+      }
+      return worst;
+    };
+    const size = () =>
+      dbg('window', {
+        h: window.innerHeight,
+        w: window.innerWidth,
+        bodyW: document.body.clientWidth,
+        scrollW: document.documentElement.scrollWidth,
+        scrollH: document.documentElement.scrollHeight,
+        view,
+        notice: eng.notice.text || undefined,
+        overflow: overflowing() || undefined
+      });
+
+    const down = (e: PointerEvent) => dbg('down', { on: lbl(e.target), x: e.clientX, y: e.clientY, btn: e.button });
+    const up = (e: PointerEvent) => dbg('up', { on: lbl(e.target), x: e.clientX, y: e.clientY });
+    // Drags only — a move with no button down is noise, and this is the thing sliders are made of.
+    let lastMove = 0;
+    const move = (e: PointerEvent) => {
+      if (!e.buttons) return;
+      const now = performance.now();
+      if (now - lastMove < 50) return;
+      lastMove = now;
+      dbg('drag', { on: lbl(e.target), x: e.clientX, y: e.clientY });
+    };
+    const key = (e: KeyboardEvent) =>
+      dbg('key', { key: e.key, shift: e.shiftKey || undefined, alt: e.altKey || undefined, meta: e.metaKey || undefined, on: lbl(e.target) });
+    const keyup = (e: KeyboardEvent) => dbg('keyup', { key: e.key, on: lbl(e.target) });
+    const focus = (e: FocusEvent) => dbg('focus', { on: lbl(e.target) });
+    const input = (e: Event) => {
+      const t = e.target as HTMLInputElement;
+      dbg('input', { on: lbl(e.target), value: (t?.value ?? '').toString().slice(0, 24) });
+    };
+    const scroll = (e: Event) => {
+      const t = e.target as HTMLElement;
+      dbg('scroll', { on: t?.className ? String(t.className).slice(0, 30) : 'page', top: Math.round(t?.scrollTop ?? window.scrollY) });
+    };
+    const err = (e: ErrorEvent) => dbg('error', { msg: String(e.message), line: e.lineno });
+    const rej = (e: PromiseRejectionEvent) => dbg('error', { msg: 'rejection: ' + String((e.reason as Error)?.message ?? e.reason) });
+
     addEventListener('pointerdown', down, true);
+    addEventListener('pointerup', up, true);
+    addEventListener('pointermove', move, true);
     addEventListener('keydown', key, true);
+    addEventListener('keyup', keyup, true);
+    addEventListener('focusin', focus, true);
+    addEventListener('input', input, true);
+    addEventListener('scroll', scroll, true);
     addEventListener('resize', size);
+    addEventListener('error', err);
+    addEventListener('unhandledrejection', rej);
+
+    // Chrome does not always fire resize for its own popup sizing, so watch the box as well.
+    let ro: ResizeObserver | null = null;
+    try {
+      ro = new ResizeObserver(() => size());
+      ro.observe(document.body);
+    } catch {
+      /* older engine */
+    }
+    size();
+
     return () => {
       removeEventListener('pointerdown', down, true);
+      removeEventListener('pointerup', up, true);
+      removeEventListener('pointermove', move, true);
       removeEventListener('keydown', key, true);
+      removeEventListener('keyup', keyup, true);
+      removeEventListener('focusin', focus, true);
+      removeEventListener('input', input, true);
+      removeEventListener('scroll', scroll, true);
       removeEventListener('resize', size);
+      removeEventListener('error', err);
+      removeEventListener('unhandledrejection', rej);
+      ro?.disconnect();
     };
-  }, [dbgRec, eng.notice.text]);
+  }, [dbgRec, eng.notice.text, view]);
+
+  // Switching view is what changes the popup's size, so record the change itself.
+  useEffect(() => {
+    if (dbgRec) dbg('view', { view, w: window.innerWidth, h: window.innerHeight });
+  }, [view, dbgRec]);
 
   // The window growing when a notice appears is exactly what this was built to catch.
   useEffect(() => {
