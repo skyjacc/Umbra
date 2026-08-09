@@ -179,7 +179,11 @@ describe('cross-file invariants', () => {
   it('a bypassed tab is sent flat, and a drag is not sent to it at all', () => {
     const enter = useEngineSrc.match(/--- bypass:on:start[\s\S]*?--- bypass:on:end/)?.[0] ?? '';
     expect(enter, 'entering bypass must send a flat curve').toContain('eqFilters: io.flatBands()');
-    expect(enter, 'and must keep the master volume it found').toContain('gain: gainRef.current');
+    // Bypass must not mute: it silences the equalizer, not the user's volume. It goes through
+    // sentGain like every other push, which on a flat curve is the identity — Auto Gain has
+    // nothing to compensate for when nothing is being boosted.
+    expect(enter, 'and must keep the master volume it found').toContain('gainRef.current');
+    expect(enter, 'bypass is not a mute').not.toMatch(/gain: 0[,\s}]/);
 
     // The live handlers each push their own message and never consulted the preview, so the guard
     // has to be at those two sites. Only the eleven filters are gated: modifyGain keeps flowing,
@@ -241,6 +245,30 @@ describe('cross-file invariants', () => {
       'writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName)'
     );
     expect(useEngineSrc, 'and so must Reset').toContain('plan.global.to.presetName');
+  });
+
+  it('Auto Gain changes what is played and never what is stored', () => {
+    // The whole safety property. It is a rendering of the master gain for the message to the
+    // engine; the stored value stays the user's own. If the compensated number were ever fed back
+    // in as the stored one, every push would duck the tab a little further.
+    const writers = ['writeDefaultEq(', 'writeRulesResult(', 'writeRules(', 'writeJournal('];
+    for (const w of writers) {
+      const calls = useEngineSrc.split(w).slice(1).map((chunk) => chunk.slice(0, 120));
+      for (const c of calls) expect(c, `${w} must not be handed a compensated gain`).not.toContain('sentGain');
+    }
+
+    // And it must reach the engine, or the toggle would be decorative.
+    const pushes = useEngineSrc.split("toOffscreen('applySettings'").slice(1);
+    expect(pushes.length, 'no applySettings pushes found').toBeGreaterThan(2);
+    for (const p of pushes) expect(p.slice(0, 200), 'every push goes through sentGain').toContain('sentGain(');
+    expect(useEngineSrc, 'the volume drag too').toContain("toOffscreen('modifyGain', { tabId: id, gain: sentGain(");
+
+    // Toggling it is not an edit: it re-pushes what is already stored and writes nothing.
+    const toggle = useEngineSrc.match(/const toggleAutoGain = useCallback\([\s\S]*?\n  \}, \[/)?.[0] ?? '';
+    expect(toggle, 'toggleAutoGain not found').toBeTruthy();
+    for (const w of ['commitTarget', 'writeDefaultEq', 'writeRules', 'recordJournal']) {
+      expect(toggle, `switching Auto Gain must not call ${w}`).not.toContain(w);
+    }
   });
 
   it('every i18n key exists in both en and ru', () => {

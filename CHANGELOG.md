@@ -8,6 +8,12 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Added
 
+- **Auto Gain**, under More, off by default. Boosting bands makes everything louder, and louder
+  reads as better whether or not the curve is any good — this subtracts what the curve added so you
+  can judge the shape at matched level. It changes only what you hear: your volume and your saved
+  profiles are untouched, and switching it off puts the level straight back.
+
+
 - **A Reset button, next to Save.** After changing the curve there was no obvious way back. There
   is now: **Reset** puts the sound back to what it was when you opened Umbra — not one step back,
   all the way back. Edit again afterwards and it still returns to that same starting point. It

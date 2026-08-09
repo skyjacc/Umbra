@@ -19,6 +19,7 @@ import {
 import { planResetProfile, makeResetSnapshot, resetControls } from '@/lib/reset';
 import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo';
 import { canResetChanges, planResetChanges } from '@/lib/reset-changes';
+import { AUTO_GAIN_DEFAULT, outputGain } from '@/lib/auto-gain';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
@@ -113,6 +114,21 @@ export function useEngine() {
       return false;
     }
   });
+  // Level-match the tab against what it sounded like before the curve was shaped. Off by default,
+  // and a RENDERING of the gain rather than a change to it — see lib/auto-gain.ts. Persisted the
+  // same way the other view toggles are; it is a listening preference, not part of any profile.
+  const [autoGain, setAutoGain] = useState<boolean>(() => {
+    try {
+      return localStorage.AUTO_GAIN === '1';
+    } catch {
+      return AUTO_GAIN_DEFAULT;
+    }
+  });
+  const autoGainRef = useRef(autoGain);
+  autoGainRef.current = autoGain;
+  /** What to SEND. The stored gain is always the user's own; this is only ever a message payload. */
+  const sentGain = useCallback((userGain: number, bands: Band[]) => outputGain({ userGain, bands, on: autoGainRef.current }), []);
+
   // The "Full window" page runs as a GLOBAL-PROFILE editor: its own tab isn't capturable, so
   // instead of editing a real tab it edits the sound-everywhere profile (host '' → global).
   const [globalEditor, setGlobalEditor] = useState(false);
@@ -289,7 +305,7 @@ export function useEngine() {
       for (const t of tabsList) {
         if (t.id === activeIdRef.current && held()) continue;
         const r = resolvedFor(t.host);
-        io.toOffscreen('applySettings', { tabId: t.id, eqFilters: r.bands, gain: r.gain, activePreset: r.presetName });
+        io.toOffscreen('applySettings', { tabId: t.id, eqFilters: r.bands, gain: sentGain(r.gain, r.bands), activePreset: r.presetName });
       }
       // BUFFER: a different question, and it used to share the flag above. A bypass has no claim
       // on the editing buffer — freezing it for a whole bypass session let the graph keep showing
@@ -307,7 +323,7 @@ export function useEngine() {
         }
       }
     },
-    [resolvedFor]
+    [resolvedFor, sentGain]
   );
 
   const capturing = activeTabId != null && tabs.some((t) => t.id === activeTabId);
@@ -638,7 +654,7 @@ export function useEngine() {
       // The eleven filters stop at the tab boundary while bypassed; the master volume below does
       // not, because bypass is about the equalizer and not the user's volume.
       if (!sendsBandsToActiveTab(previewRef.current)) return;
-      send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: activeRef.current }));
+      send(() => io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: sentGain(gainRef.current, nb), activePreset: activeRef.current }));
     },
     [send, captureBaseline, recordJournal]
   );
@@ -668,7 +684,7 @@ export function useEngine() {
       }
       const id = activeIdRef.current;
       if (id == null) return;
-      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: g, activePreset: activeRef.current }));
+      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: sentGain(g, bandsRef.current), activePreset: activeRef.current }));
     },
     [send, captureBaseline, recordJournal]
   );
@@ -822,7 +838,7 @@ export function useEngine() {
     const id = activeIdRef.current;
     // No activePreset in the payload: the engine only overwrites the label when it is defined, so
     // the tab keeps showing which preset it is on while muted-flat.
-    if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: io.flatBands(), gain: gainRef.current });
+    if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: io.flatBands(), gain: sentGain(gainRef.current, io.flatBands()) });
   }, [setPreview]);
   // --- bypass:on:end --------------------------------------------------------------------------
 
@@ -853,6 +869,20 @@ export function useEngine() {
       commitTarget(bandsRef.current, gainRef.current, activeRef.current);
     } else applyEverywhere(tabsRef.current); // commitTarget does its own applyEverywhere
   }, [applyEverywhere, commitTarget, recordJournal, setPreview]);
+
+  const toggleAutoGain = useCallback(() => {
+    setAutoGain((v) => {
+      const next = !v;
+      autoGainRef.current = next; // applyEverywhere below reads the ref, not the pending state
+      try {
+        localStorage.AUTO_GAIN = next ? '1' : '0';
+      } catch {
+        /* private mode */
+      }
+      applyEverywhere(tabsRef.current);
+      return next;
+    });
+  }, [applyEverywhere]);
 
   const toggleBypass = useCallback(() => {
     if (isBypassed(previewRef.current)) leaveBypass();
@@ -1017,7 +1047,7 @@ export function useEngine() {
           : t(plan.created ? 'note.savedForSite' : 'note.ruleUpdated', { host: activeHostRef.current })
       );
     },
-    [applyEverywhere, mirrorResolved, setRulesMirror]
+    [applyEverywhere, mirrorResolved, setRulesMirror, sentGain]
   );
 
   const saveForThisSite = useCallback(
@@ -1135,10 +1165,10 @@ export function useEngine() {
         return;
       }
       const id = activeIdRef.current;
-      if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: gainRef.current, activePreset: name });
+      if (id != null) io.toOffscreen('applySettings', { tabId: id, eqFilters: nb, gain: sentGain(gainRef.current, nb), activePreset: name });
       commitTarget(nb, gainRef.current, name);
     },
-    [showNotice, commitTarget, captureBaseline]
+    [showNotice, commitTarget, captureBaseline, sentGain]
   );
 
   const savePreset = useCallback(
@@ -1198,6 +1228,8 @@ export function useEngine() {
     gain,
     activePreset,
     provenance,
+    autoGain,
+    toggleAutoGain,
     sampleRate,
     // per-tab + domain state
     tabs,

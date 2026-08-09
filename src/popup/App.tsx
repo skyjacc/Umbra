@@ -552,6 +552,38 @@ export default function App() {
             </div>
           </div>
 
+          {/* Auto Gain. A listening preference, not part of any profile — switching it on rewrites
+              nothing, which is why it sits with the view toggles rather than near Save. */}
+          <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+            <button
+              onClick={eng.toggleAutoGain}
+              role="switch"
+              aria-checked={eng.autoGain}
+              className={
+                'inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold transition-colors [box-shadow:var(--shadow-border)] ' +
+                (eng.autoGain
+                  ? 'border-primary/50 bg-primary/15 text-foreground'
+                  : 'border-border bg-white/[.05] text-muted-foreground hover:text-foreground')
+              }
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Activity className="size-4" />
+                {tr('more.autoGain')}
+              </span>
+              <span
+                className={
+                  'h-4 w-7 shrink-0 rounded-full border transition-colors ' +
+                  (eng.autoGain ? 'border-primary/60 bg-primary/60' : 'border-border bg-white/[.06]')
+                }
+              >
+                <span
+                  className={'block size-3 translate-y-px rounded-full bg-foreground/80 transition-transform ' + (eng.autoGain ? 'translate-x-3.5' : 'translate-x-px')}
+                />
+              </span>
+            </button>
+            <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">{tr('more.autoGainHint')}</p>
+          </div>
+
           {/* Guide + full window */}
           <div className="flex gap-2">
             <button
