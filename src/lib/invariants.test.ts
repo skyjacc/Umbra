@@ -10,6 +10,9 @@ import changelogSrc from '../../CHANGELOG.md?raw';
 import i18nSrc from '../popup/i18n.tsx?raw';
 import useEngineSrc from '../popup/useEngine.ts?raw';
 import appSrc from '../popup/App.tsx?raw';
+import eqGraphSrc from '../popup/components/EqGraph.tsx?raw';
+import bandFieldsSrc from '../popup/components/BandFields.tsx?raw';
+import bandInputSrc from './band-input.ts?raw';
 
 // Guards three hand-maintained invariants so they can't silently drift:
 //  1. the six-place version / BUILD bump (a mismatch makes the popup show "STALE — reload"),
@@ -285,6 +288,31 @@ describe('cross-file invariants', () => {
 
     // One poll, not two. The spectrum's payload is skipped when only the meter is showing.
     expect(offscreenSrc, 'the FFT payload must be optional').toContain('if (!wantFft)');
+  });
+
+  it('arrows shape the band on a dot and move the caret in a field', () => {
+    // The conflict this layout exists to avoid: pressing Left inside a number field must move the
+    // text cursor, not retune the band. The separation is structural — the nudge handler lives on
+    // the dot, and the fields simply have no arrow handling at all.
+    expect(eqGraphSrc, 'the dot keeps its arrow handling').toContain('function nudgeBand');
+    for (const k of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
+      expect(bandFieldsSrc, `a numeric field must not intercept ${k}`).not.toContain(k);
+    }
+    expect(bandFieldsSrc, 'and must not reach into the graph').not.toContain('nudge(');
+  });
+
+  it('typed values go through the same clamps as a drag', () => {
+    // A second set of bounds here is how a typed number reaches a state the graph or the engine
+    // was never built to receive. parseField is the only door, and it clamps with the shared
+    // clampFreq / clampGainDb / clampQ that the pointer path and the engine already agree on.
+    expect(bandFieldsSrc, 'the field must not build its own number').toContain('parseField(');
+    for (const raw of ['Number(', 'parseFloat(', 'parseInt(']) {
+      expect(bandFieldsSrc, `raw ${raw} would bypass the clamps`).not.toContain(raw);
+    }
+    const bi = bandInputSrc.replace(/\/\/.*$/gm, '');
+    for (const c of ['clampFreq', 'clampGainDb', 'clampQ']) {
+      expect(bi, `band-input must clamp with ${c}`).toContain(c);
+    }
   });
 
   it('every i18n key exists in both en and ru', () => {

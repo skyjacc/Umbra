@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { METER_INIT, stepMeter, meterDb, type MeterState } from '@/lib/meter';
+import { nudge, stepKind } from '@/lib/band-input';
 import {
   EQ_W,
   EQ_H,
@@ -36,6 +37,8 @@ interface Props {
   editable?: boolean; // dots draggable only when the active tab is captured
   bypassed?: boolean; // the curve is being shaped but the tab is playing unshaped
   meterOn?: boolean; // draw the post-EQ peak meter down the right edge
+  /** Which band the editable readout under the graph should show. Survives blur, unlike focus. */
+  onSelectBand?: (i: number) => void;
 }
 
 // The rough zone each band sits in (11 fixed bands, low → high), shown as a small text
@@ -69,7 +72,7 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false, meterOn = true }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false, meterOn = true, onSelectBand }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
@@ -251,15 +254,18 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   }
   // Keyboard editing (a11y): Up/Down = gain, Left/Right = frequency (~1/6 octave), Shift+Up/Down =
   // Q, Enter/Delete = reset. Each press is a discrete commit.
+  // Arrows on a DOT shape the band. Arrows inside the numeric fields under the graph do not —
+  // there they have to move the text cursor, which is what anyone typing expects. The two never
+  // meet because this handler lives on the dot and those inputs are outside the SVG entirely.
   function nudgeBand(i: number, e: React.KeyboardEvent) {
     if (!editable) return;
     const b = bands[i];
+    const size = stepKind({ shift: e.shiftKey, alt: e.altKey });
     let next: Band | null = null;
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      const s = e.key === 'ArrowUp' ? 1 : -1;
-      next = e.shiftKey ? { ...b, q: clampQ(b.q + s * 0.1) } : { ...b, gain: clampGainDb(b.gain + s) };
+      next = { ...b, gain: nudge('gain', b.gain, e.key === 'ArrowUp' ? 1 : -1, size) };
     } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      next = { ...b, frequency: clampFreq(b.frequency * Math.pow(2, (e.key === 'ArrowRight' ? 1 : -1) / 6)) };
+      next = { ...b, frequency: nudge('frequency', b.frequency, e.key === 'ArrowRight' ? 1 : -1, size) };
     } else if (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       resetBand(i);
@@ -405,7 +411,10 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
                 onPointerDown={(e) => dotDown(i, e)}
                 onPointerEnter={() => dragIdx.current == null && setHover(i)}
                 onPointerLeave={() => dragIdx.current == null && setHover(null)}
-                onFocus={() => setFocusIdx(i)}
+                onFocus={() => {
+                  setFocusIdx(i);
+                  onSelectBand?.(i);
+                }}
                 onBlur={() => setFocusIdx(null)}
                 onKeyDown={(e) => nudgeBand(i, e)}
                 onDoubleClick={() => resetBand(i)}

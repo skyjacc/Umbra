@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, Captions, Globe, BookOpen, X, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
+import { BandFields } from './components/BandFields';
 import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
 import { GuideOverlay } from './components/GuideOverlay';
@@ -32,6 +33,9 @@ export default function App() {
   const tr = useT();
   const { lang, setLang } = useLang();
   const [view, setView] = useState<ViewId>('eq');
+  // Which band the editable readout under the graph is showing. Survives blur, unlike focus:
+  // tabbing from a dot into a field must not empty the row you were about to type into.
+  const [selBand, setSelBand] = useState<number | null>(null);
   const [presetName, setPresetName] = useState('');
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
@@ -236,6 +240,7 @@ export default function App() {
                   onCommit={eng.onCommit}
                   editable={eng.canEdit}
                   bypassed={eng.bypassed}
+                  onSelectBand={setSelBand}
                 />
               </>
             ) : (
@@ -255,6 +260,24 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* The dragged-dot readout, in a fixed place and editable. Kept outside the graph box so
+              the lowest and highest bands — the hardest to hit with a mouse, and so the likeliest
+              to be typed — do not put their fields off the edge of a 400px popup. */}
+          {showsGraph(eng.captureState) && (
+            <BandFields
+              band={selBand !== null ? (eng.bands[selBand] ?? null) : null}
+              index={selBand !== null && eng.bands[selBand] ? selBand : null}
+              editable={eng.canEdit}
+              onBand={(patch) => {
+                if (selBand === null) return;
+                const nb = eng.bands.slice();
+                nb[selBand] = { ...nb[selBand], ...patch };
+                eng.onBandsLive(nb);
+              }}
+              onCommit={eng.onCommit}
+            />
+          )}
 
           {/* Always mounted so it is already a live region when its text changes — that is what
               makes a capture-state change audible to a screen reader. Empty while the graph shows. */}

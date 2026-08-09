@@ -8,6 +8,13 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Added
 
+- **Type the numbers instead of dragging them.** Pick a point on the curve and the readout under
+  the graph becomes three fields — frequency, gain and Q — for that band. Tab moves between them,
+  Enter accepts, Escape puts the old value back. On the curve itself the arrow keys still shape the
+  band (up/down for gain, left/right for frequency, Shift for a bigger step, Alt for a smaller
+  one); inside the number fields they move the cursor, the way they should.
+
+
 - **A peak meter** down the right edge of the graph, reading the signal after the equalizer and
   your volume — so you can see when a boost has pushed the tab into clipping instead of guessing.
   A held marker shows the recent maximum and a dot lights when you go over. It only shows: it does
