@@ -72,9 +72,9 @@ The same zip is accepted by Chrome, Edge, and Opera.
 ## Chrome Web Store dashboard
 
 - [ ] Create item → upload the zip.
-- [ ] Paste name, summary, description, category from `STORE_LISTING.md`.
+- [ ] Paste name, summary, description and category from the maintainer's store copy.
 - [ ] Upload screenshots and the 128×128 store icon (`icon128.png`).
-- [ ] Paste per-permission justifications from `STORE_LISTING.md`
+- [ ] Paste the per-permission justifications from the same place
       (activeTab / tabCapture / storage / offscreen).
 - [ ] Set the privacy-policy URL.
 - [ ] Data-use disclosures: no collection, no sale, no transfer, no remote

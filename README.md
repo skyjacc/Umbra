@@ -108,7 +108,7 @@ The same zip is accepted by the Chrome Web Store, Edge Add-ons, and Opera.
 
 Manifest V3. The **popup** (React + TypeScript) is the source of truth: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **engine is vanilla** — the service worker owns the offscreen document and mints tab-capture ids; the offscreen document holds 11 biquad filters per tab behind a brick-wall limiter, glided click-free. Pure audio/preset/rule math lives in `src/lib` (unit-tested); strict CSP, no remote code, no `eval`.
 
-Working on Umbra? [`HANDOFF.md`](HANDOFF.md) is the full developer handoff — architecture, release process, roadmap, known limitations. See also [`PROJECT.md`](PROJECT.md), [`DEPLOY.md`](DEPLOY.md), and [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Working on Umbra? [`CONTRIBUTING.md`](CONTRIBUTING.md) is the place to start — setup, the dev loop, and what the tests expect. [`PROJECT.md`](PROJECT.md) is the architecture reference and [`DEPLOY.md`](DEPLOY.md) the release checklist.
 
 ## How Umbra EQ compares
 

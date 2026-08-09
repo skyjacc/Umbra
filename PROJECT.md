@@ -258,10 +258,10 @@ self-heal + prototype-pollution guards, share-by-code, RU/EN UI, 4 themes + cust
 band guide, full-window global editor, onboarding, bundled OFL fonts, own crescent logo,
 two adversarial audits closed, 66/66 tests, CI + branch protection, **public repo +
 GitHub Release**, and **published on the Chrome Web Store** with store assets and a
-keyword-dense listing (`STORE_LISTING.md`).
+keyword-dense listing.
 
 **In flight:** branch `feat/2.4.0-band-guide-onboarding` — zone-based band-guide labels
-and a rebuilt onboarding page. Not merged, not released. Details in `HANDOFF.md` §11.
+and a rebuilt onboarding page. Not merged, not released.
 
 **Pending / optional:**
 1. **Localize the store listing** (RU, RO, ES, DE, PT-BR). Discovery is the bottleneck:
@@ -286,10 +286,8 @@ cloud sync, extra themes, export collections) + a donation link, via an external
 | `CHANGELOG.md` | Versioned change history | yes |
 | `CONTRIBUTING.md` | How to build, test, and contribute | yes |
 | `PRIVACY.md` | Privacy policy (for the store listing) | yes |
-| `STORE_LISTING.md` | Copy/paste fields for Chrome/Edge/Opera dashboards | yes |
 | `DEPLOY.md` | Publishing checklist (all Chromium stores + GitHub release) | yes |
 | `FIREFOX_PORT.md` | Deferred Firefox content-script architecture | yes |
 | `CLAUDE.md` | Agent build instructions + hard invariants | yes |
-| `docs/AUDIT.md` | Fix / findings history | yes |
 | `LICENSE` + `public/fonts/OFL-*.txt` | App (MIT) + font licenses | yes |
-| `ENGINE_STUDY.md` · `handoff.md` · `Chat.md` | Deep engine notes / dev state / build log | **private** (gitignored) |
+| Handoff · audit log · store copy | Internal development notes | **private** (`umbra-internal`) |
