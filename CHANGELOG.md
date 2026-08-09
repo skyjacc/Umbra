@@ -8,6 +8,13 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Added
 
+- **A peak meter** down the right edge of the graph, reading the signal after the equalizer and
+  your volume — so you can see when a boost has pushed the tab into clipping instead of guessing.
+  A held marker shows the recent maximum and a dot lights when you go over. It only shows: it does
+  not touch the sound. (Automatic limiting is a separate feature and is not part of this release —
+  when the meter says you are over, pull the boost back or switch Auto Gain on.)
+
+
 - **Auto Gain**, under More, off by default. Boosting bands makes everything louder, and louder
   reads as better whether or not the curve is any good — this subtracts what the curve added so you
   can judge the shape at matched level. It changes only what you hear: your volume and your saved

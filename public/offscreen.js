@@ -323,11 +323,13 @@ async function broadcastStatus() {
   chrome.runtime.sendMessage(status).catch((e) => dlog('broadcast dropped:', e && e.message));
 }
 
-function handleFFT(tabId, sendResponse) {
+// Answers one poll frame. `wantFft` is what the spectrum visualizer needs; the peak meter needs
+// only a single number, so a popup showing the meter alone does not pay for 2048 bins per frame.
+function handleFFT(tabId, sendResponse, wantFft) {
   // The popup asks for the FFT of the tab it is editing; fall back to any live tab.
   const e = streams[tabId] || streams[Object.keys(streams)[0]];
   if (!e || !audioContext) {
-    sendResponse({ fft: null });
+    sendResponse({ fft: null, peak: 0 });
     return;
   }
   if (!e.analyzer) {
@@ -338,14 +340,31 @@ function handleFFT(tabId, sendResponse) {
     e.analyzer.smoothingTimeConstant = 0.7;
     e.postGain.connect(e.analyzer);
     e.freqBuf = new Float32Array(e.analyzer.frequencyBinCount); // reused each frame — no per-call alloc
+    e.timeBuf = new Float32Array(e.analyzer.fftSize);
   }
   e.lastAnalyzerUse = performance.now();
+
+  // Peak, measured on the same tap — which hangs off postGain, i.e. AFTER the equalizer and the
+  // master. That is the point of the meter: it shows what actually leaves Umbra, including a boost
+  // that has pushed the signal past full scale. It reads the signal and changes nothing about it.
+  e.analyzer.getFloatTimeDomainData(e.timeBuf);
+  let peak = 0;
+  for (let i = 0; i < e.timeBuf.length; i++) {
+    const v = e.timeBuf[i] < 0 ? -e.timeBuf[i] : e.timeBuf[i];
+    if (v > peak) peak = v;
+  }
+  if (!Number.isFinite(peak)) peak = 0;
+
+  if (!wantFft) {
+    sendResponse({ fft: null, peak });
+    return;
+  }
   e.analyzer.getFloatFrequencyData(e.freqBuf);
   // Clamp non-finite bins (silence gives -Infinity) to -100 so JSON doesn't turn them
   // into null, which the popup would read as 0 dB (a full flat block).
   // Round to integer dB — the visualizer maps -100..0 dB onto ~140px, so sub-dB precision is
   // sub-pixel; integers cut the serialized payload ~4x with no visible difference.
-  sendResponse({ fft: Array.from(e.freqBuf, (v) => (Number.isFinite(v) ? Math.round(v) : -100)) });
+  sendResponse({ fft: Array.from(e.freqBuf, (v) => (Number.isFinite(v) ? Math.round(v) : -100)), peak });
 }
 
 // Drop each idle analyzer tap (saves CPU when a tab's visualizer stops asking).
@@ -414,10 +433,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Always answer, even on a throw — a swallowed rejection here would leave sendResponse unfired
     // and permanently stall the popup's rAF spectrum poll (it waits for the callback before the next).
     ready
-      .then(() => handleFFT(message.tabId, sendResponse))
+      .then(() => handleFFT(message.tabId, sendResponse, message.wantFft !== false))
       .catch((e) => {
         dlog('getFFT failed:', e && e.message);
-        sendResponse({ fft: null });
+        sendResponse({ fft: null, peak: 0 });
       });
     return true;
   }

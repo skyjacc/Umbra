@@ -271,6 +271,22 @@ describe('cross-file invariants', () => {
     }
   });
 
+  it('the peak meter reads the signal and changes nothing', () => {
+    // The contract for 2.5: measure after the equalizer and the master, show it, touch nothing.
+    // Limiting is a separate audio feature with its own settings and its own place in the
+    // played-versus-stored model, and its absence here is a decision, not a gap.
+    const fft = offscreenSrc.match(/function handleFFT\([\s\S]*?\n}/)?.[0] ?? '';
+    expect(fft, 'handleFFT not found').toBeTruthy();
+    expect(fft, 'the peak must be measured on the post-master tap').toContain('getFloatTimeDomainData');
+    for (const node of ['createDynamicsCompressor', 'createWaveShaper', 'createGain(']) {
+      expect(fft, `the meter must not add ${node} to the chain`).not.toContain(node);
+    }
+    expect(fft, 'and must not reconnect anything').not.toContain('.connect(e.postGain)');
+
+    // One poll, not two. The spectrum's payload is skipped when only the meter is showing.
+    expect(offscreenSrc, 'the FFT payload must be optional').toContain('if (!wantFft)');
+  });
+
   it('every i18n key exists in both en and ru', () => {
     const en = localeKeys(i18nSrc, 'en');
     const ru = localeKeys(i18nSrc, 'ru');

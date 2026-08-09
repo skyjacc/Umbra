@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { METER_INIT, stepMeter, meterDb, type MeterState } from '@/lib/meter';
 import {
   EQ_W,
   EQ_H,
@@ -34,6 +35,7 @@ interface Props {
   onCommit: () => void; // drag end — parent persists + sends canonical state
   editable?: boolean; // dots draggable only when the active tab is captured
   bypassed?: boolean; // the curve is being shaped but the tab is playing unshaped
+  meterOn?: boolean; // draw the post-EQ peak meter down the right edge
 }
 
 // The rough zone each band sits in (11 fixed bands, low → high), shown as a small text
@@ -52,6 +54,8 @@ const BAND_ZONES: Array<{ key: string; from: number; to: number }> = [
 ];
 
 const G = (v: string) => `var(--g-${v})`;
+// The theme keeps --destructive as bare HSL channels for Tailwind, so an SVG fill has to wrap it.
+const DANGER = 'hsl(var(--destructive))';
 const openPath = (pts: Array<[number, number]>) =>
   'M' + pts.map(([x, y]) => `${x} ${y}`).join(' L');
 const closedPath = (pts: Array<[number, number]>) =>
@@ -65,7 +69,7 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false, meterOn = true }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
   const dragIdx = useRef<number | null>(null);
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
@@ -78,14 +82,19 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   // FFT lives HERE (not in the top-level engine hook) so polling the spectrum at ~60fps re-renders
   // only this component, not the whole popup + every sibling section. Off by default → usually no loop.
   const [fft, setFft] = useState<number[] | null>(null);
+  // The meter rides the SAME poll as the spectrum rather than opening a second one. With the
+  // spectrum off the engine skips the 2048-bin payload and answers with just the peak, so a popup
+  // showing only the meter costs one number per frame.
+  const [meter, setMeter] = useState<MeterState>(METER_INIT);
   const tabIdRef = useRef(activeTabId);
   tabIdRef.current = activeTabId;
   useEffect(() => {
     // Gate on `visible` too: EqGraph stays mounted (display:none) when another in-app view is open,
     // so without this the rAF poll keeps hitting the engine ~30x/s for a hidden graph — a real
     // battery drain in the long-lived Full-window tab.
-    if (!spectrumOn || !visible) {
+    if ((!spectrumOn && !meterOn) || !visible) {
       setFft(null);
+      setMeter(METER_INIT);
       return;
     }
     if (!io.hasChrome()) {
@@ -96,9 +105,10 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
     let raf = 0;
     const tick = () => {
       if (!alive) return;
-      io.toOffscreen('getFFT', { tabId: tabIdRef.current }, (resp: any) => {
+      io.toOffscreen('getFFT', { tabId: tabIdRef.current, wantFft: spectrumOn }, (resp: any) => {
         if (!alive) return;
         if (resp && resp.fft) setFft(resp.fft);
+        if (meterOn) setMeter((m) => stepMeter(m, { peak: resp?.peak ?? 0, now: performance.now() }));
         raf = requestAnimationFrame(tick);
       });
     };
@@ -107,7 +117,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, [spectrumOn, visible]);
+  }, [spectrumOn, meterOn, visible]);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {
@@ -439,6 +449,38 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
                 <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {label}
                 </text>
+              </g>
+            );
+          })()}
+
+        {/* Peak meter — post-EQ, post-master, read-only. It says you are clipping; it does not stop
+            you. Limiting is a separate audio feature with its own settings and is not in 2.5, so
+            the absence of one here is a decision rather than a gap. Scaled over -60..0 dBFS, which
+            is the same span the graph already uses vertically. */}
+        {meterOn &&
+          (() => {
+            const clipping = meter.clipUntil > 0;
+            const y = (db: number) => EQ_H - 4 - ((Math.max(-60, Math.min(0, db)) + 60) / 60) * (EQ_H - 8);
+            const barX = EQ_W - 7;
+            const top = y(meterDb(meter.level));
+            return (
+              <g pointerEvents="none" aria-hidden="true">
+                <rect x={barX} y={4} width={4} height={EQ_H - 8} rx={2} fill={G('text')} fillOpacity={0.07} />
+                {meter.level > 0 && (
+                  <rect
+                    x={barX}
+                    y={top}
+                    width={4}
+                    height={Math.max(0, EQ_H - 4 - top)}
+                    rx={2}
+                    fill={clipping ? DANGER : G('viz')}
+                    fillOpacity={clipping ? 0.95 : 0.75}
+                  />
+                )}
+                {meter.hold > 0 && (
+                  <rect x={barX - 1} y={y(meterDb(meter.hold))} width={6} height={1.5} rx={0.75} fill={G('grab')} fillOpacity={0.9} />
+                )}
+                {clipping && <circle cx={barX + 2} cy={4} r={2.5} fill={DANGER} />}
               </g>
             );
           })()}
