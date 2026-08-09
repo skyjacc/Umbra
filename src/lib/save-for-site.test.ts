@@ -204,3 +204,52 @@ describe('the whole point, end to end', () => {
     expect(plan.globalRollback!.to!.bands[0].gain).toBe(1); // everywhere else keeps A
   });
 });
+
+// PR 6.1: the Rules chips used to save a rule AND leave the edit on the global profile, so the
+// same gesture had two different consequences depending on which control you used. They now share
+// this planner. What stays different is the target policy — chips always append, and keep their
+// own scope — so these pin both halves: same persistence, different targeting.
+describe('the Rules chips share the persistence, not the targeting', () => {
+  const existing = rule('r1', ['youtube.com']);
+
+  it('appends rather than updating, even when a rule already matches', () => {
+    const plan = planSaveForSite({ ...base, rules: [existing], matchedRule: null });
+    if (plan.action !== 'save') throw new Error('unreachable');
+    expect(plan.created).toBe(true);
+    expect(plan.rules.map((r) => r.id)).toEqual(['r1', 'r_new']);
+    expect(plan.rules[0]).toEqual(existing); // the old rule is untouched
+  });
+
+  it('still puts the global profile back — the point of the fix', () => {
+    const plan = planSaveForSite({ ...base, rules: [existing], matchedRule: null });
+    if (plan.action !== 'save') throw new Error('unreachable');
+    expect(plan.globalRollback).toEqual({ to: { bands: A, gain: 1 } });
+  });
+
+  it('keeps the any-TLD pattern exactly as it was', () => {
+    // Documented semantics, deliberately unchanged here: on a subdomain this yields a pattern that
+    // does not cover the current page. That is a Rules UX question, not a persistence one.
+    const plan = planSaveForSite({ ...base, host: 'music.youtube.com', scope: 'anyTld', matchedRule: null });
+    if (plan.action !== 'save') throw new Error('unreachable');
+    expect(plan.rules.at(-1)!.patterns).toEqual(['youtube.']);
+  });
+
+  it('keeps the any-subdomain pattern too', () => {
+    const plan = planSaveForSite({ ...base, host: 'music.youtube.com', scope: 'anySub', matchedRule: null });
+    if (plan.action !== 'save') throw new Error('unreachable');
+    expect(plan.rules.at(-1)!.patterns).toEqual(['.youtube.']);
+  });
+
+  it('changes nothing when the rule write fails, chips included', async () => {
+    const calls: string[] = [];
+    const w: SaveWriters = {
+      writeRules: async () => (calls.push('writeRules'), { ok: false }),
+      writeGlobal: async () => (calls.push('writeGlobal'), { ok: true }),
+      clearGlobal: async () => void calls.push('clearGlobal'),
+      clearJournal: async () => void calls.push('clearJournal')
+    };
+    const outcome = await applySavePlan(planSaveForSite({ ...base, matchedRule: null }), w);
+    expect(outcome).toBe('rule-write-failed');
+    expect(calls).toEqual(['writeRules']);
+  });
+});

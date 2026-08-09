@@ -810,8 +810,8 @@ export function useEngine() {
   // On a site with no rule, editing has ALREADY written the global profile — that is the committed
   // behaviour — so this is "save here, and put back what that displaced". The plan and the write
   // ordering both live in lib/save-for-site.ts, where they are tested; this is the executor.
-  const saveForThisSite = useCallback(
-    async (scope: 'exact' | 'anyTld' | 'anySub' = 'exact') => {
+  const saveRuleFromCurrent = useCallback(
+    async (scope: 'exact' | 'anyTld' | 'anySub', target: 'update-matching' | 'always-create') => {
       // First, and before anything else: a queued commit must not land after the rule is written,
       // match it, and rewrite it with a stale curve.
       if (commitTimer.current) {
@@ -823,7 +823,11 @@ export function useEngine() {
       const plan = planSaveForSite({
         host: activeHostRef.current,
         rules: rulesRef.current,
-        matchedRule: activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null,
+        // The two entry points differ HERE and only here. "Save for this site" replaces the rule
+        // that is actually shaping the tab; the Rules chips have always appended a new rule for the
+        // scope you picked, and 6.1 is about the write sequence, not about changing that.
+        matchedRule:
+          target === 'update-matching' && activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null,
         bands: io.bandsToPreset(bandsRef.current), // the editing buffer — bypass never touches it
         gain: gainRef.current,
         presetName: activeRef.current || '',
@@ -872,6 +876,11 @@ export function useEngine() {
     [applyEverywhere, mirrorResolved]
   );
 
+  const saveForThisSite = useCallback(
+    (scope: 'exact' | 'anyTld' | 'anySub' = 'exact') => saveRuleFromCurrent(scope, 'update-matching'),
+    [saveRuleFromCurrent]
+  );
+
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
     (next: Rule[]) => {
@@ -894,29 +903,13 @@ export function useEngine() {
 
   // Quick-add a rule from the active tab: snapshots the current curve and picks a
   // pattern scope off the hostname (exact / any-tld / any-subdomain).
+  // The Rules chips. They keep their own scope choice and their own "always append" behaviour —
+  // but they no longer have their own idea of what saving means. Before 6.1 this path left the
+  // edit on the GLOBAL profile as well as putting it in the rule, so picking a chip quietly
+  // changed the sound of every other site: the same gesture, two different consequences.
   const quickAddRule = useCallback(
-    (scope: 'exact' | 'anyTld' | 'anySub') => {
-      // Pattern building lives in rules.ts: it is pattern-language logic that must agree with
-      // hostMatchesPattern, and it is the only part of this flow a unit test can reach.
-      const pattern = patternForHost(activeHostRef.current || '', scope);
-      if (!pattern) {
-        showNotice(t('note.noSite'));
-        return;
-      }
-      const rule: Rule = {
-        id: newRuleId(),
-        patterns: [pattern],
-        mode: 'curve',
-        curve: io.bandsToPreset(bandsRef.current),
-        gain: gainRef.current,
-        preset: activeRef.current || '',
-        enabled: true
-      };
-      persistRules([...rulesRef.current, rule]);
-      const captured = tabsRef.current.some((tb) => tb.id === activeIdRef.current);
-      showNotice(t(captured ? 'note.ruleAddedReeq' : 'note.ruleAdded', { pattern }));
-    },
-    [persistRules, showNotice]
+    (scope: 'exact' | 'anyTld' | 'anySub') => void saveRuleFromCurrent(scope, 'always-create'),
+    [saveRuleFromCurrent]
   );
 
   const matchedRule = useMemo(() => (activeHost ? matchRule(activeHost, rules) : null), [activeHost, rules]);
