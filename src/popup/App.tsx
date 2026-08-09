@@ -142,7 +142,10 @@ export default function App() {
 
   return (
     <div className="flex min-h-[500px] flex-col">
-      <div className="flex-1">
+      {/* The notice is a fixed overlay sitting just above the nav, so any content at that height
+          is hidden AND unclickable while it shows. Reserving the space is better than moving the
+          toast: it works for whatever happens to be down there, not just today's layout. */}
+      <div className={'flex-1 ' + (eng.notice.text ? 'pb-[56px]' : '')}>
         {/* ================= EQ ================= */}
         <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
