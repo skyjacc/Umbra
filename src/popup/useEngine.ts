@@ -16,9 +16,9 @@ import {
   mayMirrorBuffer,
   commitOnUnbypass
 } from '@/lib/bypass';
-import { planResetProfile, makeResetSnapshot, resetControls } from '@/lib/reset';
+import { planResetProfile, makeResetSnapshot, applyUndoReset, resetControls } from '@/lib/reset';
 import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo';
-import { canResetChanges, planResetChanges } from '@/lib/reset-changes';
+import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } from '@/lib/reset-changes';
 import { AUTO_GAIN_DEFAULT, outputGain } from '@/lib/auto-gain';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
@@ -890,6 +890,16 @@ export function useEngine() {
   }, [enterBypass, leaveBypass]);
 
   /**
+   * The writes every restore path shares. Kept in one place so the three of them cannot drift
+   * apart again — before this, each rolled its own and all three discarded the result.
+   */
+  const restoreWriters = useRef<RestoreWriters>({
+    writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName),
+    clearGlobal: async () => (await io.clearDefaultEq(), { ok: true }),
+    writeRules: async (rules) => io.writeRulesResult(rules)
+  }).current;
+
+  /**
    * Put the sound back the way it was when this popup opened.
    *
    * Restores, never deletes — it can only return the user to a state they were already in, which
@@ -911,24 +921,29 @@ export function useEngine() {
       commitTimer.current = null;
     }
     interacting.current = false;
-    dirty.current = false;
-    committedSinceBaseline.current = false;
-    refreshResettable();
     setPreview(previewAfterCommit(previewRef.current)); // a drag preview ends; a bypass does not
-    noteUndoEvent('commit'); // an older Reset profile's undo describes a world we just left
-    void io.clearJournal(); // the recovery copy described an edit the user just took back
-    showNoticeRef.current(t('note.changesReset'));
 
-    if (plan.global) {
-      if (plan.global.to) {
-        globalRef.current = plan.global.to;
-        void io.writeDefaultEq(plan.global.to.bands, plan.global.to.gain, plan.global.to.presetName);
-      } else {
-        globalRef.current = null;
-        void io.clearDefaultEq();
+    // The sound goes back either way — that is what the user pressed the button for. What is
+    // gated on the WRITE is everything that claims something happened: the notice, the journal,
+    // and the undo slot from an older Reset profile.
+    void applyRestore(plan, restoreWriters).then((outcome) => {
+      if (outcome === 'write-failed') {
+        showNoticeRef.current(t('note.rulesSaveFailed'));
+        return; // storage still holds the edit: keep the journal and keep the undo armed
       }
-    }
-    if (plan.rules) void io.writeRules(setRulesMirror(plan.rules));
+      dirty.current = false;
+      committedSinceBaseline.current = false;
+      refreshResettable();
+      void io.clearJournal(); // the recovery copy described an edit the user just took back
+      showNoticeRef.current(t('note.changesReset'));
+      // Only a write that actually happened may spend the undo. Pressing Reset when the baseline
+      // rule has since been deleted writes NOTHING, and treating that as a write destroyed the
+      // only copy of that rule with a click that changed nothing.
+      if (outcome === 'restored') noteUndoEvent('commit');
+    });
+
+    if (plan.global) globalRef.current = plan.global.to;
+    if (plan.rules) setRulesMirror(plan.rules);
 
     bandsRef.current = plan.bands;
     setBands(plan.bands);
@@ -951,19 +966,35 @@ export function useEngine() {
     dirty.current = false;
     setPreview(NO_PREVIEW);
 
-    setUndoSlot(armUndo(makeResetSnapshot(rulesRef.current, globalRef.current)));
+    // Snapshot BEFORE the plan touches anything, but do not arm the undo until the write lands:
+    // an armed undo over a write that never happened offers to restore a world nobody left.
+    const snapshot = makeResetSnapshot(rulesRef.current, globalRef.current);
     const plan = planResetProfile(activeHostRef.current, rulesRef.current);
-    if (plan.action === 'delete-rule') {
-      void io.writeRules(setRulesMirror(plan.rules));
-    } else {
-      const flat = io.flatBands();
-      globalRef.current = { bands: flat, gain: 1 };
-      void io.writeDefaultEq(flat, 1);
-    }
-    void io.clearJournal();
+    const write =
+      plan.action === 'delete-rule'
+        ? io.writeRulesResult(setRulesMirror(plan.rules))
+        : (() => {
+            const flat = io.flatBands();
+            globalRef.current = { bands: flat, gain: 1, presetName: '' };
+            return io.writeDefaultEq(flat, 1, '');
+          })();
+
+    // This operation has its own undo. The session baseline the main-row Reset restores may name a
+    // rule that no longer exists, so that control retires here rather than offering a no-op.
+    committedSinceBaseline.current = false;
+    refreshResettable();
+
+    void write.then((res) => {
+      if (!res.ok) {
+        showNoticeRef.current(t('note.rulesSaveFailed'));
+        return; // nothing to undo, and nothing to celebrate
+      }
+      setUndoSlot(armUndo(snapshot));
+      void io.clearJournal();
+      showNoticeRef.current(t('note.profileReset'), true);
+    });
     applyEverywhere(tabsRef.current);
     mirrorResolved();
-    showNoticeRef.current(t('note.profileReset'), true);
   }, [applyEverywhere, mirrorResolved, captureBaseline, setRulesMirror]);
 
   // Put back exactly what resetProfile overwrote. The snapshot is deep, so it survived the reset
@@ -971,10 +1002,18 @@ export function useEngine() {
   const undoReset = useCallback(() => {
     if (!undoSlot.armed) return;
     const snap = undoSlot.snapshot;
-    setUndoSlot(undoAfter(undoSlot, 'undo'));
-    void io.writeRules(setRulesMirror(snap.rules));
+    // NOT disarmed here. This snapshot is the only copy of a rule Reset profile deleted, so it is
+    // held until the restore is actually stored — otherwise a refused write leaves the UI showing
+    // rules that storage does not have, with nothing left to try again from.
+    void applyUndoReset(snap, restoreWriters).then((outcome) => {
+      if (outcome !== 'restored') {
+        showNoticeRef.current(t('note.rulesSaveFailed'));
+        return;
+      }
+      setUndoSlot(undoAfter(undoSlot, 'undo'));
+    });
+    setRulesMirror(snap.rules);
     globalRef.current = snap.global;
-    if (snap.global) void io.writeDefaultEq(snap.global.bands, snap.global.gain);
     applyEverywhere(tabsRef.current);
     mirrorResolved();
   }, [applyEverywhere, mirrorResolved, setRulesMirror, undoSlot]);

@@ -88,3 +88,50 @@ export function planResetChanges(input: { baseline: Baseline; rules: Rule[]; com
         : null
   };
 }
+
+/**
+ * The writes a restore may need. Injected so the ORDER and the failure branches can be tested —
+ * a planner can be perfect while the code calling it announces success before the write lands.
+ */
+export interface RestoreWriters {
+  writeGlobal(bands: Band[], gain: number, presetName: string): Promise<{ ok: boolean }>;
+  clearGlobal(): Promise<{ ok: boolean }>;
+  writeRules(rules: Rule[]): Promise<{ ok: boolean }>;
+}
+
+export type RestoreOutcome =
+  | 'nothing-to-do'
+  /** Everything asked for was written. Only now may the caller clear the journal and say so. */
+  | 'restored'
+  /**
+   * The buffer goes back but storage was already correct, so nothing was written.
+   *
+   * Distinguishing this from 'restored' is the fix for a real loss: pressing Reset when the
+   * baseline rule has since been deleted writes nothing, and treating it as a write let it spend
+   * the undo slot from an earlier Reset profile — destroying the only copy of the deleted rule
+   * with a click that changed nothing.
+   */
+  | 'restored-without-writing'
+  /** Storage still holds the edit. The caller must keep the journal, the undo and its mouth shut. */
+  | 'write-failed';
+
+/** True when the plan actually asks for storage to change. */
+export function writesAnything(plan: ResetChangesPlan): boolean {
+  return plan.action === 'restore' && (plan.global !== null || plan.rules !== null);
+}
+
+export async function applyRestore(plan: ResetChangesPlan, w: RestoreWriters): Promise<RestoreOutcome> {
+  if (plan.action !== 'restore') return 'nothing-to-do';
+  if (!writesAnything(plan)) return 'restored-without-writing';
+
+  if (plan.global) {
+    const { to } = plan.global;
+    const res = to ? await w.writeGlobal(to.bands, to.gain, to.presetName) : await w.clearGlobal();
+    if (!res.ok) return 'write-failed';
+  }
+  if (plan.rules) {
+    const res = await w.writeRules(plan.rules);
+    if (!res.ok) return 'write-failed';
+  }
+  return 'restored';
+}

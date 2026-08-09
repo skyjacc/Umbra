@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { planResetProfile, makeResetSnapshot, hasDiscardableChanges, resetControls } from './reset';
+import { planResetProfile, makeResetSnapshot, applyUndoReset, hasDiscardableChanges, resetControls, type ResetSnapshot } from './reset';
+import type { RestoreWriters } from './reset-changes';
 import type { Rule } from './rules';
 import type { Band } from './audio';
 import { flatBands } from './engine-io';
+
+const BANDS = flatBands().map((b) => ({ ...b, gain: 4 })) as Band[];
 
 const rule = (id: string, patterns: string[], over: Partial<Rule> = {}): Rule => ({
   id,
@@ -64,7 +67,7 @@ describe('planResetProfile', () => {
 });
 
 describe('makeResetSnapshot', () => {
-  const global = { bands: flatBands().map((b) => ({ ...b, gain: 4 })) as Band[], gain: 0.5 };
+  const global = { bands: flatBands().map((b) => ({ ...b, gain: 4 })) as Band[], gain: 0.5, presetName: '' };
 
   it('captures rules and the global profile', () => {
     const s = makeResetSnapshot(RULES, global);
@@ -77,7 +80,7 @@ describe('makeResetSnapshot', () => {
     // The whole point: reset replaces these very arrays a moment later. A shallow copy would let
     // "undo" restore the flattened state over itself — worse than no undo, because it is trusted.
     const rules = [rule('a', ['youtube.com'])];
-    const g = { bands: flatBands(), gain: 1 };
+    const g = { bands: flatBands(), gain: 1, presetName: '' };
     const s = makeResetSnapshot(rules, g);
 
     rules[0].curve!.gains[0] = 99;
@@ -147,5 +150,77 @@ describe('resetControls — placement contract', () => {
   it('never puts the destructive reset where the harmless one lives', () => {
     const shape = Object.keys(resetControls({ previewSource: null, dirty: false }));
     expect(shape).toEqual(['changesInMainRow', 'profileInMore']);
+  });
+});
+
+// The snapshot has to be a COMPLETE picture of what the reset overwrote, and the undo has to be
+// spent only once the restore is actually stored. Both were wrong: the snapshot dropped the
+// profile's provenance, and undoReset disarmed the slot before attempting the write.
+describe('the snapshot keeps the provenance too', () => {
+  it('carries the preset the profile came from', () => {
+    const snap = makeResetSnapshot([], { bands: BANDS, gain: 1, presetName: 'Vocal' });
+    expect(snap.global).toEqual({ bands: BANDS, gain: 1, presetName: 'Vocal' });
+  });
+
+  it('still deep-copies rather than aliasing', () => {
+    const live = { bands: BANDS.map((b) => ({ ...b })), gain: 1, presetName: 'Vocal' };
+    const snap = makeResetSnapshot([], live);
+    live.bands[0].gain = 99;
+    expect(snap.global!.bands[0].gain).not.toBe(99);
+  });
+
+  it('keeps null meaning "there was no profile"', () => {
+    expect(makeResetSnapshot([], null).global).toBeNull();
+  });
+});
+
+describe('spending the undo only once the restore is stored', () => {
+  const snapOf = (over: Partial<ResetSnapshot> = {}): ResetSnapshot => ({
+    rules: [{ id: 'r1', patterns: ['a.com'], mode: 'curve', curve: { frequencies: [20], gains: [3], qs: [0.7] }, gain: 1, enabled: true }],
+    global: { bands: BANDS, gain: 1, presetName: 'Vocal' },
+    ...over
+  });
+
+  const spy = (over: Partial<RestoreWriters> = {}) => {
+    const calls: string[] = [];
+    const w: RestoreWriters = {
+      writeGlobal: async () => (calls.push('writeGlobal'), { ok: true }),
+      clearGlobal: async () => (calls.push('clearGlobal'), { ok: true }),
+      writeRules: async () => (calls.push('writeRules'), { ok: true }),
+      ...over
+    };
+    return { w, calls };
+  };
+
+  it('puts the rules back first, then the profile, and reports success', async () => {
+    const { w, calls } = spy();
+    expect(await applyUndoReset(snapOf(), w)).toBe('restored');
+    expect(calls).toEqual(['writeRules', 'writeGlobal']);
+  });
+
+  it('restores the profile WITH its provenance', async () => {
+    const seen: unknown[] = [];
+    const { w } = spy({ writeGlobal: async (...a) => (seen.push(a), { ok: true }) });
+    await applyUndoReset(snapOf(), w);
+    expect(seen).toEqual([[BANDS, 1, 'Vocal']]);
+  });
+
+  it('removes the profile when the snapshot says there was none', async () => {
+    const { w, calls } = spy();
+    await applyUndoReset(snapOf({ global: null }), w);
+    expect(calls).toEqual(['writeRules', 'clearGlobal']);
+  });
+
+  it('reports failure rather than success when the rules cannot be written', async () => {
+    // The worst case in the audit: the snapshot is the ONLY copy of a rule Reset profile deleted.
+    // The caller must keep it and keep the undo armed, so the user can try again.
+    const { w, calls } = spy({ writeRules: async () => (calls.push('writeRules'), { ok: false }) });
+    expect(await applyUndoReset(snapOf(), w)).toBe('write-failed');
+    expect(calls).toEqual(['writeRules']); // and it does not go on to touch the profile
+  });
+
+  it('reports failure when only the profile write is refused', async () => {
+    const { w } = spy({ writeGlobal: async () => ({ ok: false }) });
+    expect(await applyUndoReset(snapOf(), w)).toBe('write-failed');
   });
 });

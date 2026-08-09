@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canResetChanges, planResetChanges } from './reset-changes';
+import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } from './reset-changes';
 import type { Baseline } from './edit-state';
 import type { Rule } from './rules';
 import type { Band } from './audio';
@@ -129,5 +129,82 @@ describe('what it puts back', () => {
     if (plan.action !== 'restore') throw new Error('unreachable');
     plan.bands[0].gain = 99;
     expect(globalBaseline.global!.bands[0].gain).toBe(2);
+  });
+});
+
+// Sequencing. The planner above says WHAT to put back; this says in what order, and what may only
+// happen once a write has actually landed. The rule the audit found broken: a success notice, a
+// cleared journal and a spent undo slot are all consequences of a write, not of an intention.
+describe('applying a restore', () => {
+  const spy = (over: Partial<RestoreWriters> = {}) => {
+    const calls: string[] = [];
+    const w: RestoreWriters = {
+      writeGlobal: async () => (calls.push('writeGlobal'), { ok: true }),
+      clearGlobal: async () => (calls.push('clearGlobal'), { ok: true }),
+      writeRules: async () => (calls.push('writeRules'), { ok: true }),
+      ...over
+    };
+    return { w, calls };
+  };
+
+  it('says there is nothing to do without a baseline', async () => {
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: { has: false, target: null, global: null, rule: null }, rules: [], committed: true });
+    expect(await applyRestore(plan, w)).toBe('nothing-to-do');
+    expect(calls).toEqual([]);
+  });
+
+  it('reports that it wrote NOTHING when the edit never reached storage', async () => {
+    // The release blocker. Reset inside the debounce window, or on a rule deleted since the
+    // baseline, writes nothing at all — and the caller must not take that as licence to spend the
+    // undo slot from an earlier Reset profile. Distinguishing the two outcomes is the fix.
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed: false });
+    expect(await applyRestore(plan, w)).toBe('restored-without-writing');
+    expect(calls).toEqual([]);
+  });
+
+  it('reports the same when the baseline rule has since been deleted', async () => {
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: ruleBaseline, rules: [rule('other')], committed: true });
+    expect(await applyRestore(plan, w)).toBe('restored-without-writing');
+    expect(calls).toEqual([]);
+  });
+
+  it('writes the global profile and says so', async () => {
+    const { w, calls } = spy();
+    expect(await applyRestore(planResetChanges({ baseline: globalBaseline, rules: [], committed: true }), w)).toBe('restored');
+    expect(calls).toEqual(['writeGlobal']);
+  });
+
+  it('clears the profile when there was none to begin with', async () => {
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: { ...globalBaseline, global: null }, rules: [], committed: true });
+    expect(await applyRestore(plan, w)).toBe('restored');
+    expect(calls).toEqual(['clearGlobal']);
+  });
+
+  it('reports a failed global write instead of claiming success', async () => {
+    // What the caller must not do on this outcome: show "Sound put back", drop the journal, or
+    // spend the undo slot. Storage still holds the edit, so all three would be lies.
+    const { w, calls } = spy({ writeGlobal: async () => (calls.push('writeGlobal'), { ok: false }) });
+    expect(await applyRestore(planResetChanges({ baseline: globalBaseline, rules: [], committed: true }), w)).toBe('write-failed');
+  });
+
+  it('reports a failed rules write instead of claiming success', async () => {
+    const others = [rule('other'), rule('r1')];
+    const { w } = spy({ writeRules: async () => ({ ok: false }) });
+    const plan = planResetChanges({ baseline: ruleBaseline, rules: others, committed: true });
+    expect(await applyRestore(plan, w)).toBe('write-failed');
+  });
+
+  it('does not touch the rules when only the profile moved, and vice versa', async () => {
+    const g = spy();
+    await applyRestore(planResetChanges({ baseline: globalBaseline, rules: [], committed: true }), g.w);
+    expect(g.calls).not.toContain('writeRules');
+
+    const r = spy();
+    await applyRestore(planResetChanges({ baseline: ruleBaseline, rules: [rule('other'), rule('r1')], committed: true }), r.w);
+    expect(r.calls).toEqual(['writeRules']);
   });
 });

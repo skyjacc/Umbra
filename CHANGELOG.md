@@ -62,6 +62,18 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Fixed
 
+- **Undo after a profile reset could be thrown away by a button that did nothing.** After Reset
+  removed a site's rule, the ⟲ button next to Save stayed on screen — and pressing it consumed the
+  offer to undo the reset without putting anything back, because the rule it would have restored
+  was already gone. The deleted rule was then unrecoverable. Reset now retires that button when it
+  has nothing to restore, and only a change that actually reached storage can spend an undo.
+
+- **Reset and Undo said "done" without checking that anything was saved.** All six of their writes
+  were fired and forgotten, so a refused save left the equalizer showing a sound that storage did
+  not have, the confirmation already on screen and the undo already spent. They now report the
+  failure and keep everything they would have thrown away, so you can try again.
+
+
 - **A curve shaped under Bypass could be lost by closing the popup right after switching Bypass
   off.** Nothing shaped while bypassed is written until you leave Bypass, so at that moment the
   work existed in one place only, and the save that follows is asynchronous — closing the popup in

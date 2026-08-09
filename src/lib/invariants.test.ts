@@ -13,6 +13,8 @@ import appSrc from '../popup/App.tsx?raw';
 import eqGraphSrc from '../popup/components/EqGraph.tsx?raw';
 import bandFieldsSrc from '../popup/components/BandFields.tsx?raw';
 import bandInputSrc from './band-input.ts?raw';
+import resetSrc from './reset.ts?raw';
+import resetChangesSrc from './reset-changes.ts?raw';
 
 // Guards three hand-maintained invariants so they can't silently drift:
 //  1. the six-place version / BUILD bump (a mismatch makes the popup show "STALE — reload"),
@@ -247,7 +249,14 @@ describe('cross-file invariants', () => {
     expect(useEngineSrc, 'the save rollback must forward provenance').toContain(
       'writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName)'
     );
-    expect(useEngineSrc, 'and so must Reset').toContain('plan.global.to.presetName');
+    // Reset and Undo now go through one shared writer set, so the guarantee lives there and in the
+    // appliers rather than being repeated at each call site.
+    expect(useEngineSrc, 'the shared restore writer must forward provenance').toContain(
+      'writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName)'
+    );
+    expect(resetChangesSrc, 'the restore applier must pass it on').toContain('w.writeGlobal(to.bands, to.gain, to.presetName)');
+    expect(resetSrc, 'and so must the undo applier').toContain('w.writeGlobal(g.bands, g.gain, g.presetName)');
+    expect(resetSrc, 'the snapshot must carry it in the first place').toContain('presetName: global.presetName');
   });
 
   it('Auto Gain changes what is played and never what is stored', () => {
@@ -313,6 +322,35 @@ describe('cross-file invariants', () => {
     for (const c of ['clampFreq', 'clampGainDb', 'clampQ']) {
       expect(bi, `band-input must clamp with ${c}`).toContain(c);
     }
+  });
+
+  it('a restore announces nothing until the write has landed', () => {
+    // The audit found all three restore paths firing `void io.write...` and then claiming success
+    // regardless: a success notice, a cleared journal and a spent undo slot are consequences of a
+    // write, not of an intention. Asserted on the source because these are ordering facts and the
+    // hook has no behavioural test.
+    for (const fn of ['resetChanges', 'resetProfile', 'undoReset']) {
+      const block = useEngineSrc.match(new RegExp(`const ${fn} = useCallback\\([\\s\\S]*?\\n  \\}, \\[`))?.[0] ?? '';
+      expect(block, `${fn} not found`).toBeTruthy();
+      const code = block.replace(/\/\/.*$/gm, '');
+      expect(code, `${fn} must not fire a write and discard the result`).not.toMatch(/void io\.write/);
+    }
+
+    // And the destructive reset must retire the main-row control, whose baseline may now name a
+    // rule that no longer exists.
+    const profile = useEngineSrc.match(/const resetProfile = useCallback\([\s\S]*?\n  \}, \[/)?.[0] ?? '';
+    expect(profile, 'Reset profile must refresh the Reset control').toContain('refreshResettable()');
+    expect(profile, 'and must not arm an undo before the write succeeds').toMatch(/res\.ok[\s\S]*?armUndo\(/);
+  });
+
+  it('only a write that happened may spend the undo slot', () => {
+    // The release blocker, in one line. planResetChanges returns rules:null when the baseline rule
+    // has since been deleted, so Reset writes nothing — and the old code invalidated the undo from
+    // an earlier Reset profile anyway, destroying the only copy of that rule.
+    const block = useEngineSrc.match(/const resetChanges = useCallback\([\s\S]*?\n  \}, \[/)?.[0] ?? '';
+    expect(block, "noteUndoEvent must be gated on the 'restored' outcome").toMatch(
+      /outcome === 'restored'\s*\)\s*noteUndoEvent\('commit'\)/
+    );
   });
 
   it('every i18n key exists in both en and ru', () => {

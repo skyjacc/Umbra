@@ -12,6 +12,7 @@
 
 import type { Band } from './audio';
 import { matchRule, type Rule } from './rules';
+import type { RestoreWriters, RestoreOutcome } from './reset-changes';
 
 export type ResetPlan =
   /** Ruled site: the rule goes away and the site falls back to the global profile. */
@@ -32,7 +33,9 @@ export function planResetProfile(activeHost: string, rules: Rule[]): ResetPlan {
 export interface ResetSnapshot {
   rules: Rule[];
   /** null is a real value — it means no global profile was stored at all. */
-  global: { bands: Band[]; gain: number } | null;
+  /** Complete, provenance included — a profile put back without the preset it came from reads
+   *  "None" for a curve that is still, visibly, Vocal. */
+  global: { bands: Band[]; gain: number; presetName: string } | null;
 }
 
 /**
@@ -42,14 +45,14 @@ export interface ResetSnapshot {
  * "undo" would restore the flattened state over itself — the failure mode that makes an undo worse
  * than no undo, because the user trusts it.
  */
-export function makeResetSnapshot(rules: Rule[], global: { bands: Band[]; gain: number } | null): ResetSnapshot {
+export function makeResetSnapshot(rules: Rule[], global: { bands: Band[]; gain: number; presetName?: string } | null): ResetSnapshot {
   return {
     rules: rules.map((r) => ({
       ...r,
       patterns: [...r.patterns],
       curve: r.curve ? { frequencies: [...r.curve.frequencies], gains: [...r.curve.gains], qs: [...r.curve.qs] } : undefined
     })),
-    global: global ? { bands: global.bands.map((b) => ({ ...b })), gain: global.gain } : null
+    global: global ? { bands: global.bands.map((b) => ({ ...b })), gain: global.gain, presetName: global.presetName ?? '' } : null
   };
 }
 
@@ -83,4 +86,26 @@ export interface ResetControls {
 
 export function resetControls(input: { previewSource: 'drag' | 'bypass' | null; dirty: boolean }): ResetControls {
   return { changesInMainRow: hasDiscardableChanges(input), profileInMore: true };
+}
+
+/**
+ * Put back exactly what a Reset profile overwrote, and only then let the caller call it done.
+ *
+ * The order is rules first: the rule is the thing Reset profile DELETED, and the snapshot is the
+ * only copy of it. Attempting the cheap-to-lose thing first means a refusal leaves the user where
+ * they were, with the undo still armed and the snapshot still held, rather than half-restored.
+ *
+ * Sequenced through injected writers for the same reason applySavePlan is: the defect this
+ * replaces was not in the arithmetic, it was in a caller that disarmed the slot at the top of the
+ * function and then fired both writes with their results discarded.
+ */
+export async function applyUndoReset(snapshot: ResetSnapshot, w: RestoreWriters): Promise<RestoreOutcome> {
+  const rules = await w.writeRules(snapshot.rules);
+  if (!rules.ok) return 'write-failed';
+
+  const g = snapshot.global;
+  const global = g ? await w.writeGlobal(g.bands, g.gain, g.presetName) : await w.clearGlobal();
+  if (!global.ok) return 'write-failed';
+
+  return 'restored';
 }
