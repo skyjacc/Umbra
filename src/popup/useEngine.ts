@@ -16,7 +16,8 @@ import {
   mayMirrorBuffer,
   commitOnUnbypass
 } from '@/lib/bypass';
-import { planResetProfile, makeResetSnapshot, resetControls, type ResetSnapshot } from '@/lib/reset';
+import { planResetProfile, makeResetSnapshot, resetControls } from '@/lib/reset';
+import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
@@ -74,8 +75,9 @@ export function useEngine() {
   const [inFlight, setInFlight] = useState(false);
   // Mirrors previewRef for rendering — the ref alone would not re-render the action row.
   const [previewOn, setPreviewOn] = useState(false);
-  // What the last Reset profile overwrote. One step, one operation, dropped after the notice.
-  const [canUndoReset, setCanUndoReset] = useState(false);
+  // What the last Reset profile overwrote, and whether it is still offerable. One slot for one
+  // operation — see lib/undo.ts for why a boolean beside a ref was the wrong shape.
+  const [undoSlot, setUndoSlot] = useState(NO_UNDO);
   // Bypass is a listening mode, not an edit: the stored EQ is simply not applied for a while.
   const [bypassed, setBypassed] = useState(false);
 
@@ -88,7 +90,7 @@ export function useEngine() {
   // Status CODE (not a display string) so the UI can localize it — see i18n `engine.*` + the
   // header/banner in App. Values: starting | initializing | connected | stale | devPreview | error | notResponding.
   const [engineStatus, setEngineStatus] = useState('starting');
-  const [notice, setNoticeState] = useState('');
+  const [notice, setNoticeState] = useState<{ text: string; undo: boolean }>({ text: '', undo: false });
   const [spectrum, setSpectrum] = useState<boolean>(() => {
     try {
       return localStorage.SHOW_VISUALIZER === '1';
@@ -183,6 +185,9 @@ export function useEngine() {
     setPreviewOn(next.has);
     setBypassed(isBypassed(next));
   }, []);
+
+  /** A write happened; the snapshot now describes a world the user has moved on from. */
+  const noteUndoEvent = useCallback((ev: UndoEvent) => setUndoSlot((cur) => undoAfter(cur, ev)), []);
 
   // The stored profile as it stood before this popup session first changed it. Latched once so a
   // later "save this to the site instead" can put back what it displaced; later commits must not
@@ -308,10 +313,10 @@ export function useEngine() {
   }, []);
   useEffect(() => () => void (flightTimer.current && clearTimeout(flightTimer.current)), []);
 
-  const showNotice = useCallback((t: string) => {
-    setNoticeState(t);
+  const showNotice = useCallback((t: string, undo = false) => {
+    setNoticeState({ text: t, undo });
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setNoticeState(''), 5000);
+    noticeTimer.current = setTimeout(() => setNoticeState({ text: '', undo: false }), 5000);
   }, []);
   // Lets the commit path report a failed write without taking showNotice as a dependency, which
   // would re-create commitTarget and every callback built on it.
@@ -537,6 +542,7 @@ export function useEngine() {
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
       // The edit is about to reach storage; anything after this point is a fresh change.
       dirty.current = false;
+      noteUndoEvent('commit');
       if (mr) {
         // Write the applied preset's name (or '' for a hand-tweak) so a ruled site's label reflects
         // the curve that actually plays, instead of a stale earlier preset name.
@@ -830,7 +836,6 @@ export function useEngine() {
     mirrorResolved();
   }, [applyEverywhere, mirrorResolved]);
 
-  const resetSnapshot = useRef<ResetSnapshot | null>(null);
 
   // The destructive one: on a ruled site it DELETES the rule, elsewhere it flattens the profile
   // every tab without a rule plays. Snapshot first so the notice can offer an undo.
@@ -844,7 +849,7 @@ export function useEngine() {
     dirty.current = false;
     setPreview(NO_PREVIEW);
 
-    resetSnapshot.current = makeResetSnapshot(rulesRef.current, globalRef.current);
+    setUndoSlot(armUndo(makeResetSnapshot(rulesRef.current, globalRef.current)));
     const plan = planResetProfile(activeHostRef.current, rulesRef.current);
     if (plan.action === 'delete-rule') {
       void io.writeRules(setRulesMirror(plan.rules));
@@ -856,23 +861,21 @@ export function useEngine() {
     void io.clearJournal();
     applyEverywhere(tabsRef.current);
     mirrorResolved();
-    setCanUndoReset(true);
-    showNoticeRef.current(t('note.profileReset'));
+    showNoticeRef.current(t('note.profileReset'), true);
   }, [applyEverywhere, mirrorResolved, captureBaseline, setRulesMirror]);
 
   // Put back exactly what resetProfile overwrote. The snapshot is deep, so it survived the reset
   // replacing those very arrays.
   const undoReset = useCallback(() => {
-    const snap = resetSnapshot.current;
-    if (!snap) return;
-    resetSnapshot.current = null;
-    setCanUndoReset(false);
+    if (!undoSlot.armed) return;
+    const snap = undoSlot.snapshot;
+    setUndoSlot(undoAfter(undoSlot, 'undo'));
     void io.writeRules(setRulesMirror(snap.rules));
     globalRef.current = snap.global;
     if (snap.global) void io.writeDefaultEq(snap.global.bands, snap.global.gain);
     applyEverywhere(tabsRef.current);
     mirrorResolved();
-  }, [applyEverywhere, mirrorResolved, setRulesMirror]);
+  }, [applyEverywhere, mirrorResolved, setRulesMirror, undoSlot]);
 
   // Turn the sound you are hearing into a rule for this site.
   //
@@ -916,6 +919,7 @@ export function useEngine() {
         clearGlobal: () => io.clearDefaultEq(),
         clearJournal: () => io.clearJournal()
       };
+      noteUndoEvent('save-for-site');
       const outcome = await applySavePlan(plan, writers);
 
       if (outcome === 'rule-write-failed') {
@@ -950,6 +954,7 @@ export function useEngine() {
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
     (incoming: Rule[]) => {
+      noteUndoEvent('rules-write');
       const next = setRulesMirror(incoming);
       io.writeRules(next).then((ok) => {
         if (!ok) showNotice(t('note.rulesSaveFailed'));
@@ -1151,7 +1156,7 @@ export function useEngine() {
     resetChanges,
     resetProfile,
     undoReset,
-    canUndoReset,
+    canUndoReset: canUndo(undoSlot),
     previewOn,
     resetControls: resetControls({ previewSource: previewRef.current.source, dirty: dirty.current }),
     addRule,

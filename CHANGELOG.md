@@ -35,6 +35,15 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Fixed
 
+- **An old Undo button could appear on an unrelated message and roll back your rules.** After a
+  profile reset, the offer to undo it never expired, while the message carrying it disappeared
+  after five seconds — so the next "Saved" or "Copied" notice showed up with a live Undo attached
+  that restored your rules as they were minutes earlier. The undo now belongs to the reset that
+  created it: saving anything else replaces it, and the message that offers it is the one that
+  armed it. It also has a permanent home under **More**, next to Reset, because deciding whether
+  you wanted a reset takes longer than a toast stays on screen.
+
+
 - **A tweaked preset no longer forgets it was a preset.** Nudging one band used to blank the name
   in the header, so a curve you built from Vocal became an anonymous "None" — and it happened
   twice over: once on the first pointer move, and again 200 ms later when the edit was saved. The

@@ -581,21 +581,40 @@ export default function App() {
             <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">
               {eng.activeHost && eng.matchedRule ? tr('more.resetProfileRule', { host: eng.activeHost }) : tr('more.resetProfileGlobal')}
             </p>
+
+            {/* The undo lives here, not only in the toast. Deciding whether you wanted a reset
+                means listening to something, which takes longer than any notice should stay on
+                screen — so it outlives the toast and is cleared by a later save instead of by a
+                timer. See lib/undo.ts. */}
+            {eng.canUndoReset && (
+              <div className="mt-1 flex flex-col gap-1">
+                <button
+                  onClick={eng.undoReset}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/10 py-2 text-[12px] font-semibold text-foreground transition-colors hover:bg-primary/20"
+                >
+                  <Undo2 className="size-4" />
+                  {tr('more.undoReset')}
+                </button>
+                <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">{tr('more.undoResetHint')}</p>
+              </div>
+            )}
           </div>
         </section>
       </div>
 
       <BottomNav view={view} onView={setView} />
 
-      {eng.notice && (
+      {eng.notice.text && (
         <div
           role="status"
           aria-live="polite"
           aria-atomic="true"
           className="fixed inset-x-3 bottom-[64px] z-50 rounded-xl border border-primary/40 bg-secondary/90 px-3.5 py-2.5 text-[11.5px] text-foreground shadow-lg backdrop-blur-md"
         >
-          <span>{eng.notice}</span>
-          {eng.canUndoReset && (
+          <span>{eng.notice.text}</span>
+          {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
+              slot alone, so any later unrelated notice inherited a live Undo. */}
+          {eng.notice.undo && eng.canUndoReset && (
             <button
               onClick={eng.undoReset}
               className="ml-2 rounded-md border border-primary/50 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/20"

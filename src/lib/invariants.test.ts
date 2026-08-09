@@ -184,6 +184,23 @@ describe('cross-file invariants', () => {
     expect(gain, 'the master volume stays audible under bypass').not.toContain('sendsBandsToActiveTab(');
   });
 
+  it('one undo, owned by one reset, cleared by a write and not by a clock', () => {
+    // The bug: setCanUndoReset(false) existed only inside undoReset, showNotice cleared just the
+    // text after 5s, and the toast and its button were gated on DIFFERENT values. So a later
+    // "Saved" or "Copied" turned up wearing a live Undo that wrote back a rules array from
+    // minutes earlier, over everything done since.
+    expect(useEngineSrc, 'the boolean-beside-a-ref shape is what allowed the drift').not.toContain('setCanUndoReset');
+    expect(useEngineSrc, 'resetSnapshot must not be a second holder').not.toContain('resetSnapshot');
+
+    // Every canonical write moves the world past the snapshot.
+    for (const ev of ['commit', 'rules-write', 'save-for-site']) {
+      expect(useEngineSrc, `a ${ev} must invalidate the undo`).toContain(`noteUndoEvent('${ev}')`);
+    }
+
+    // And the toast may only offer the undo it armed itself.
+    expect(appSrc, 'the toast button must belong to its own notice').toContain('eng.notice.undo && eng.canUndoReset');
+  });
+
   it('every i18n key exists in both en and ru', () => {
     const en = localeKeys(i18nSrc, 'en');
     const ru = localeKeys(i18nSrc, 'ru');
