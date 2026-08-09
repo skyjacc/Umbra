@@ -217,7 +217,7 @@ Umbra EQ is free, and free is not a trial — every feature is in the extension 
 If it earns a coffee:
 
 <p align="center">
-  <a href="https://ko-fi.com/skyjacc"><img src="https://img.shields.io/badge/Support%20on%20Ko--fi-A8FF3E?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Support Umbra EQ on Ko-fi" height="34"></a>
+  <a href="https://ko-fi.com/oblako"><img src="https://img.shields.io/badge/Support%20on%20Ko--fi-A8FF3E?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Support Umbra EQ on Ko-fi" height="34"></a>
   &nbsp;
   <a href="https://github.com/sponsors/skyjacc"><img src="https://img.shields.io/badge/GitHub%20Sponsors-8b93c6?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub" height="34"></a>
 </p>

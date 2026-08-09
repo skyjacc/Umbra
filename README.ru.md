@@ -208,7 +208,7 @@ Umbra EQ бесплатна, и бесплатно — это не пробны�
 останутся. Если она заслужила кофе:
 
 <p align="center">
-  <a href="https://ko-fi.com/skyjacc"><img src="https://img.shields.io/badge/Support%20on%20Ko--fi-A8FF3E?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Поддержать Umbra EQ на Ko-fi" height="34"></a>
+  <a href="https://ko-fi.com/oblako"><img src="https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C%20%D0%BD%D0%B0%20Ko--fi-A8FF3E?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Поддержать Umbra EQ на Ko-fi" height="34"></a>
   &nbsp;
   <a href="https://github.com/sponsors/skyjacc"><img src="https://img.shields.io/badge/GitHub%20Sponsors-8b93c6?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Поддержать на GitHub Sponsors" height="34"></a>
 </p>
