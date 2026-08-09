@@ -82,6 +82,18 @@ html {
   /* Full-width dark ground so the "Full window" tab isn't the 620px app stuck in a corner. */
   background: hsl(var(--background));
 }
+/* Chrome sizes a popup to its document, so anything that makes the document wider than the 620px
+   body drags the whole window out to Chrome's 800px maximum — and only on the view that does it,
+   so switching tabs resized the window. Measured: More reported scrollW 800 against bodyW 620.
+   Clipping the overflow is the fix rather than hunting the element, because the body is a fixed
+   width by design: anything reaching past it is already laying out wrong, and letting it stretch
+   the window hides that instead of showing it. */
+@media (max-height: 699px) {
+  html {
+    width: 620px;
+    overflow-x: hidden;
+  }
+}
 body {
   width: 620px;
   /* Centered in a wide tab; a no-op in the content-sized popup (viewport == 620). */

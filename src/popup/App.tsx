@@ -89,7 +89,12 @@ export default function App() {
      *  window. Naming the element that does it is the whole point — guessing from a screenshot
      *  is what turned a six-pixel question into three wrong answers. */
     const overflowing = () => {
-      const limit = document.body.clientWidth;
+      // Measured against the BODY'S OWN left edge, not the viewport. The first version compared
+      // viewport coordinates to the body width, so once the body centred itself inside a wider
+      // window every child looked like it was overflowing — it reported the consequence and hid
+      // the cause.
+      const left = document.body.getBoundingClientRect().left;
+      const limit = left + document.body.clientWidth;
       let worst: { sel: string; right: number; w: number } | null = null;
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
         if (!el.offsetParent && el.tagName !== 'BODY') continue;
@@ -97,7 +102,7 @@ export default function App() {
         if (r.width === 0 || r.right <= limit + 0.5) continue;
         if (!worst || r.right > worst.right) {
           const cls = (el.className || '').toString().split(' ').filter(Boolean).slice(0, 3).join('.');
-          worst = { sel: el.tagName.toLowerCase() + (cls ? '.' + cls : ''), right: Math.round(r.right), w: Math.round(r.width) };
+          worst = { sel: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (cls ? '.' + cls : ''), right: Math.round(r.right - left), w: Math.round(r.width) };
         }
       }
       return worst;
