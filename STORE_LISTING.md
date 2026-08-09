@@ -4,7 +4,7 @@ Copy/paste fields for the developer dashboard. Fill the `<...>` placeholders.
 
 ## Name (≤ 75 chars) — must match manifest "name"
 
-Umbra EQ — Equalizer & Bass Boost
+Equalizer + Bass Boost, per Tab — Umbra EQ
 
 > Verify the name is not already taken on the Chrome Web Store and does not collide
 > with an existing trademark before you commit to it. Alternates: "Umbra Sound EQ",
@@ -60,7 +60,7 @@ Why people choose Umbra EQ:
 ▸ One global sound everywhere, plus per-site overrides — set it once, then fine-tune the sites that need it.
 ▸ Bass boost and volume boost that stay clean under a limiter, so louder never means distorted.
 ▸ Keyboard and screen-reader friendly, with English and Russian interfaces and four color themes.
-▸ Everything runs on your computer. Umbra EQ does not record or send your audio, there is no account, and there is no analytics or tracking.
+▸ Audio only. Umbra EQ reads the tab's audio to shape it — never video, screenshots, or page content. Chrome's tab-capture permission covers both audio and video, which is why Chrome may show its tab-sharing indicator while the equalizer is on. ▸ Everything runs on your computer: the extension makes no network requests of its own, so your audio is never recorded, uploaded, or stored anywhere. There is no account, no analytics, and no tracking.
 
 Umbra EQ helps in everyday listening:
 - Headphone and earbud EQ — tune the bass and treble to match your gear.
