@@ -119,6 +119,22 @@ describe('cross-file invariants', () => {
     expect(setter, 'and must hand it back so the caller writes the same one').toContain('return stored;');
   });
 
+  it('a save reads the editing buffer, never the preview override', () => {
+    // Bypass replaces what you HEAR, not what you have shaped, so "bypass, then save for this
+    // site" must store the curve rather than silence.
+    //
+    // This is the invariant bandsForSave() was written to express, and could not: it was the
+    // identity function, so its tests asserted that identity is identity and stayed green through
+    // a mutation that made the save store flat. The decision it described happens at the call
+    // site, so that is where it is now asserted.
+    const save = useEngineSrc.match(/const saveRuleFromCurrent = useCallback\([\s\S]*?\n  \);/)?.[0];
+    expect(save, 'saveRuleFromCurrent not found').toBeTruthy();
+    expect(save, 'the save must read the editing buffer').toContain('bandsToPreset(bandsRef.current)');
+
+    // The override is a thing to play, never a thing to keep. Nothing in the popup may read it.
+    expect(useEngineSrc, 'no popup path may persist the preview override').not.toContain('overrideBands');
+  });
+
   it('every i18n key exists in both en and ru', () => {
     const en = localeKeys(i18nSrc, 'en');
     const ru = localeKeys(i18nSrc, 'ru');

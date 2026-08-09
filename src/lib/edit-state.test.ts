@@ -4,8 +4,6 @@ import {
   NO_BASELINE,
   previewForDrag,
   previewForBypass,
-  engineBandsFor,
-  bandsForSave,
   captureBaseline,
   owesGlobalRestore,
   type Baseline,
@@ -16,49 +14,11 @@ import type { Band } from './audio';
 
 const curve = (gain: number): Band[] => flatBands().map((b) => ({ ...b, gain }));
 
-const EDITING = curve(6); // what the user is shaping right now
-const RESOLVED = curve(2); // what storage says this host should sound like
 const FLAT = flatBands();
 
 const GLOBAL: SavedTarget = { kind: 'global' };
 const RULE: SavedTarget = { kind: 'rule', id: 'r1' };
 
-describe('engineBandsFor', () => {
-  it('plays the resolved profile when nothing is previewed', () => {
-    expect(engineBandsFor(NO_PREVIEW, EDITING, RESOLVED)).toBe(RESOLVED);
-  });
-
-  it('plays the editing buffer during a drag', () => {
-    // overrideBands is null here — and that must NOT be read as "no preview".
-    expect(engineBandsFor(previewForDrag(), EDITING, RESOLVED)).toBe(EDITING);
-  });
-
-  it('plays flat during bypass', () => {
-    const played = engineBandsFor(previewForBypass(FLAT), EDITING, RESOLVED);
-    expect(played.every((b) => b.gain === 0)).toBe(true);
-  });
-
-  it('does not treat a preview with null override as absent', () => {
-    const pv = previewForDrag();
-    expect(pv.overrideBands).toBeNull();
-    expect(pv.has).toBe(true);
-    expect(engineBandsFor(pv, EDITING, RESOLVED)).not.toBe(RESOLVED);
-  });
-});
-
-describe('bandsForSave', () => {
-  it('saves the editing buffer, not the resolved profile', () => {
-    expect(bandsForSave(EDITING)).toBe(EDITING);
-  });
-
-  it('saves the real curve even while bypassed', () => {
-    // The whole point of keeping the override out of the save path: "bypass, then save for this
-    // site" must store what the user shaped, not silence. There is no branch to forget here.
-    const bypassed = previewForBypass(FLAT);
-    expect(bypassed.overrideBands!.every((b) => b.gain === 0)).toBe(true);
-    expect(bandsForSave(EDITING)).toBe(EDITING);
-  });
-});
 
 describe('captureBaseline', () => {
   const g = { bands: curve(1), gain: 1 };
@@ -138,9 +98,8 @@ describe('preview lifecycle', () => {
     // Reachable case behind "preview must not outlive its tab": the active tab can leave the
     // captured set (user pressed Stop, or the browser revoked the stream) while a preview is
     // live. Clearing must hand the tab straight back to its stored sound.
-    const pv = previewForBypass(FLAT);
-    expect(engineBandsFor(pv, EDITING, RESOLVED)).not.toBe(RESOLVED);
-    expect(engineBandsFor(NO_PREVIEW, EDITING, RESOLVED)).toBe(RESOLVED);
+    expect(previewForBypass(FLAT).has).toBe(true);
+    expect(NO_PREVIEW.has).toBe(false);
   });
 
   it('records its source so a save can tell drag from bypass', () => {

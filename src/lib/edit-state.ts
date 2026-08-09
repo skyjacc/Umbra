@@ -62,22 +62,29 @@ export function previewForBypass(flat: Band[]): Preview {
   return { has: true, overrideBands: cloneBands(flat), source: 'bypass' };
 }
 
-/**
- * What the engine should play on the ACTIVE tab. Other tabs are never previewed — a bypass on one
- * tab must not silence the film playing in another.
- */
-export function engineBandsFor(preview: Preview, editing: Band[], resolved: Band[]): Band[] {
-  if (!preview.has) return resolved;
-  return preview.overrideBands ?? editing;
-}
-
-/**
- * What a save writes. Always the editing buffer — never the override. This is why bypassing and
- * then saving stores the real curve rather than a flat one, without a branch that could be missed.
- */
-export function bandsForSave(editing: Band[]): Band[] {
-  return editing;
-}
+// Two functions used to live here — engineBandsFor(preview, editing, resolved) and
+// bandsForSave(editing) — and neither was ever imported by the popup. They were removed once that
+// was measured rather than assumed: no production import, no re-export, and no trace of either in
+// the built bundle. Recording what they were for, because the questions they were answering are
+// still open and the answers now live in less obvious places.
+//
+// bandsForSave was `editing => editing`. An identity function cannot hold an invariant: its tests
+// asserted that identity is identity, and stayed green through a deliberate change that made the
+// save store a flat curve. The rule it meant — a save writes the editing buffer, never the
+// override, which is why "bypass, then save for this site" keeps the sound you shaped — is real,
+// so it is now asserted where the decision is actually taken. See invariants.test.ts,
+// "a save reads the editing buffer, never the preview override".
+//
+// engineBandsFor answered "what should the ACTIVE tab play". THAT QUESTION HAS NO SINGLE OWNER
+// TODAY. Three places decide it separately: applyEverywhere SKIPS the active tab while a preview
+// is on, onBandsLive sends the editing buffer, and toggleBypass sends flat. They agree only
+// because whoever set the preview already pushed the matching curve; nothing holds them together,
+// and a change that made bypass inaudible left the whole suite green.
+//
+// Giving that question one owner means making applyEverywhere send to the active tab instead of
+// skipping it, which is a change to how bypass works rather than a cleanup — so it belongs to the
+// bypass work, where it can be wired and proven in the same change. Until then, note that
+// `overrideBands` below is written by previewForBypass and read by nobody.
 
 /**
  * Latch once per popup session. Later mutations must not replace it, or a "restore what it was"
