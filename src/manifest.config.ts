@@ -22,6 +22,21 @@ export default defineManifest({
     default_popup: 'src/popup/index.html'
   },
   permissions: ['activeTab', 'tabCapture', 'storage', 'offscreen'],
+  // Deliberately shipped WITHOUT a suggested_key. Two reasons: Chrome silently drops a suggested
+  // binding that collides with an existing one, so the shortcut would look broken to exactly the
+  // users who have the most extensions; and on macOS the popular combinations are already taken by
+  // the system. Users assign it at chrome://extensions/shortcuts.
+  //
+  // Why it exists at all: while a tab is captured Chrome downgrades fullscreen to
+  // "fullscreen-within-tab", and the only reliable order is fullscreen FIRST, then capture. In
+  // macOS fullscreen the toolbar is hidden, so the popup — the only way to start capture today —
+  // is unreachable at the exact moment it is needed. Invoking a command counts as the user gesture
+  // that grants activeTab, so this needs no extra permission.
+  commands: {
+    'toggle-eq': {
+      description: 'Turn the equalizer on or off for the current tab'
+    }
+  },
   background: {
     // Vanilla service worker (no npm imports); CRXJS bundles it from src/.
     service_worker: 'src/background.js'

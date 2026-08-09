@@ -12,6 +12,11 @@ All notable changes to Umbra EQ are documented here. The format follows
   page), on a tab you stopped by hand, or when audio capture fails, the popup explains what is
   happening instead of showing a full-size equalizer that doesn't respond — which looked broken.
 
+- **A keyboard shortcut to turn the equalizer on or off** without opening the popup. It has no
+  default combination — assign one at `chrome://extensions/shortcuts`. Useful mainly in fullscreen,
+  where the toolbar is hidden: enter fullscreen first, then switch Umbra on with the shortcut and
+  fullscreen stays real.
+
 ### Fixed
 
 - **An EQ change made just before the popup closes is no longer lost.** Adjusting the sound and then

@@ -207,6 +207,37 @@ async function stopCaptureOnActiveTab() {
   chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id }).catch(() => {});
 }
 
+// Is the active tab currently in the engine's capture list? Asked rather than tracked: the
+// offscreen document owns that truth, and a service worker can be evicted between two questions.
+async function isActiveTabCaptured() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !(await hasOffscreenDocument())) return false;
+  try {
+    const status = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'getStatus' });
+    return !!(status && (status.tabs || []).some((t) => t.id === tab.id));
+  } catch (e) {
+    return false; // engine asleep or not answering — treat as "not capturing" and try to start
+  }
+}
+
+// Keyboard shortcut (chrome://extensions/shortcuts — unbound by default, see manifest.config.ts).
+//
+// It exists for one situation the popup cannot serve: while a tab is captured Chrome downgrades
+// fullscreen to fullscreen-within-tab, and the only order that keeps real fullscreen is fullscreen
+// FIRST, then capture. In macOS fullscreen the toolbar is hidden, so the popup is unreachable
+// exactly then. Invoking a command is a user gesture, so activeTab is granted and
+// tabCapture.getMediaStreamId stays legal from here — no additional permission.
+//
+// Passing auto=false matters: a manual request must also re-arm a tab the user previously Stopped,
+// same as pressing the button in the popup.
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'toggle-eq') return;
+  (async () => {
+    if (await isActiveTabCaptured()) await stopCaptureOnActiveTab();
+    else await startCaptureOnActiveTab(false);
+  })().catch((e) => dlog('toggle-eq failed:', e && e.message));
+});
+
 // A navigation is a fresh page — forget the stopped flag so auto-capture works there again. Gated
 // on stoppedReady so a delete can't run against the un-hydrated Set and be resurrected by hydration.
 chrome.tabs.onUpdated.addListener((tabId, info) => {

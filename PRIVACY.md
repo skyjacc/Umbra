@@ -39,6 +39,19 @@ All audio processing and all settings stay on your own device.
 - No servers, no external requests, no tracking pixels, no analytics SDKs.
 - No collection of browsing history, personal information, or audio content.
 
+## Why Chrome shows a "tab is being shared" indicator
+
+Reading a tab's audio uses Chrome's tab-capture API — the same mechanism screen sharing uses — so
+Chrome marks the tab with its capture indicator while the equalizer is running.
+
+Only audio is requested: the capture is opened with an audio constraint and no video, so no picture
+and no page content is ever read. The audio is processed in memory and played straight back; it is
+never recorded, stored, or transmitted.
+
+The indicator is enforced by the browser and cannot be suppressed by an extension. That is
+deliberate, and good: it means you are always told when something is capturing a tab, including by
+us. It disappears as soon as you stop the equalizer on that tab.
+
 ## Permissions justification
 
 | Permission   | Why it is needed                                                        |

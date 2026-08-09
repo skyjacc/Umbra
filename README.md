@@ -128,6 +128,10 @@ Most browser equalizers are a fixed set of graphic-EQ sliders that inject a cont
 
 **Is it really free, with no ads or tracking?** Yes. Umbra EQ is free, MIT-licensed, 100% local, and makes no network calls of its own — no ads, no accounts, no analytics.
 
+**Why does Chrome say the tab is being shared?** Umbra reads the tab's audio through Chrome's tab-capture API — the same mechanism screen sharing uses, so Chrome shows its sharing indicator. Only audio is read: no video, no page content, and nothing leaves your computer. The indicator is enforced by the browser and can't be switched off by an extension, which is the point — you always know when a tab is being captured. It disappears when you press Stop.
+
+**Fullscreen stopped working while the equalizer is on. Why?** Chrome doesn't put the window into real fullscreen while a tab is being captured — the video fills the page but the browser stays windowed. That's Chrome's behaviour for every extension that processes tab audio, not something Umbra can change. Two ways around it: **go fullscreen first, then turn the equalizer on** — it stays real fullscreen; or assign a keyboard shortcut at `chrome://extensions/shortcuts` and use it to turn Umbra on without leaving fullscreen. Turning the equalizer off afterwards doesn't restore fullscreen — you have to exit and re-enter it.
+
 **Which browsers does it support?** Chrome 116+, Microsoft Edge, and Opera (the same package). A Firefox port is planned.
 
 **Is it open source?** Yes — the full source is in this repository under the MIT license.
