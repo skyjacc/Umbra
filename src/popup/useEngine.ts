@@ -18,6 +18,7 @@ import {
 } from '@/lib/bypass';
 import { planResetProfile, makeResetSnapshot, resetControls } from '@/lib/reset';
 import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo';
+import { canResetChanges, planResetChanges } from '@/lib/reset-changes';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
@@ -80,6 +81,11 @@ export function useEngine() {
   const [undoSlot, setUndoSlot] = useState(NO_UNDO);
   // Bypass is a listening mode, not an edit: the stored EQ is simply not applied for a while.
   const [bypassed, setBypassed] = useState(false);
+  // Render mirror for the Reset control. The three things it depends on — the session baseline,
+  // `dirty` and `committedSinceBaseline` — are all refs, and a ref changing does not re-render, so
+  // the answer is pushed at the moments it can change rather than computed during render. The
+  // answer itself comes from canResetChanges, so the tested predicate is the one that ships.
+  const [resettable, setResettable] = useState(false);
 
   const [bands, setBands] = useState<Band[]>(io.flatBands);
   const [gain, setGain] = useState(1);
@@ -185,6 +191,27 @@ export function useEngine() {
     setPreviewOn(next.has);
     setBypassed(isBypassed(next));
   }, []);
+
+  /**
+   * Has anything this session shaped actually reached storage yet?
+   *
+   * The difference between "cancel the pending write" and "put back what was already written", and
+   * the reason the Reset control can stay on screen after the 200ms debounce instead of blinking
+   * out with `dirty`.
+   */
+  const committedSinceBaseline = useRef(false);
+
+  const refreshResettable = useCallback(
+    () =>
+      setResettable(
+        canResetChanges({
+          baselineHas: baselineRef.current.has,
+          dirty: dirty.current,
+          committed: committedSinceBaseline.current
+        })
+      ),
+    []
+  );
 
   /** A write happened; the snapshot now describes a world the user has moved on from. */
   const noteUndoEvent = useCallback((ev: UndoEvent) => setUndoSlot((cur) => undoAfter(cur, ev)), []);
@@ -542,6 +569,8 @@ export function useEngine() {
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
       // The edit is about to reach storage; anything after this point is a fresh change.
       dirty.current = false;
+      committedSinceBaseline.current = true;
+      refreshResettable();
       noteUndoEvent('commit');
       if (mr) {
         // Write the applied preset's name (or '' for a hand-tweak) so a ruled site's label reflects
@@ -591,6 +620,7 @@ export function useEngine() {
       }
       interacting.current = true;
       dirty.current = true; // unsaved from the first move, not only once the gesture settles
+      refreshResettable();
       setPreview(previewAfterDrag(previewRef.current)); // a bypass outranks the drag and survives it
       bandsRef.current = nb;
       // Draft mode writes nothing, the journal included: an entry written under bypass would be
@@ -625,6 +655,7 @@ export function useEngine() {
       }
       interacting.current = true;
       dirty.current = true;
+      refreshResettable();
       setPreview(previewAfterDrag(previewRef.current));
       gainRef.current = g;
       if (persistsNow(previewRef.current)) recordJournal();
@@ -821,20 +852,54 @@ export function useEngine() {
     else enterBypass();
   }, [enterBypass, leaveBypass]);
 
-  // Throw away the edit in progress. Touches NO storage — it only stops the un-committed change
-  // from being written and puts the stored sound back on screen and in the engine.
+  /**
+   * Put the sound back the way it was when this popup opened.
+   *
+   * Restores, never deletes — it can only return the user to a state they were already in, which
+   * is why it is allowed to sit in the main row next to Save while `Reset profile` stays in More.
+   * The decision, including whether storage needs touching at all, is planResetChanges; this
+   * executes it. Bypass survives on purpose: cancelling an edit is not a reason to stop
+   * auditioning.
+   */
   const resetChanges = useCallback(() => {
+    const plan = planResetChanges({
+      baseline: baselineRef.current,
+      rules: rulesRef.current,
+      committed: committedSinceBaseline.current
+    });
+    if (plan.action !== 'restore') return;
+
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
       commitTimer.current = null;
     }
     interacting.current = false;
     dirty.current = false;
-    setPreview(NO_PREVIEW);
-    void io.clearJournal(); // the recovery copy described an edit the user just abandoned
+    committedSinceBaseline.current = false;
+    refreshResettable();
+    setPreview(previewAfterCommit(previewRef.current)); // a drag preview ends; a bypass does not
+    noteUndoEvent('commit'); // an older Reset profile's undo describes a world we just left
+    void io.clearJournal(); // the recovery copy described an edit the user just took back
+    showNoticeRef.current(t('note.changesReset'));
+
+    if (plan.global) {
+      if (plan.global.to) {
+        globalRef.current = plan.global.to;
+        void io.writeDefaultEq(plan.global.to.bands, plan.global.to.gain);
+      } else {
+        globalRef.current = null;
+        void io.clearDefaultEq();
+      }
+    }
+    if (plan.rules) void io.writeRules(setRulesMirror(plan.rules));
+
+    bandsRef.current = plan.bands;
+    setBands(plan.bands);
+    gainRef.current = plan.gain;
+    setGain(plan.gain);
     applyEverywhere(tabsRef.current);
     mirrorResolved();
-  }, [applyEverywhere, mirrorResolved]);
+  }, [applyEverywhere, mirrorResolved, noteUndoEvent, setPreview, setRulesMirror]);
 
 
   // The destructive one: on a ruled site it DELETES the rule, elsewhere it flattens the profile
@@ -934,6 +999,8 @@ export function useEngine() {
       setPreview(NO_PREVIEW);
       dirty.current = false;
       baselineRef.current = NO_BASELINE;
+      committedSinceBaseline.current = false;
+      refreshResettable(); // an explicit save is the end of the cycle, not something to undo
       applyEverywhere(tabsRef.current);
       mirrorResolved();
 
@@ -1057,6 +1124,7 @@ export function useEngine() {
       // the draft would have nothing to tell leaveBypass it exists.
       if (!persistsNow(previewRef.current)) {
         dirty.current = true;
+        refreshResettable();
         return;
       }
       const id = activeIdRef.current;
@@ -1157,6 +1225,7 @@ export function useEngine() {
     resetProfile,
     undoReset,
     canUndoReset: canUndo(undoSlot),
+    canResetChanges: resettable,
     previewOn,
     resetControls: resetControls({ previewSource: previewRef.current.source, dirty: dirty.current }),
     addRule,

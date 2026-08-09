@@ -201,6 +201,29 @@ describe('cross-file invariants', () => {
     expect(appSrc, 'the toast button must belong to its own notice').toContain('eng.notice.undo && eng.canUndoReset');
   });
 
+  it('Reset sits in the main row and Reset profile does not', () => {
+    // Two different actions that both sound like "reset". One restores and can only return the
+    // user somewhere they already were; the other DELETES the site's rule or flattens the
+    // everywhere-sound. They must never share a position, or muscle memory built on the harmless
+    // one will one day land on the destructive one.
+    expect(appSrc, 'the restoring one belongs next to Save').toContain('eng.resetChanges');
+    expect(appSrc, 'and is gated on its own state, never on a notice or its timer').toContain('eng.canResetChanges &&');
+
+    const row = appSrc.match(/<div className="flex gap-2">[\s\S]*?\n          <\/div>/)?.[0] ?? '';
+    expect(row, 'main action row not found').toBeTruthy();
+    expect(row, 'the destructive reset must stay in More').not.toContain('eng.resetProfile');
+  });
+
+  it('the Reset control outlives the auto-commit', () => {
+    // The first attempt was gated on there being an UN-COMMITTED edit, which lasts about 200ms:
+    // it appeared on pointer-down and vanished a fifth of a second after pointer-up. Keying on the
+    // tested predicate — which counts a landed commit as still resettable — is the fix, so the
+    // wiring is asserted rather than the shape of the expression.
+    expect(useEngineSrc, 'the shipped answer must come from the tested predicate').toContain('canResetChanges({');
+    expect(useEngineSrc, 'and must know whether anything reached storage').toContain('committedSinceBaseline');
+    expect(useEngineSrc, 'a landed commit keeps it offerable').toMatch(/committedSinceBaseline\.current = true;\s*\n\s*refreshResettable\(\);/);
+  });
+
   it('every i18n key exists in both en and ru', () => {
     const en = localeKeys(i18nSrc, 'en');
     const ru = localeKeys(i18nSrc, 'ru');

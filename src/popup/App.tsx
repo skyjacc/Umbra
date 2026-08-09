@@ -301,6 +301,22 @@ export default function App() {
                 {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
               </Button>
             ) : null}
+            {/* Put the sound back to what it was when the popup opened. Restores, never deletes —
+                which is why it may sit here next to Save while the destructive `Reset profile`
+                stays in More. It survives the auto-commit: an edit that saved itself 200ms ago is
+                still an edit you may want back, and keying on the un-committed window is what made
+                the first attempt blink out on mouse-up. */}
+            {eng.canResetChanges && (
+              <Button
+                variant="outline"
+                title={tr('eq.resetChangesTitle')}
+                className="h-10 shrink-0 rounded-xl backdrop-blur-md"
+                onClick={eng.resetChanges}
+              >
+                <RotateCcw />
+                <span>{tr('eq.resetChanges')}</span>
+              </Button>
+            )}
             {/* Turn what you are hearing into a rule for this site. Only where there is a site to
                 attach it to, and only while the tab is actually being shaped. */}
             {!eng.globalEditor && eng.activeHost && showsGraph(eng.captureState) && (
@@ -311,7 +327,7 @@ export default function App() {
                 onClick={() => void eng.saveForThisSite()}
               >
                 <Globe />
-                <span className="max-w-[150px] truncate">
+                <span className={eng.canResetChanges ? 'max-w-[92px] truncate' : 'max-w-[150px] truncate'}>
                   {eng.matchedRule ? tr('eq.updateRule', { host: eng.activeHost }) : tr('eq.saveForSite', { host: eng.activeHost })}
                 </span>
               </Button>

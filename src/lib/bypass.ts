@@ -16,8 +16,15 @@
 // replayed by the next popup as an edit the user never confirmed, which is the opposite of what
 // the journal is for.
 //
-// One exception, and it is not really one: "Save for this site" is the user pressing save. An
-// explicit gesture is not automatic persistence, so it writes, and it ends the bypass.
+// State it as one sentence, because "bypass is a draft" is the half that gets remembered:
+//
+//   The bypass preview is ephemeral until bypass is disabled. An explicit "Save for this site"
+//   MAY persist the current preview.
+//
+// The distinction is automatic versus asked-for. A debounced commit is the app deciding to write;
+// pressing Save is the user deciding, and bypass has no standing to overrule that. Anyone reading
+// `isBypassed(preview) === true` as "nothing may ever be written here" will break Save for this
+// site, so the exception is written down beside the rule rather than left to be inferred.
 //
 // WHY THE TWO GUARDS ARE SEPARATE. applyEverywhere used a single flag to answer two unrelated
 // questions — "may I push audio to the active tab" and "may I refresh the editing buffer from

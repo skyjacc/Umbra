@@ -8,6 +8,13 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Added
 
+- **A Reset button, next to Save.** After changing the curve there was no obvious way back. There
+  is now: **Reset** puts the sound back to what it was when you opened Umbra — not one step back,
+  all the way back. Edit again afterwards and it still returns to that same starting point. It
+  stays on screen after an edit saves itself, which the earlier attempt did not: that one appeared
+  while you dragged and vanished the moment you let go.
+
+
 - **You can shape the curve while Bypass is on.** The graph used to go dead when you bypassed the
   equalizer, which no other EQ does. Now it stays live: drag bands while the tab plays unshaped,
   then switch Bypass off to hear what you built. The flat line on the graph turns solid while
