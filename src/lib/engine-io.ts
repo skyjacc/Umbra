@@ -174,7 +174,11 @@ export function toOffscreen(type: string, extra: Record<string, unknown> = {}, c
     tabId: msg.tabId,
     gain: msg.gain,
     preset: msg.activePreset,
-    b0: msg.eqFilters?.[0]?.gain
+    b0: msg.eqFilters?.[0]?.gain,
+    // Without this a getFFT every 17ms is unreadable: at frame rate with the spectrum on it is
+    // correct, and with the spectrum off it is the regression. The last log could not tell them
+    // apart, which made the whole question unanswerable.
+    wantFft: msg.wantFft
   });
   if (cb) {
     chrome.runtime.sendMessage(msg, (resp: any) => {
