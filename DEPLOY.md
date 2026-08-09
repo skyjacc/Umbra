@@ -20,9 +20,8 @@ reload extension"** and stops working. Bump all of them together:
 Chrome Web Store rejects an upload whose version isn't **higher** than the last one.
 Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`.0`).
 
-- [ ] Update the Obsidian vault (`C:\Users\oblako\Documents\Umbra`): the version in
-      `Umbra EQ.md`, plus `Fixes & Findings.md` / affected notes (see the vault's
-      `Maintenance.md`). Mirror the fix log in `docs/AUDIT.md`.
+- [ ] Update the maintainer's own notes, if you keep any. Nothing in this repository
+      depends on them.
 - [ ] Refresh `PROJECT.md` — the **Version:** line in the header block and the release
       tag `vX.Y.Z` in the **Status** bullet (hand-maintained; outside the six, NOT
       covered by `src/lib/invariants.test.ts`).

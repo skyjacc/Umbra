@@ -1,5 +1,5 @@
-// Messaging + storage + preset I/O — ported from popup.js. This is the popup's
-// side of the popup <-> service-worker <-> offscreen protocol (unchanged).
+// Messaging + storage + preset I/O. This is the popup's side of the
+// popup <-> service-worker <-> offscreen protocol, unchanged since the pre-React popup.
 import {
   NUM_FILTERS,
   DEFAULT_FREQUENCIES,

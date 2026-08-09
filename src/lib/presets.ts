@@ -1,5 +1,5 @@
-// Preset coercion/normalization — ported from popup.js. Tolerant of foreign/legacy
-// formats and hardened against prototype pollution.
+// Preset coercion/normalization, carried over from the pre-React popup. Tolerant of foreign and
+// legacy formats, and hardened against prototype pollution.
 import { NUM_FILTERS, DEFAULT_FREQUENCIES, DEFAULT_Q, clampFreq, clampGainDb, clampQ } from './audio';
 
 export const UNSAFE_KEYS = ['__proto__', 'prototype', 'constructor'];
