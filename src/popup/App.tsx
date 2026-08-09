@@ -141,13 +141,34 @@ export default function App() {
   const hide = (v: ViewId) => (view === v ? '' : 'hidden');
 
   return (
-    <div className="flex min-h-[500px] max-h-screen flex-col overflow-hidden">
-      {/* An app shell, not a document. Before this the content and the nav simply ran one after
-          the other and the whole page scrolled, so anything added at the bottom — a notice, a new
-          button — pushed the nav off the edge of the popup. The content scrolls inside its own box
-          now and the nav stays put, which also gives the fixed notice something it can only ever
-          cover temporarily: scrollable content the user can move out from under it. */}
-      <div className="flex-1 overflow-y-auto">
+    <div className="flex min-h-[500px] flex-col">
+      {/* The notice lives at the TOP, in the flow. Down at the bottom it either covered the Undo
+          button in More or, once it stopped covering things, forced an inner scroll container that
+          made every view feel like it was sliding inside a fixed frame. Up here it pushes the page
+          down by its own height and nothing else changes: no overlay, no second scroll area, and
+          the popup goes back to sizing itself to its content. */}
+      {eng.notice.text && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sticky top-0 z-40 flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/70 px-3.5 py-2 text-[11.5px] text-foreground shadow-[0_2px_10px_rgba(0,0,0,.35)] backdrop-blur-xl"
+        >
+          <span className="min-w-0 flex-1 truncate">{eng.notice.text}</span>
+          {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
+              slot alone, so any later unrelated notice inherited a live Undo. */}
+          {eng.notice.undo && eng.canUndoReset && (
+            <button
+              onClick={eng.undoReset}
+              className="shrink-0 rounded-md border border-primary/50 bg-primary/10 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/25"
+            >
+              {tr('eq.undo')}
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex-1">
         {/* ================= EQ ================= */}
         <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
@@ -677,32 +698,6 @@ export default function App() {
           </div>
         </section>
       </div>
-
-      {/* In the flow, between the scrolling content and the nav — not floating over either.
-          A notice that carries an Undo has to be clickable, so it cannot be allowed to land on
-          top of something else that is: it used to cover the Undo button in More exactly, with no
-          way to tell what was underneath or whether waiting would help. Sitting here it covers
-          nothing, and the content simply gets a shorter viewport for the five seconds it shows. */}
-      {eng.notice.text && (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="flex shrink-0 items-center gap-2 border-t border-primary/30 bg-primary/[.07] px-3.5 py-2 text-[11.5px] text-foreground"
-        >
-          <span className="min-w-0 flex-1 truncate">{eng.notice.text}</span>
-          {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
-              slot alone, so any later unrelated notice inherited a live Undo. */}
-          {eng.notice.undo && eng.canUndoReset && (
-            <button
-              onClick={eng.undoReset}
-              className="shrink-0 rounded-md border border-primary/50 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/20"
-            >
-              {tr('eq.undo')}
-            </button>
-          )}
-        </div>
-      )}
 
       <BottomNav view={view} onView={setView} />
 
