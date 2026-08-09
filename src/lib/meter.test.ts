@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { METER_INIT, stepMeter, meterDb, DECAY_DB_PER_SEC, HOLD_MS, CLIP_MS, type MeterState } from './meter';
+import { METER_INIT, stepMeter, meterDb, DECAY_DB_PER_SEC, HOLD_MS, CLIP_MS, METER_POLL_MS, type MeterState } from './meter';
 
 /** Feed a run of frames at a fixed rate, the way the rAF poll does. */
 const run = (start: MeterState, peaks: number[], t0 = 1000, dt = 16) =>
@@ -118,5 +118,32 @@ describe('bad input cannot wedge it', () => {
     const b = stepMeter(a, { peak: 0, now: 500 });
     expect(b.level).toBeLessThanOrEqual(0.8);
     expect(b.level).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('how often it needs asking', () => {
+  it('moves little enough between polls to look continuous', () => {
+    // The number exists to be justified, not tuned by feel: one poll interval of decay has to be
+    // small enough that the bar reads as falling rather than stepping.
+    const stepDb = (DECAY_DB_PER_SEC * METER_POLL_MS) / 1000;
+    expect(stepDb).toBeLessThanOrEqual(2);
+  });
+
+  it('is far slower than a frame, which is the whole point', () => {
+    expect(METER_POLL_MS).toBeGreaterThan(16);
+  });
+
+  it('falls to rest in the time the stated decay rate implies', () => {
+    // Full scale to the floor is 70 dB, so at 40 dB/s it is 1.75s and the poll interval must not
+    // change that. Pins the two constants against each other: a faster decay with the same floor,
+    // or a lower floor at the same decay, would silently alter how the meter behaves.
+    let s = stepMeter(METER_INIT, { peak: 1, now: 0 });
+    let t = 0;
+    while (s.level > 0 && t < 10000) {
+      t += METER_POLL_MS;
+      s = stepMeter(s, { peak: 0, now: t });
+    }
+    expect(t).toBeGreaterThan(1500);
+    expect(t).toBeLessThan(2000);
   });
 });

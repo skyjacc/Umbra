@@ -82,16 +82,31 @@ html {
   /* Full-width dark ground so the "Full window" tab isn't the 620px app stuck in a corner. */
   background: hsl(var(--background));
 }
-/* Chrome sizes a popup to its document, so anything that makes the document wider than the 620px
-   body drags the whole window out to Chrome's 800px maximum — and only on the view that does it,
-   so switching tabs resized the window. Measured: More reported scrollW 800 against bodyW 620.
-   Clipping the overflow is the fix rather than hunting the element, because the body is a fixed
-   width by design: anything reaching past it is already laying out wrong, and letting it stretch
-   the window hides that instead of showing it. */
+/* THE POPUP'S SIZE IS A CONTRACT, NOT A RESULT.
+ *
+ * Chrome sizes a popup to its document, so by default every piece of content is free to move the
+ * window: a notice appearing added a row, the bypass badge added six pixels, and More made the
+ * document wider than the body and dragged the window out to Chrome's 800px maximum — measured,
+ * scrollW 800 against bodyW 620. Each of those was fixed on its own and the next one arrived.
+ *
+ * So the rule is not "put the size back when something changes it". It is that nothing inside can
+ * change it at all: the window is 620 x 547 whatever the content does, and anything that does not
+ * fit scrolls or clips INSIDE that box. A view that outgrows it scrolls; an element that reaches
+ * past the side is clipped, which shows the layout bug instead of hiding it behind a wider window.
+ *
+ * 547 is the EQ view's natural height — the screen people actually use — so the main view fits
+ * exactly and the settings views scroll. Scoped by viewport height so the full-window page, where
+ * growing to fit IS the point, keeps its own behaviour. */
 @media (max-height: 699px) {
-  html {
+  html,
+  body {
     width: 620px;
-    overflow-x: hidden;
+    min-width: 620px;
+    max-width: 620px;
+    height: 547px;
+    min-height: 547px;
+    max-height: 547px;
+    overflow: hidden;
   }
 }
 body {

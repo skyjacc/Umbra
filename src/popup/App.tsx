@@ -326,8 +326,10 @@ export default function App() {
 
   const hide = (v: ViewId) => (view === v ? '' : 'hidden');
 
+  // h-full, not min-h alone: the shell fills the fixed popup box rather than deciding how big
+  // it is. See index.css — the popup's geometry is a contract and content may not change it.
   return (
-    <div className="flex min-h-[500px] flex-col">
+    <div className="flex h-full min-h-[500px] flex-col">
       {/* A slot that is ALWAYS here, whether or not there is anything to say.
           Chrome sizes a popup to its content, so anything that appears and disappears in the flow
           resizes the window under the pointer — which is what putting the notice at the top fixed
@@ -361,7 +363,7 @@ export default function App() {
         )}
       </div>
 
-      <div className="flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {/* ================= EQ ================= */}
         <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
@@ -504,8 +506,11 @@ export default function App() {
             {showsGraph(eng.captureState) ? '' : tr(CAPTURE_COPY[eng.captureState])}
           </span>
 
+          {/* Fixed height. The bypass badge inside is a bordered, padded span, so letting this row
+              size itself made the whole popup six pixels taller the moment Bypass came on and
+              shorter again when it went off. */}
           {showsGraph(eng.captureState) && (
-            <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
+            <div className="flex h-5 items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
               <TriangleAlert className="size-3.5 opacity-70" />
               {tr('eq.loud')}
               {eng.bypassed && (

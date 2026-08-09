@@ -72,7 +72,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'presets.update': 'Update "{name}"',
     'presets.none': 'No presets yet. Shape the EQ, type a name, then Save.',
     'presets.export': 'Export',
-    'presets.import': 'Import',
+    'presets.import': 'Import file',
     'presets.deleteTitle': 'Delete "{name}"',
     'presets.hideTitle': 'Hide (restore below)',
     'presets.restore': 'Restore built-ins',
@@ -95,7 +95,7 @@ const DICT: Record<Lang, Record<string, string>> = {
 
     'share.copyCode': 'Copy code',
     'share.pasteCode': 'Paste code',
-    'share.import': 'Import',
+    'share.import': 'Import the pasted code',
 
     'howto.title': 'How to use Umbra EQ',
     'howto.eq.h': 'The graph',
@@ -234,7 +234,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'presets.update': 'Обновить «{name}»',
     'presets.none': 'Пресетов пока нет. Настрой звук, впиши название и сохрани.',
     'presets.export': 'Экспорт',
-    'presets.import': 'Импорт',
+    'presets.import': 'Импорт из файла',
     'presets.deleteTitle': 'Удалить «{name}»',
     'presets.hideTitle': 'Скрыть (вернуть ниже)',
     'presets.restore': 'Вернуть встроенные',
@@ -257,7 +257,7 @@ const DICT: Record<Lang, Record<string, string>> = {
 
     'share.copyCode': 'Копировать код',
     'share.pasteCode': 'Вставить код',
-    'share.import': 'Импорт',
+    'share.import': 'Импортировать вставленный код',
 
     'howto.title': 'Как пользоваться Umbra EQ',
     'howto.eq.h': 'График',

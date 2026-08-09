@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { METER_INIT, stepMeter, meterDb, type MeterState } from '@/lib/meter';
+import { METER_INIT, stepMeter, meterDb, METER_POLL_MS, type MeterState } from '@/lib/meter';
 import { nudge, stepKind } from '@/lib/band-input';
 import {
   EQ_W,
@@ -95,7 +95,10 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
     // Gate on `visible` too: EqGraph stays mounted (display:none) when another in-app view is open,
     // so without this the rAF poll keeps hitting the engine ~30x/s for a hidden graph — a real
     // battery drain in the long-lived Full-window tab.
-    if ((!spectrumOn && !meterOn) || !visible) {
+    // Nothing to read from a tab that is not captured, and nothing to draw when neither the
+    // spectrum nor the meter is showing. The meter being on by default is not on its own a reason
+    // to hold a message loop open — that was the regression this restores.
+    if ((!spectrumOn && !meterOn) || !visible || activeTabId == null) {
       setFft(null);
       setMeter(METER_INIT);
       return;
@@ -104,23 +107,33 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
       setFft(Array.from({ length: 4096 }, (_, i) => -100 + 82 * Math.exp(-((i - 40) ** 2) / 1400) + 40 * Math.exp(-i / 500) * (0.6 + 0.4 * Math.sin(i / 2))));
       return;
     }
+    // ONE loop, at the rate the slower consumer needs. The spectrum draws 2048 bins and wants
+    // every frame; a level bar does not, so with the spectrum off this drops to METER_POLL_MS
+    // instead of holding a 60/s round trip open for a bar that cannot show the difference.
     let alive = true;
     let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const again = () => {
+      if (!alive) return;
+      if (spectrumOn) raf = requestAnimationFrame(tick);
+      else timer = setTimeout(tick, METER_POLL_MS);
+    };
     const tick = () => {
       if (!alive) return;
       io.toOffscreen('getFFT', { tabId: tabIdRef.current, wantFft: spectrumOn }, (resp: any) => {
         if (!alive) return;
         if (resp && resp.fft) setFft(resp.fft);
         if (meterOn) setMeter((m) => stepMeter(m, { peak: resp?.peak ?? 0, now: performance.now() }));
-        raf = requestAnimationFrame(tick);
+        again();
       });
     };
-    raf = requestAnimationFrame(tick);
+    again();
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
     };
-  }, [spectrumOn, meterOn, visible]);
+  }, [spectrumOn, meterOn, visible, activeTabId]);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {

@@ -23,6 +23,17 @@
 // stays pure and testable, and the caller does not have to remember to pass the previous timestamp.
 
 export const DECAY_DB_PER_SEC = 40;
+
+/**
+ * How often the meter asks the engine for a peak, in milliseconds.
+ *
+ * Not the frame rate. The spectrum needs every frame because it draws 2048 bins of detail; a level
+ * bar does not — at the 40 dB/s decay above, 50ms is a 2 dB step, which is below what the eye
+ * resolves on a 250px bar. Polling it at 60/s was a regression that put a permanent message loop
+ * between the popup and the audio engine for no visible gain, worst of all in the full-window page
+ * that stays open for hours.
+ */
+export const METER_POLL_MS = 50;
 export const HOLD_MS = 1200;
 export const CLIP_MS = 1500;
 
