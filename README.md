@@ -34,6 +34,56 @@
 
 Thin bass on laptop speakers, one video mixed too quiet, another too harsh — and most EQ extensions go silent on the streaming sites you actually use. Umbra fixes the sound of the tab you're listening to, live, and keeps it 100% on your computer. Set one sound for every tab, or give specific sites their own with rules.
 
+## What it does
+
+- **11-band parametric EQ** — drag the curve to boost or cut any frequency, live. Or type the
+  numbers: every band's frequency, gain and Q can be entered by hand.
+- **One global sound + site rules** — one EQ everywhere, or per-site overrides by address pattern
+  (first match wins). Each tab keeps its own chain.
+- **Save for this site** — turn the sound you are hearing into a rule for the site you are on,
+  without changing how everything else sounds.
+- **Reset** — put the sound back to what it was when you opened Umbra. Not one step back; all the
+  way back.
+- **Bypass** — hear the tab unshaped while the curve stays editable, then switch back to compare.
+  Nothing is saved until you leave Bypass.
+- **Presets you can build on** — Bass Boost / Vocal / Movie / Warm, plus your own. Nudge a band and
+  the header keeps saying *Based on Vocal*, so a tweaked preset never becomes an anonymous curve.
+- **Auto Gain** *(off by default)* — level-matches the tab so you judge the curve and not the
+  loudness.
+- **Peak meter** — shows the signal after the EQ and your volume, so clipping is visible instead of
+  guessed.
+- **Works on Netflix, Spotify** and other sites where EQ extensions go silent.
+- **Bass boost, volume past 100%, output limiter** — big boosts stay clean.
+- **Live spectrum, band guide, full-window editor.**
+- **Keyboard and screen-reader friendly**, RU/EN, four themes and a custom accent colour. No
+  account, no network, no analytics.
+
+## How to use
+
+1. Play audio in a tab, click the Umbra EQ icon, press **EQ This Tab**.
+2. Drag a dot on the curve: left/right is frequency, up/down is boost or cut. The strip on the left
+   is master volume.
+3. Prefer the keyboard? Focus a dot and use the arrows — **Shift** for a bigger step, **Alt** for a
+   finer one. Or Tab into the row under the graph and type the frequency, gain and Q directly.
+4. Press **Save for {site}** to keep this sound for the site you are on, **⟲** to put it back, or
+   **Bypass** to hear the tab untouched for a moment.
+
+The in-app **Guide** (More tab) walks through all of it, in Russian or English.
+
+<!-- SCREENSHOT WANTED — docs/screenshot-precision.png
+     The band row under the graph with a value being typed: "Band 5 · 437 Hz · -19.7 dB · Q 0.71",
+     and the header reading "Based on Vocal". Shows the tool is precise, not just pretty.
+     Add the file, then uncomment:
+<p align="center"><img src="docs/screenshot-precision.png" alt="Typing a band's frequency, gain and Q, with the header reading Based on Vocal" width="410"></p>
+-->
+
+<!-- SCREENSHOT WANTED — docs/screenshot-bypass.png
+     Bypass on: the solid 0 dB line, the dimmed curve still editable, the red "EQ bypassed" badge,
+     and the ⟲ Reset button in the action row.
+     Add the file, then uncomment:
+<p align="center"><img src="docs/screenshot-bypass.png" alt="Bypass on — the tab plays unshaped while the curve stays editable" width="410"></p>
+-->
+
 ## Install
 
 **[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee)** — one click, auto-updating.
@@ -46,24 +96,6 @@ On Edge or Opera, or to run your own build, load it unpacked (about a minute):
 
 > [!NOTE]
 > Icon does nothing? Make sure you picked the **`dist`** folder (build output), not the repo root, on Chrome 116+ — the audio engine needs the offscreen-document API.
-
-## Features
-
-- **11-band parametric EQ** — drag the curve to boost or cut any frequency, live.
-- **One global sound + site rules** — one EQ everywhere, or per-site overrides by address pattern (first match wins). Each tab keeps its own chain.
-- **Works on Netflix, Spotify** and other sites where EQ extensions go silent.
-- **Bass boost, volume past 100%, output limiter** — big boosts stay clean, no clipping.
-- **Presets** — Bass Boost / Vocal / Movie / Warm + your own; export as a file or share code.
-- **Live spectrum, band guide, full-window editor.**
-- **Keyboard + screen-reader friendly**, RU/EN, four themes + a custom accent colour. No account, no network, no analytics.
-
-## How to use
-
-1. Play audio in a tab, click the Umbra EQ icon, press **EQ This Tab**.
-2. Drag a dot (or arrow keys): left/right = frequency, up/down = boost/cut, Shift = width/Q, double-click resets. Left strip is master volume.
-3. Add a **rule** like `youtube.` for a per-site sound; stop a tab under **Tabs**, or open **Full window** for a bigger graph.
-
-The in-app **Guide** (More tab) walks through all of it, RU or EN.
 
 ## Browser support
 
@@ -85,7 +117,7 @@ The popup is React + TypeScript, bundled with Vite and [CRXJS](https://crxjs.dev
 npm install
 npm run build      # → dist/  (loadable, CSP-clean MV3 extension)
 npm run dev        # HMR dev build
-npm test           # 64 Vitest unit tests
+npm test           # 340 Vitest unit tests
 npm run typecheck  # tsc, also in CI
 ```
 
@@ -149,7 +181,7 @@ Most browser equalizers are a fixed set of graphic-EQ sliders that inject a cont
 | Popup | React 18, TypeScript |
 | Build | Vite + CRXJS |
 | UI | Tailwind CSS, shadcn/ui, lucide icons |
-| Tests | Vitest (64) |
+| Tests | Vitest (340) |
 | CI/CD | GitHub Actions — builds the `dist/` zip on push, PR & `v*` tags |
 
 ## Stars
@@ -177,6 +209,17 @@ If Umbra fixed your sound, a star helps other people find it.
 | Suggest a feature | [Start a discussion](https://github.com/skyjacc/Umbra/discussions) |
 | Something broke? | [File an issue](https://github.com/skyjacc/Umbra/issues/new) |
 | Like it? | [Star the repo](https://github.com/skyjacc/Umbra/stargazers) |
+
+## Support Umbra
+
+Umbra EQ is free, and free is not a trial — every feature is in the extension and always will be.
+If it earns a coffee:
+
+<p align="center">
+  <a href="https://ko-fi.com/skyjacc"><img src="https://img.shields.io/badge/Support%20on%20Ko--fi-A8FF3E?style=for-the-badge&logo=ko-fi&logoColor=black" alt="Support Umbra EQ on Ko-fi" height="34"></a>
+  &nbsp;
+  <a href="https://github.com/sponsors/skyjacc"><img src="https://img.shields.io/badge/GitHub%20Sponsors-8b93c6?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub" height="34"></a>
+</p>
 
 ## Contributing
 
