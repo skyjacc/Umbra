@@ -12,6 +12,7 @@ import useEngineSrc from '../popup/useEngine.ts?raw';
 import appSrc from '../popup/App.tsx?raw';
 import eqGraphSrc from '../popup/components/EqGraph.tsx?raw';
 import bandFieldsSrc from '../popup/components/BandFields.tsx?raw';
+import navSrc from '../popup/components/BottomNav.tsx?raw';
 import bandInputSrc from './band-input.ts?raw';
 import resetSrc from './reset.ts?raw';
 import resetChangesSrc from './reset-changes.ts?raw';
@@ -389,22 +390,24 @@ describe('cross-file invariants', () => {
     expect(deploySrc, 'and DEPLOY.md must stop the release without it').toContain('debug recorder');
   });
 
-  it('the popup size is a contract, not a result', () => {
-    // Content moved the window three separate ways before this: a notice added a row, the bypass
-    // badge added six pixels, and More made the document wider than the body and dragged the
-    // window to Chrome's 800px maximum. Each was fixed alone and the next one arrived, so the rule
-    // is now that nothing inside can change the geometry at all.
+  it('the popup keeps a fixed width, and nothing in the column can be squashed out of reach', () => {
+    // Width was the measured problem: More made the document wider than the 620px body and Chrome
+    // stretched the window to its 800px maximum, so switching tabs moved the window. Clipping the
+    // horizontal overflow fixes it and shows a layout bug instead of hiding it behind a wider
+    // window.
     const popup = cssSrc.match(/@media \(max-height: 699px\)[\s\S]*?\n\}/)?.[0] ?? '';
     expect(popup, 'the popup-only sizing block not found').toBeTruthy();
-    for (const rule of ['width: 620px', 'max-width: 620px', 'height: 547px', 'max-height: 547px', 'overflow: hidden']) {
+    for (const rule of ['width: 620px', 'max-width: 620px', 'overflow-x: hidden']) {
       expect(popup, `the popup box must pin ${rule}`).toContain(rule);
     }
-    // Scoped by viewport height so the full-window page, where growing to fit is the point, is not
-    // caught by it.
     expect(popup, 'must not apply to the full-window page').toContain('max-height: 699px');
 
-    // And something has to absorb a view that outgrows the box, or it would simply be cut off.
-    expect(appSrc, 'the content area must scroll inside the fixed box').toContain('min-h-0 flex-1 overflow-y-auto');
+    // Locking the HEIGHT as well is not here, and the reason is worth keeping: it made views
+    // taller than the box unreachable, because in a flex column every child shrinks unless told
+    // not to and the nav was not. That is the real defect and it is fixed below; a fixed height on
+    // top of it is a separate decision that has to be re-argued, not smuggled back in.
+    expect(navSrc, 'the nav must not be squeezed by a tall view').toContain('shrink-0');
+    expect(appSrc, 'the content area is what absorbs a tall view').toContain('min-h-0 flex-1 overflow-y-auto');
   });
 
   it('the meter does not hold a message loop open on its own', () => {

@@ -31,7 +31,7 @@ function BottomNavImpl({ view, onView }: { view: ViewId; onView: (v: ViewId) => 
   }, []);
 
   return (
-    <nav ref={ref} className="relative flex border-t border-white/10 backdrop-blur-md" style={{ background: 'rgba(255,255,255,.04)' }}>
+    <nav ref={ref} className="relative flex shrink-0 border-t border-white/10 backdrop-blur-md" style={{ background: 'rgba(255,255,255,.04)' }}>
       <span
         aria-hidden
         className={

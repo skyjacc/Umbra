@@ -103,10 +103,7 @@ html {
     width: 620px;
     min-width: 620px;
     max-width: 620px;
-    height: 547px;
-    min-height: 547px;
-    max-height: 547px;
-    overflow: hidden;
+    overflow-x: hidden;
   }
 }
 body {
