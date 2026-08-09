@@ -11,6 +11,7 @@ import {
 } from './audio';
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
 import { parsePatterns, newRuleId, type Rule } from './rules';
+import { quantizeRules } from './quantize';
 
 export const BUILD = '2.4.1';
 export const PRESET_PREFIX = 'PRESETS.';
@@ -297,7 +298,10 @@ export async function writeRules(rules: Rule[]): Promise<boolean> {
 export async function writeRulesResult(rules: Rule[]): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {
-    await chrome.storage.sync.set({ [RULES_KEY]: rules });
+    // Round the curves here and only here. sync allows 8192 bytes for this one item and a fully
+    // dragged rule is 702 of them unrounded, so the array stops fitting at eleven saved sites.
+    // See quantize.ts for why the write is the only place this is allowed to happen.
+    await chrome.storage.sync.set({ [RULES_KEY]: quantizeRules(rules) });
     return { ok: true };
   } catch (e) {
     return persistFailed(e); // typically the sync write quota

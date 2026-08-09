@@ -5,6 +5,7 @@ import { matchRule, newRuleId, patternForHost, type Rule } from '@/lib/rules';
 import { captureUIState, showsGraph, type CaptureSkipReason } from '@/lib/capture-state';
 import { commitDecision, COMMIT_DEBOUNCE_MS } from '@/lib/commit-policy';
 import { makeJournal, planReplay, ruleFingerprint, type RuleFingerprint } from '@/lib/journal';
+import { quantizeRules } from '@/lib/quantize';
 import { planResetProfile, makeResetSnapshot, resetControls, type ResetSnapshot } from '@/lib/reset';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
@@ -115,6 +116,24 @@ export function useEngine() {
   rulesRef.current = rules;
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  /**
+   * The ONLY way to put a rules array into the mirror. Quantizes on the way in, so what the popup
+   * holds is byte-for-byte what storage holds — see quantize.ts.
+   *
+   * Why it is a chokepoint and not a call at each site: the divergence it prevents is silent.
+   * The crash-recovery journal identifies its target by comparing the whole curve, so a mirror
+   * holding the exact curve while storage holds the rounded one makes the next boot conclude the
+   * rule changed underneath it and DISCARD the recovered edit — in exactly the crash the journal
+   * exists for. quantize.test.ts proves those two fingerprints really do differ.
+   *
+   * Returns the stored array so callers write the same one they mirrored.
+   */
+  const setRulesMirror = useCallback((next: Rule[]): Rule[] => {
+    const stored = quantizeRules(next);
+    rulesRef.current = stored;
+    setRules(stored);
+    return stored;
+  }, []);
   const interacting = useRef(false); // true mid-drag — don't let a broadcast clobber the curve
   // "There is an edit storage does not have yet." NOT the same as "a debounce timer is armed":
   // the timer is only set when a gesture SETTLES, so mid-drag there is unsaved state and no timer.
@@ -306,7 +325,7 @@ export function useEngine() {
       applyEverywhere(list);
       maybeAutoCapture(list);
     },
-    [maybeAutoCapture, applyEverywhere]
+    [maybeAutoCapture, applyEverywhere, setRulesMirror]
   );
 
   // Boot: paint presets + domain preview, learn the active tab, wake the engine.
@@ -324,22 +343,19 @@ export function useEngine() {
         if (!mounted) return;
         presetsRef.current = init.presets;
         setPresets(init.presets);
-        rulesRef.current = rs;
-        setRules(rs);
+        const rules0 = setRulesMirror(rs);
         globalRef.current = g;
 
         // The whole recovery decision lives in planReplay so it is testable; this is just the
         // executor. Note the order: write canonically FIRST, clear the journal only on success.
-        const plan = planReplay({ journal, canonicalUpdatedAt: g?.updatedAt ?? null, rules: rs });
+        const plan = planReplay({ journal, canonicalUpdatedAt: g?.updatedAt ?? null, rules: rules0 });
         if (plan.action === 'apply-global') {
           globalRef.current = { bands: io.presetToBands(plan.bands), gain: plan.gain };
           const res = await io.writeDefaultEq(globalRef.current.bands, plan.gain);
           if (res.ok) await io.clearJournal();
           else showNoticeRef.current(t('note.rulesSaveFailed'));
         } else if (plan.action === 'apply-rule') {
-          rulesRef.current = plan.rules;
-          setRules(plan.rules);
-          const res = await io.writeRulesResult(plan.rules);
+          const res = await io.writeRulesResult(setRulesMirror(plan.rules));
           if (res.ok) await io.clearJournal();
           else showNoticeRef.current(t('note.rulesSaveFailed'));
         } else if (plan.action === 'discard') {
@@ -484,11 +500,13 @@ export function useEngine() {
       if (mr) {
         // Write the applied preset's name (or '' for a hand-tweak) so a ruled site's label reflects
         // the curve that actually plays, instead of a stale earlier preset name.
-        const next = rulesRef.current.map((r) =>
-          r.id === mr.id ? { ...r, mode: 'curve' as const, curve: io.bandsToPreset(bands), gain, preset: presetName } : r
-        );
-        rulesRef.current = next; // so applyEverywhere resolves with the new rule immediately
-        setRules(next);
+        // The editing buffer is untouched — `bands` stays exact, so the next drag starts from the
+        // curve the user shaped, not from a rounded copy of it.
+        const next = setRulesMirror(
+          rulesRef.current.map((r) =>
+            r.id === mr.id ? { ...r, mode: 'curve' as const, curve: io.bandsToPreset(bands), gain, preset: presetName } : r
+          )
+        ); // mirrored before the write so applyEverywhere resolves with the new rule immediately
         // A ruled site writes to storage.sync, which caps writes per minute AND per hour. Dropping
         // this result made a refused write invisible: the UI kept showing the new sound as saved.
         io.writeRulesResult(next).then((res) => {
@@ -510,7 +528,7 @@ export function useEngine() {
       }
       applyEverywhere(tabsRef.current);
     },
-    [applyEverywhere]
+    [applyEverywhere, setRulesMirror]
   );
 
   // Coalesce the VISUAL band update to one per frame — setBands isn't throttled like the engine
@@ -774,9 +792,7 @@ export function useEngine() {
     resetSnapshot.current = makeResetSnapshot(rulesRef.current, globalRef.current);
     const plan = planResetProfile(activeHostRef.current, rulesRef.current);
     if (plan.action === 'delete-rule') {
-      rulesRef.current = plan.rules;
-      setRules(plan.rules);
-      void io.writeRules(plan.rules);
+      void io.writeRules(setRulesMirror(plan.rules));
     } else {
       const flat = io.flatBands();
       globalRef.current = { bands: flat, gain: 1 };
@@ -787,7 +803,7 @@ export function useEngine() {
     mirrorResolved();
     setCanUndoReset(true);
     showNoticeRef.current(t('note.profileReset'));
-  }, [applyEverywhere, mirrorResolved, captureBaseline]);
+  }, [applyEverywhere, mirrorResolved, captureBaseline, setRulesMirror]);
 
   // Put back exactly what resetProfile overwrote. The snapshot is deep, so it survived the reset
   // replacing those very arrays.
@@ -796,14 +812,12 @@ export function useEngine() {
     if (!snap) return;
     resetSnapshot.current = null;
     setCanUndoReset(false);
-    rulesRef.current = snap.rules;
-    setRules(snap.rules);
-    void io.writeRules(snap.rules);
+    void io.writeRules(setRulesMirror(snap.rules));
     globalRef.current = snap.global;
     if (snap.global) void io.writeDefaultEq(snap.global.bands, snap.global.gain);
     applyEverywhere(tabsRef.current);
     mirrorResolved();
-  }, [applyEverywhere, mirrorResolved]);
+  }, [applyEverywhere, mirrorResolved, setRulesMirror]);
 
   // Turn the sound you are hearing into a rule for this site.
   //
@@ -856,8 +870,7 @@ export function useEngine() {
         return;
       }
 
-      rulesRef.current = plan.rules;
-      setRules(plan.rules);
+      setRulesMirror(plan.rules); // applySavePlan already stored it; keep the mirror in step
       if (plan.globalRollback) globalRef.current = plan.globalRollback.to;
       previewRef.current = NO_PREVIEW;
       setPreviewOn(false);
@@ -873,7 +886,7 @@ export function useEngine() {
           : t(plan.created ? 'note.savedForSite' : 'note.ruleUpdated', { host: activeHostRef.current })
       );
     },
-    [applyEverywhere, mirrorResolved]
+    [applyEverywhere, mirrorResolved, setRulesMirror]
   );
 
   const saveForThisSite = useCallback(
@@ -883,15 +896,14 @@ export function useEngine() {
 
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
-    (next: Rule[]) => {
-      rulesRef.current = next;
-      setRules(next);
+    (incoming: Rule[]) => {
+      const next = setRulesMirror(incoming);
       io.writeRules(next).then((ok) => {
         if (!ok) showNotice(t('note.rulesSaveFailed'));
       });
       applyEverywhere(tabsRef.current); // a rule change takes effect live on all captured tabs
     },
-    [showNotice, applyEverywhere]
+    [showNotice, applyEverywhere, setRulesMirror]
   );
 
   const addRule = useCallback((rule: Rule) => persistRules([...rulesRef.current, rule]), [persistRules]);

@@ -28,6 +28,15 @@ All notable changes to Umbra EQ are documented here. The format follows
 
 ### Fixed
 
+- **Site rules stopped saving once you had about a dozen of them.** All rules share a single
+  synced storage slot with a hard 8 KB limit, and a hand-shaped curve was stored at full floating
+  point precision — around 700 bytes each, so the eleventh site could push the whole set over the
+  edge and every save after that failed. Curves are now rounded when they are written, to a grid
+  finer than the equalizer can display: 0.1 dB, 0.1 Hz, and Q to three decimals. Same sound, less
+  than half the space, roughly twice as many sites. Existing rules are untouched until you next
+  save, and get the space back automatically at that point.
+
+
 - **An EQ change made just before the popup closes is no longer lost.** Adjusting the sound and then
   immediately reloading the page or closing the popup could leave the tab playing the new sound
   while it was never actually saved — so it kept playing, seemed saved, and then reverted the next

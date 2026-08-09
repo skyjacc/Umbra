@@ -85,6 +85,40 @@ describe('cross-file invariants', () => {
     }
   });
 
+  it('the sync write quantizes the curve, and the read leaves it alone', () => {
+    // Where rounding is allowed to happen. Storage is the only place: the editing buffer, the
+    // engine and the graph all keep full precision, so a value is rounded once on its way out
+    // rather than a little more on every open-edit-save trip. A behavioural test cannot see the
+    // difference — both spellings store the same bytes on the first save — so assert the shape.
+    const write = engineIoSrc.match(/export async function writeRulesResult[\s\S]*?\n}/)?.[0];
+    expect(write, 'writeRulesResult not found').toBeTruthy();
+    expect(write, 'the RULES write must go through quantizeRules').toContain('quantizeRules(');
+
+    const read = engineIoSrc.match(/export async function readRules[\s\S]*?\n}/)?.[0];
+    expect(read, 'readRules not found').toBeTruthy();
+    // Rules written by an older version keep their exact values until the user next saves them.
+    expect(read, 'reading must not rewrite what is stored').not.toContain('quantize');
+  });
+
+  it('the in-memory rules array is the one that was persisted', () => {
+    // rulesRef is a mirror of storage, not a second source of truth. If the popup keeps the exact
+    // curve in memory while storage holds the rounded one, the two disagree for the rest of the
+    // session — and the crash-recovery journal identifies its target by comparing the whole curve,
+    // so the next boot decides the rule "changed under it" and discards the recovered edit.
+    // quantize.test.ts proves those two fingerprints really do differ; this pins the fix.
+    //
+    // Asserted as a chokepoint rather than per call site: there were five places that assigned the
+    // mirror, each able to diverge on its own, and "remember to quantize here too" is not an
+    // invariant. Exactly two assignments may exist — the render mirror and the setter itself.
+    const assignments = useEngineSrc.match(/rulesRef\.current = /g) ?? [];
+    expect(assignments.length, 'every rules write must go through setRulesMirror').toBe(2);
+
+    const setter = useEngineSrc.match(/const setRulesMirror = useCallback\([\s\S]*?\n  \}, \[\]\);/)?.[0];
+    expect(setter, 'setRulesMirror not found').toBeTruthy();
+    expect(setter, 'the mirror must hold the quantized array').toContain('quantizeRules(');
+    expect(setter, 'and must hand it back so the caller writes the same one').toContain('return stored;');
+  });
+
   it('every i18n key exists in both en and ru', () => {
     const en = localeKeys(i18nSrc, 'en');
     const ru = localeKeys(i18nSrc, 'ru');
