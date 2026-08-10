@@ -160,7 +160,24 @@ describe('cross-file invariants', () => {
       const code = site!.replace(/\/\/.*$/gm, '');
       expect(code, `${name} must not coerce a failure to an empty list`).not.toMatch(/\?\?\s*\[\]|\|\|\s*\[\]/);
       expect(code, `${name} must recognise the failure explicitly`).toContain('=== null');
+      // `=== null` present and the list emptied anyway is a real mutation — it survived a review
+      // round. The write guard stops it costing data, but the user is still shown "No rules yet"
+      // for rules that exist, which is its own half of the promise.
+      expect(code, `${name} must not empty the list on a failure`).not.toMatch(/setRules\(\s*\[\s*\]\s*\)|setRulesMirror\(\s*\[\s*\]\s*\)/);
     }
+
+    // And the boot read hands the NULLABLE result to planReplay. Passing the mirror instead makes
+    // an unreadable rule set indistinguishable from an empty one, and a rule-targeted recovery
+    // journal is then discarded — see journal.ts, and the test there that pins both answers.
+    const replayCall = useEngineSrc.match(/planReplay\(\{[\s\S]*?\}\)/)?.[0];
+    expect(replayCall, 'the planReplay call was not found').toBeTruthy();
+    expect(replayCall, 'planReplay must be told when the rules are unknown').toContain('rules: rs === null ? null :');
+
+    // NOTE. These four are source assertions, and this codebase has learned what they are worth —
+    // ten one-line mutations walked through the last set. They are here because the two call sites
+    // live in a hook with no behavioural harness; the harness is the real answer and is on the 2.6
+    // list. What genuinely prevents the data loss is the engine-io guard above, which IS covered
+    // behaviourally in engine-io.test.ts. Do not mistake this block for that.
   });
 
   it('the in-memory rules array is the one that was persisted', () => {
@@ -507,7 +524,11 @@ describe('cross-file invariants', () => {
     expect(undoCode.indexOf('planUndo('), 'and checked before the restore is attempted').toBeLessThan(undoCode.indexOf('applyUndoReset('));
     // What is restored is the SNAPSHOT — the world before the reset — never the session debt that
     // travels beside it. Passing the wrong half writes undefined rules over the user's own.
-    expect(undoCode, 'the restore must replay the snapshot itself').toContain('applyUndoReset(record.snapshot, restoreWriters)');
+    expect(undoCode, 'the restore must replay the snapshot itself').toContain('applyUndoReset(record.snapshot, restoreWriters,');
+    // The third argument decides whether the rules half is written at all, and it must be COMPUTED
+    // from the world just read — a literal there is either 'always write' (the refusal that blamed
+    // the sync quota) or 'never write' (a deleted rule not coming back).
+    expect(undoCode, 'the skip must be derived, not hardcoded').not.toMatch(/applyUndoReset\(record\.snapshot, restoreWriters, (true|false)\)/);
     // A commit armed before the click would land after the restore and overwrite it.
     expect(undoCode, 'Undo must cancel a pending commit').toContain('clearTimeout(commitTimer.current)');
 

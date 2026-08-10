@@ -99,9 +99,25 @@ export function resetControls(input: { previewSource: 'drag' | 'bypass' | null; 
  * replaces was not in the arithmetic, it was in a caller that disarmed the slot at the top of the
  * function and then fired both writes with their results discarded.
  */
-export async function applyUndoReset(snapshot: ResetSnapshot, w: RestoreWriters): Promise<RestoreOutcome> {
-  const rules = await w.writeRules(snapshot.rules);
-  if (!rules.ok) return 'write-failed';
+export async function applyUndoReset(
+  snapshot: ResetSnapshot,
+  w: RestoreWriters,
+  /**
+   * Does storage already hold the rules this snapshot would restore? The caller knows: it has just
+   * fingerprinted the world to decide the undo was still valid at all.
+   *
+   * A Reset profile on a site with no rule flattens the global and never touches the rules, so
+   * there is nothing to put back — and the write is not free to attempt. engine-io refuses to write
+   * a rules array a document could not read, so on a popup whose rules read failed this turned an
+   * undo that only ever needed the global into 'write-failed', reported as "Rules save failed (sync
+   * storage full?)" — a quota that was not the problem, about rules it was not going to change.
+   */
+  rulesAlreadyMatch: boolean
+): Promise<RestoreOutcome> {
+  if (!rulesAlreadyMatch) {
+    const rules = await w.writeRules(snapshot.rules);
+    if (!rules.ok) return 'write-failed';
+  }
 
   const g = snapshot.global;
   const global = g ? await w.writeGlobal(g.bands, g.gain, g.presetName) : await w.clearGlobal();

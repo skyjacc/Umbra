@@ -212,6 +212,31 @@ describe('planReplay — recovery conflict', () => {
     expect(planReplay({ journal: null, canonicalUpdatedAt: 1, rules: RULES })).toEqual({ action: 'none' });
   });
 
+  it('keeps a rule-targeted journal when the rules could not be read', () => {
+    // THE BUG. `null` means the rules read failed — it is not an empty rule set. With `[]` the
+    // target rule cannot be found, the decision is "aimed at something that is gone", and boot
+    // clears the journal: the one copy of an unsaved edit, deleted at the exact moment it is the
+    // only copy, by the same storage failure the whole read-reporting change exists for.
+    const j = makeJournal({ kind: 'rule', id: 'r1' }, bands(6), 0.5, 2000, ruleFingerprint(rule()));
+    expect(planReplay({ journal: j, canonicalUpdatedAt: 1000, rules: null })).toEqual({ action: 'none' });
+    // and with the same journal and a readable, genuinely empty list it IS discarded — otherwise
+    // this test would pass just as well if `none` were returned for every rule target.
+    expect(planReplay({ journal: j, canonicalUpdatedAt: 1000, rules: [] })).toEqual({ action: 'discard' });
+  });
+
+  it('still recovers a global edit when the rules could not be read', () => {
+    // The global profile lives in a different storage area and is decided by its own timestamp.
+    // An unreadable rule set says nothing about it, so waiting there would strand a recoverable
+    // edit for no reason.
+    const j = makeJournal(GLOBAL, bands(6), 0.5, 2000, null);
+    expect(planReplay({ journal: j, canonicalUpdatedAt: 1000, rules: null })).toMatchObject({ action: 'apply-global' });
+  });
+
+  it('discards an unusable journal even with the rules unread', () => {
+    // Garbage is garbage whatever the rules are doing, and it names no target to wait for.
+    expect(planReplay({ journal: { v: 999 }, canonicalUpdatedAt: 1, rules: null })).toEqual({ action: 'discard' });
+  });
+
   it('recovers a global edit into the profile', () => {
     const j = makeJournal(GLOBAL, bands(6), 0.5, 2000, null);
     const plan = planReplay({ journal: j, canonicalUpdatedAt: 1000, rules: RULES });

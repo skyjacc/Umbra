@@ -202,6 +202,40 @@ describe('writing the rules — refused until a read has succeeded', () => {
     expect(store[RULES_KEY]).toHaveLength(2);
   });
 
+  it('THE STALE LIST: a read that fails AFTER a good one closes the door again', async () => {
+    // The second version of the same bug, found in review. A first draft latched the flag on and
+    // never cleared it, which is only half the question. Two windows of this extension:
+    //
+    //   1. this popup reads [A]                          — the list matches storage
+    //   2. the other window adds C; storage is [A, C]     — ours is now stale
+    //   3. our refresh read fails                         — we do not learn about C
+    //   4. the user toggles A                             — we write [A'] and C is gone
+    //
+    // The list being preserved at step 3 is right and not enough: preserved is not current. A
+    // whole-array replace may only be built on a list known to reflect what is there.
+    let broken = false;
+    const store: Record<string, unknown> = { [RULES_KEY]: [RULE] };
+    install(
+      {
+        get: async () => {
+          if (broken) throw new Error('storage unavailable');
+          return { ...store };
+        },
+        set: async (patch: Record<string, unknown>) => void Object.assign(store, patch)
+      } as any,
+      area({})
+    );
+    const io = await fresh();
+
+    expect(await io.readRules()).toEqual([RULE]); // step 1
+    store[RULES_KEY] = [RULE as any, NEW_RULE]; // step 2, by the other window
+    broken = true;
+    expect(await io.readRules()).toBeNull(); // step 3
+
+    expect((await io.writeRulesResult([RULE as any])).ok, 'the write must be refused, not merely stale').toBe(false); // step 4
+    expect(store[RULES_KEY], 'the rule this document never saw is still there').toEqual([RULE, NEW_RULE]);
+  });
+
   it('writeRules, the boolean spelling, refuses on the same terms', async () => {
     const sync = rw({ [RULES_KEY]: [RULE] });
     install(sync.area as any, area({}));

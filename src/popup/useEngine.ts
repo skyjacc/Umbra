@@ -485,12 +485,16 @@ export function useEngine() {
         // until a read has succeeded. Without that, a failed boot read plus one new rule deletes
         // every rule the popup never saw.
         const rules0 = rs === null ? rulesRef.current : setRulesMirror(rs);
-        if (rs === null) showNoticeRef.current(t('note.rulesUnread'));
+        // Not in the dev preview, where there is no chrome.storage to fail: readRules answers null
+        // there too, and a data-integrity warning on every open would simply be untrue.
+        if (rs === null && io.hasChrome()) showNoticeRef.current(t('note.rulesUnreadBoot'));
         globalRef.current = g;
 
         // The whole recovery decision lives in planReplay so it is testable; this is just the
         // executor. Note the order: write canonically FIRST, clear the journal only on success.
-        const plan = planReplay({ journal, canonicalUpdatedAt: g?.updatedAt ?? null, rules: rules0 });
+        // rs, not rules0: planReplay has to be able to tell "no rules" from "could not read", or a
+        // rule-targeted journal is discarded on the very failure it exists to survive.
+        const plan = planReplay({ journal, canonicalUpdatedAt: g?.updatedAt ?? null, rules: rs === null ? null : rules0 });
         if (plan.action === 'apply-global') {
           // Keep the provenance the stored profile already had: EditJournal records the curve,
           // not which preset it came from, so replaying an edit must not blank the name — a
@@ -580,7 +584,7 @@ export function useEngine() {
           // NOT `rs ?? []`. That spelling is the bug this replaced: a rejected read emptied the
           // list, the user saw "no rules", and the next save wrote the empty array over a rule
           // that was still in storage. A read that failed leaves the list we already have.
-          if (rs === null) showNotice(t('note.rulesUnread'));
+          if (rs === null) showNotice(t('note.rulesUnreadStale'));
           else setRules(rs);
         });
       if (want.global) {
@@ -1130,11 +1134,11 @@ export function useEngine() {
       // rulesRef — so a click landing inside that window would fingerprint the pre-change world,
       // match, and restore over the other window's write.
       //
-      // And "I don't know" is not "the world is empty". readRules answers [] for both a missing
-      // key and a failed read, and a reset performed on an install with no rules produces exactly
-      // the fingerprint of [] — so a swallowed failure would reproduce it, the comparison would
-      // say "unchanged", and the undo would write an empty rules array over a rule that had
-      // arrived since. readWorld reports the failure so this can refuse instead of guessing.
+      // And "I don't know" is not "the world is empty". A reset performed on an install with no
+      // rules produces exactly the fingerprint of [], so a reader that swallowed its failure would
+      // reproduce it, the comparison would say "unchanged", and the undo would write an empty
+      // rules array over a rule that had arrived since. readWorld reports the failure instead, so
+      // this refuses rather than guesses — it does not lean on readRules for the answer.
       const world = await io.readWorld();
       if (!world) {
         showNoticeRef.current(t('note.undoUnavailable'));
@@ -1167,7 +1171,11 @@ export function useEngine() {
       // reports 'write-failed' if the global write then fails, and the version this replaces ran
       // its mirror update synchronously regardless — so a partial failure left the user looking at
       // and hearing a full restore that storage did not have.
-      const outcome = await applyUndoReset(record.snapshot, restoreWriters);
+      // Only the halves that actually differ get written. See applyUndoReset for why attempting
+      // the rules write unconditionally was not free.
+      const rulesHere = fingerprintWorld(quantizeRules(world.rules), null).rules;
+      const rulesThen = fingerprintWorld(record.snapshot.rules, null).rules;
+      const outcome = await applyUndoReset(record.snapshot, restoreWriters, rulesHere === rulesThen);
       if (outcome !== 'restored') {
         showNoticeRef.current(t('note.rulesSaveFailed'));
         return; // slot stays armed: this snapshot is still the only copy

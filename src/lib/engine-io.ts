@@ -331,15 +331,21 @@ export async function deletePreset(name: string) {
 }
 
 /**
- * Has THIS document ever read the rules successfully?
+ * Is the list this document holds known to have come from storage?
  *
- * A write replaces the whole RULES array, so one assembled from a list we never managed to read
- * would delete every rule we failed to see. That is not hypothetical. During the 2.5 smoke a
- * single rejected `sync.get` emptied the list, the popup showed "no rules", the next save
- * persisted the empty array, and a rule was gone — silently, with no error anywhere on the way.
+ * A write replaces the whole RULES array, so one assembled from a list we could not read would
+ * delete every rule we failed to see. That is not hypothetical. During the 2.5 smoke a single
+ * rejected `sync.get` emptied the list, the popup showed "no rules", the next save persisted the
+ * empty array, and a rule was gone — silently, with no error anywhere on the way.
  *
- * Per document, which is the right scope: each one boots by reading, and one that could not read
- * has nothing to say about what is stored.
+ * It is deliberately NOT a latch. A first draft set it once and never cleared it, which left a
+ * second, quieter version of the same bug: boot reads fine, another window adds a rule, our
+ * refresh read then fails, and the list we still hold is no longer what is stored — but the flag
+ * says it is, so the next save writes our stale array over the rule we never saw. Cleared on every
+ * failure, this answers the only question a whole-array replace may be built on: does what I have
+ * reflect what is there?
+ *
+ * Per document, which is the right scope: each one reads for itself.
  */
 let rulesRead = false;
 
@@ -351,12 +357,16 @@ let rulesRead = false;
  * exists for the same reason on the other side of this module.
  */
 export async function readRules(): Promise<Rule[] | null> {
-  if (!hasChrome() || !chrome.storage) return null;
+  if (!hasChrome() || !chrome.storage) {
+    rulesRead = false;
+    return null;
+  }
   try {
     const r: any = await chrome.storage.sync.get(RULES_KEY);
     rulesRead = true;
     return Array.isArray(r[RULES_KEY]) ? r[RULES_KEY] : [];
   } catch {
+    rulesRead = false; // what we hold is no longer known to match storage
     return null;
   }
 }

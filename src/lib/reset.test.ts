@@ -194,20 +194,20 @@ describe('spending the undo only once the restore is stored', () => {
 
   it('puts the rules back first, then the profile, and reports success', async () => {
     const { w, calls } = spy();
-    expect(await applyUndoReset(snapOf(), w)).toBe('restored');
+    expect(await applyUndoReset(snapOf(), w, false)).toBe('restored');
     expect(calls).toEqual(['writeRules', 'writeGlobal']);
   });
 
   it('restores the profile WITH its provenance', async () => {
     const seen: unknown[] = [];
     const { w } = spy({ writeGlobal: async (...a) => (seen.push(a), { ok: true }) });
-    await applyUndoReset(snapOf(), w);
+    await applyUndoReset(snapOf(), w, false);
     expect(seen).toEqual([[BANDS, 1, 'Vocal']]);
   });
 
   it('removes the profile when the snapshot says there was none', async () => {
     const { w, calls } = spy();
-    await applyUndoReset(snapOf({ global: null }), w);
+    await applyUndoReset(snapOf({ global: null }), w, false);
     expect(calls).toEqual(['writeRules', 'clearGlobal']);
   });
 
@@ -215,12 +215,38 @@ describe('spending the undo only once the restore is stored', () => {
     // The worst case in the audit: the snapshot is the ONLY copy of a rule Reset profile deleted.
     // The caller must keep it and keep the undo armed, so the user can try again.
     const { w, calls } = spy({ writeRules: async () => (calls.push('writeRules'), { ok: false }) });
-    expect(await applyUndoReset(snapOf(), w)).toBe('write-failed');
+    expect(await applyUndoReset(snapOf(), w, false)).toBe('write-failed');
     expect(calls).toEqual(['writeRules']); // and it does not go on to touch the profile
   });
 
   it('reports failure when only the profile write is refused', async () => {
     const { w } = spy({ writeGlobal: async () => ({ ok: false }) });
-    expect(await applyUndoReset(snapOf(), w)).toBe('write-failed');
+    expect(await applyUndoReset(snapOf(), w, false)).toBe('write-failed');
+  });
+
+  it('does not write the rules at all when storage already holds them', async () => {
+    // Reset profile on a site with no rule flattens the global and leaves the rules alone, so an
+    // undo of it has nothing to put back. Writing them anyway is not merely wasteful: engine-io
+    // refuses to write a rules array a document could not read, so this turned a global-only undo
+    // into 'write-failed' and blamed the sync quota.
+    const { w, calls } = spy();
+    expect(await applyUndoReset(snapOf(), w, true)).toBe('restored');
+    expect(calls).toEqual(['writeGlobal']);
+  });
+
+  it('still restores the profile when the rules write is skipped and the rules writer would refuse', async () => {
+    const { w } = spy({ writeRules: async () => ({ ok: false }) });
+    expect(await applyUndoReset(snapOf(), w, true)).toBe('restored');
+  });
+
+  it('skipping is decided by the caller, not guessed from the snapshot', async () => {
+    // Same snapshot, opposite answers — so a caller that stops computing the comparison cannot
+    // silently fall back to "always skip", which would drop a rule Reset profile had deleted.
+    const a = spy();
+    await applyUndoReset(snapOf(), a.w, false);
+    const b = spy();
+    await applyUndoReset(snapOf(), b.w, true);
+    expect(a.calls).toEqual(['writeRules', 'writeGlobal']);
+    expect(b.calls).toEqual(['writeGlobal']);
   });
 });

@@ -161,10 +161,22 @@ export type ReplayPlan =
   /** `rules` is the full array to persist, with the recovered rule already merged in. */
   | { action: 'apply-rule'; ruleId: string; rules: Rule[] };
 
-export function planReplay(input: { journal: unknown; canonicalUpdatedAt: number | null; rules: Rule[] }): ReplayPlan {
+/**
+ * `rules` is `null` when the rules could not be read at all — see engine-io's readRules.
+ *
+ * That is not the same as having none, and the difference decides whether a rule-targeted journal
+ * lives or dies. With the list unknown, the target rule cannot be found, `replayDecision` concludes
+ * "aimed at something that is gone", and the caller clears the journal — deleting the only copy of
+ * an unsaved edit at the exact moment it is the only copy, which is the thing the journal exists to
+ * prevent. So an unreadable rule set means "decide later", not "discard": the record stays on disk
+ * for a boot that can read, and nothing is lost by waiting.
+ */
+export function planReplay(input: { journal: unknown; canonicalUpdatedAt: number | null; rules: Rule[] | null }): ReplayPlan {
   const { journal, canonicalUpdatedAt, rules } = input;
   const target = (journal as any)?.target;
-  const currentRule = target?.kind === 'rule' ? rules.find((r) => r.id === target.id) || null : null;
+  if (rules === null && target?.kind === 'rule') return { action: 'none' };
+  const known = rules ?? [];
+  const currentRule = target?.kind === 'rule' ? known.find((r) => r.id === target.id) || null : null;
 
   const decision = replayDecision({ journal, canonicalUpdatedAt, currentRule });
   if (decision === 'none') return { action: 'none' };
@@ -177,6 +189,6 @@ export function planReplay(input: { journal: unknown; canonicalUpdatedAt: number
   return {
     action: 'apply-rule',
     ruleId,
-    rules: rules.map((r) => (r.id === ruleId ? { ...r, mode: 'curve' as const, curve: cloneBands(j.bands), gain: j.gain } : r))
+    rules: known.map((r) => (r.id === ruleId ? { ...r, mode: 'curve' as const, curve: cloneBands(j.bands), gain: j.gain } : r))
   };
 }
