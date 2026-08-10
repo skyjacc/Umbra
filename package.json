@@ -1,7 +1,7 @@
 {
   "name": "umbra-eq",
   "private": true,
-  "version": "2.4.1",
+  "version": "2.5.0",
   "type": "module",
   "description": "Umbra EQ — 11-band parametric equalizer & bass boost (MV3 extension, React build)",
   "scripts": {
@@ -22,11 +22,14 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/chrome": "^0.0.287",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.5.2",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.16",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",

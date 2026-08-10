@@ -1,5 +1,6 @@
-// Pure audio/graph math — ported verbatim from the vanilla popup.js so the React
-// graph reuses the exact, test-covered logic (no behavior change). No DOM here.
+// Pure audio/graph math. Carried over verbatim from the pre-React popup so the graph reuses the
+// exact, test-covered logic rather than a rewrite of it — that is why the shapes here are what
+// they are. No DOM, no chrome.*, no React.
 
 export const EQ_W = 524;
 export const EQ_H = 252;

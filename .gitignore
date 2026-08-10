@@ -8,7 +8,8 @@ node_modules/
 scratchpad/
 
 # Private/local notes — do not publish in repo or store package.
-# (HANDOFF.md is deliberately NOT here: it is the developer handoff doc and ships with the repo.)
+# HANDOFF.md, STORE_LISTING.md and docs/AUDIT.md used to live here and now live in the private
+# umbra-internal repository — they describe internal development, not the shipped product.
 MONETIZATION.md
 Chat.md
 ENGINE_STUDY.md

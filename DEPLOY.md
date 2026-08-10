@@ -4,6 +4,19 @@ The popup is a React + TypeScript app (Vite + CRXJS); the audio engine is vanill
 (service worker + offscreen Web Audio). The loadable/uploadable extension is the
 **`dist/`** folder produced by `npm run build`.
 
+## Before anything else — take the debug recorder out
+
+Added for the 2.5 smoke run and never meant to ship. It is off unless started and nothing leaves
+the machine on its own, but a published extension should not carry a recorder nobody asked for.
+
+- [ ] Delete `src/lib/debug-log.ts` and `src/lib/debug-log.test.ts`
+- [ ] Remove the `dbg(...)` calls from `src/lib/engine-io.ts` and the `dbgState(...)` calls from
+      `src/popup/useEngine.ts`
+- [ ] Remove the recorder from `src/popup/App.tsx`: the `window.umbra` console API, the `dbgRec`
+      state, the instrumentation effects and the `UMBRA_DEBUG` session-storage handling
+- [ ] Remove this section and the invariant test that points at it
+- [ ] `git grep -n "dbg\\|debug-log"` comes back empty, then rebuild
+
 ## Version bump (do this first — all in lock-step)
 
 The version string lives in **six** places and they MUST match. The popup compares its
@@ -20,9 +33,8 @@ reload extension"** and stops working. Bump all of them together:
 Chrome Web Store rejects an upload whose version isn't **higher** than the last one.
 Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`.0`).
 
-- [ ] Update the Obsidian vault (`C:\Users\oblako\Documents\Umbra`): the version in
-      `Umbra EQ.md`, plus `Fixes & Findings.md` / affected notes (see the vault's
-      `Maintenance.md`). Mirror the fix log in `docs/AUDIT.md`.
+- [ ] Update the maintainer's own notes, if you keep any. Nothing in this repository
+      depends on them.
 - [ ] Refresh `PROJECT.md` — the **Version:** line in the header block and the release
       tag `vX.Y.Z` in the **Status** bullet (hand-maintained; outside the six, NOT
       covered by `src/lib/invariants.test.ts`).
@@ -45,14 +57,14 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
   - [ ] Stop a tab, reopen the popup → it stays un-EQ'd.
   - [ ] Presets save/apply/delete, Export/Import file, Copy code / Paste code.
   - [ ] Spectrum toggle, Guide overlay, EN/RU switch, theme + custom color.
-- [ ] Version bumped in all six places (see **Version bump** above; now `2.3.0`).
+- [ ] Version bumped in all six places (see **Version bump** above; now `2.5.0`).
 - [ ] `DEBUG` is `false` in `src/background.js` and `public/offscreen.js` (default).
 - [ ] Toolbar icons are the Umbra crescent (`public/icon{16,32,48,128}.png`) — done.
 - [ ] Privacy policy is reachable at a public URL for the store forms — the repo file
       `https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md` works (or GitHub Pages).
 - [ ] Contact is the GitHub Issues link (already in `PRIVACY.md`).
 - [ ] Verify "Umbra EQ" is free / untrademarked on each store.
-- [ ] Screenshots at 1280×800 (or 640×400), 1–5 images (see `store-assets/`).
+- [ ] Screenshots at 1280×800 (or 640×400), 1–5 images. Not in the repo — produce them at release time.
 
 ## Package
 
@@ -73,9 +85,9 @@ The same zip is accepted by Chrome, Edge, and Opera.
 ## Chrome Web Store dashboard
 
 - [ ] Create item → upload the zip.
-- [ ] Paste name, summary, description, category from `STORE_LISTING.md`.
+- [ ] Paste name, summary, description and category from the maintainer's store copy.
 - [ ] Upload screenshots and the 128×128 store icon (`icon128.png`).
-- [ ] Paste per-permission justifications from `STORE_LISTING.md`
+- [ ] Paste the per-permission justifications from the same place
       (activeTab / tabCapture / storage / offscreen).
 - [ ] Set the privacy-policy URL.
 - [ ] Data-use disclosures: no collection, no sale, no transfer, no remote

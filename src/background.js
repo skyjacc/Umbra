@@ -1,7 +1,7 @@
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
-const BUILD = '2.4.1'; // keep in sync with offscreen.js / src/lib/engine-io.ts (guarded by invariants.test.ts)
+const BUILD = '2.5.0'; // keep in sync with offscreen.js / src/lib/engine-io.ts (guarded by invariants.test.ts)
 
 // --- Logging: ring buffer + console, for one-click diagnostics export. ---
 const DEBUG = false; // flip to true only for local diagnostics
@@ -130,16 +130,25 @@ function isCapturableUrl(url) {
   );
 }
 
+// Tell the popup WHY no capture happened. Both early returns below used to write only to the
+// debug log, so the popup rendered a dead, unexplained equalizer. Broadcast (not sendResponse):
+// the toggleCapture route is fire-and-forget and has no response channel.
+function reportSkip(reason) {
+  chrome.runtime.sendMessage({ type: 'captureSkipped', reason }).catch(() => {});
+}
+
 async function startCaptureOnActiveTab(auto) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   dlog('startCapture: tab', tab && tab.id, 'url', tab && tab.url, auto ? '(auto)' : '(manual)');
   if (!tab || !isCapturableUrl(tab.url)) {
     dlog('tab not capturable, aborting');
+    reportSkip('uncapturable');
     return;
   }
   await stoppedReady; // a cold service worker must hydrate the Stopped set before deciding
   if (auto && stoppedTabs.has(tab.id)) {
     dlog('auto-capture skipped — user stopped this tab', tab.id);
+    reportSkip('stopped');
     return;
   }
   if (stoppedTabs.delete(tab.id)) persistStopped(); // manual EQ (or a fresh auto) re-arms it
@@ -191,9 +200,43 @@ async function stopCaptureOnActiveTab() {
   await stoppedReady; // hydrate first, or persistStopped() would truncate the saved Set to just this id
   stoppedTabs.add(tab.id); // remember: don't auto-re-capture until the user manually EQs again
   persistStopped();
+  // Say so, or the popup sees "no capture, no reason" and reports the generic idle state right
+  // after the user pressed Stop.
+  reportSkip('stopped');
   if (!(await hasOffscreenDocument())) return;
   chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id }).catch(() => {});
 }
+
+// Is the active tab currently in the engine's capture list? Asked rather than tracked: the
+// offscreen document owns that truth, and a service worker can be evicted between two questions.
+async function isActiveTabCaptured() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !(await hasOffscreenDocument())) return false;
+  try {
+    const status = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'getStatus' });
+    return !!(status && (status.tabs || []).some((t) => t.id === tab.id));
+  } catch (e) {
+    return false; // engine asleep or not answering — treat as "not capturing" and try to start
+  }
+}
+
+// Keyboard shortcut (chrome://extensions/shortcuts — unbound by default, see manifest.config.ts).
+//
+// It exists for one situation the popup cannot serve: while a tab is captured Chrome downgrades
+// fullscreen to fullscreen-within-tab, and the only order that keeps real fullscreen is fullscreen
+// FIRST, then capture. In macOS fullscreen the toolbar is hidden, so the popup is unreachable
+// exactly then. Invoking a command is a user gesture, so activeTab is granted and
+// tabCapture.getMediaStreamId stays legal from here — no additional permission.
+//
+// Passing auto=false matters: a manual request must also re-arm a tab the user previously Stopped,
+// same as pressing the button in the popup.
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'toggle-eq') return;
+  (async () => {
+    if (await isActiveTabCaptured()) await stopCaptureOnActiveTab();
+    else await startCaptureOnActiveTab(false);
+  })().catch((e) => dlog('toggle-eq failed:', e && e.message));
+});
 
 // A navigation is a fresh page — forget the stopped flag so auto-capture works there again. Gated
 // on stoppedReady so a delete can't run against the un-hydrated Set and be resurrected by hydration.

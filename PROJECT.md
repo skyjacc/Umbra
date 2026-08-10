@@ -5,11 +5,11 @@ stands**. For narrower docs see the [Documentation index](#15-documentation-inde
 
 - **Name:** Umbra EQ — Equalizer & Bass Boost
 - **Type:** Browser extension, Manifest V3 (Chromium: Chrome, Edge, Opera)
-- **Version:** 2.3.0 (see `CHANGELOG.md`; the version lives in six lock-step places — §11)
+- **Version:** 2.5.0 (see `CHANGELOG.md`; the version lives in six lock-step places — §11)
 - **License:** MIT (author: skyjacc) — see `LICENSE`
 - **Status:** feature-complete, security-audited, and **live on the Chrome Web Store**
-  (item `plkncppcgglcjdkmcdeajhbfccbnnoee`, version 2.3.0; public repo `skyjacc/Umbra`,
-  GitHub Release + tag `v2.3.0`). Firefox is a planned separate port
+  (item `plkncppcgglcjdkmcdeajhbfccbnnoee`, version 2.5.0; public repo `skyjacc/Umbra`,
+  GitHub Release + tag `v2.5.0`). Firefox is a planned separate port
   (see §13, `FIREFOX_PORT.md`).
 
 > **Stack:** the popup is a **React + TypeScript** app (Vite + CRXJS, Tailwind +
@@ -96,6 +96,15 @@ profile + rules, resolves each captured tab (`resolvedFor`: **rule → global pr
 flat**), and pushes the bands via `applySettings`. Do NOT reintroduce rule/preset
 resolution into the engine — it would silently no-op (no storage). See the invariants in
 `CLAUDE.md`.
+
+**State rule — every applied sound must have a path to storage.** Anything pushed to the audio
+engine is either already persisted or has a *guaranteed* commit path. Live audio and persistence are
+deliberately two paths (the engine is fed ~30×/s during a drag; storage is written once, debounced,
+to protect the `storage.sync` quota) — but the second path must never be simply cancelled. If it is,
+the tab keeps playing a curve that storage does not have: the user hears their edit, believes it
+saved, and the next popup open resolves from storage and silently reverts it. The popup dies on any
+focus loss, so the debounce is flushed on `pagehide` / visibility-hidden / unmount rather than
+dropped. Any future writer of sound state (reset, per-site save, A/B) must satisfy the same rule.
 
 **Binding model:** capture is authorized by the user opening the popup (Chrome forbids
 zero-interaction tab capture). Opening the popup auto-EQs the active tab (skipping tabs
@@ -233,7 +242,7 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-
 ## 12. Tests & CI
 
 - **`npm test`** (Vitest) — pure-logic suites in `src/lib`: `logic.test.ts`,
-  `rules.test.ts`, `share.test.ts`, `invariants.test.ts` (**66 tests**). **`npm run typecheck`** (`tsc
+  `rules.test.ts`, `share.test.ts`, `invariants.test.ts`, plus the one DOM suite `band-editing.test.tsx` (**419 tests in 24 files**). **`npm run typecheck`** (`tsc
   --noEmit`) must pass.
 - **CI** (`.github/workflows/build.yml`, Windows runner) runs typecheck + test + build +
   package on push/PR to `main` and on `v*` tags; on a tag it verifies `manifest.version
@@ -247,12 +256,24 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1   # → release/umbra-eq-
 model-v2 popup resolution (global profile + rules), built-in + user presets with
 self-heal + prototype-pollution guards, share-by-code, RU/EN UI, 4 themes + custom hue,
 band guide, full-window global editor, onboarding, bundled OFL fonts, own crescent logo,
-two adversarial audits closed, 66/66 tests, CI + branch protection, **public repo +
+two adversarial audits closed, 419/419 tests, CI + branch protection, **public repo +
 GitHub Release**, and **published on the Chrome Web Store** with store assets and a
-keyword-dense listing (`STORE_LISTING.md`).
+keyword-dense listing.
 
-**In flight:** branch `feat/2.4.0-band-guide-onboarding` — zone-based band-guide labels
-and a rebuilt onboarding page. Not merged, not released. Details in `HANDOFF.md` §11.
+**In flight:** branch `release/2.5.0`. The code is frozen and the version is bumped; what
+remains before the store upload is the browser smoke run against the production `dist/`
+(see `DEPLOY.md`), taking the debug recorder out, and the store assets. One finding from
+that run was measured, understood and deliberately left in — the popup growing after Reset;
+see the 2.6 backlog.
+
+One open question beside it: **Auto Gain was reported inaudible by ear** on a heavily
+boosted curve. Its arithmetic is right (verified: mean band lift +5.85 dB → master −5.85 dB
+→ net 0.000) and the message reaches the engine, but the master lands on `postGain`, which
+sits *before* the limiter — and at ratio 20:1 a 5.85 dB cut ahead of an engaged limiter
+becomes ~0.3 dB at the output. That would leave the feature working only while the limiter
+is idle, i.e. everywhere except the case it exists for. Unconfirmed: the discriminating
+test (modest boosts, master at 0 dB) has not been run. Any fix means moving the
+compensation after the limiter — an audio-chain change, not a 2.5 one.
 
 **Pending / optional:**
 1. **Localize the store listing** (RU, RO, ES, DE, PT-BR). Discovery is the bottleneck:
@@ -268,6 +289,132 @@ Freemium-lite (planned, not built): core stays free forever; a small Pro tier (p
 cloud sync, extra themes, export collections) + a donation link, via an external provider
 (Chrome removed built-in payments).
 
+### 2.6 backlog
+
+Found during the 2.5 release smoke. None of these is a 2.5.0 defect; the mechanics are
+correct in every case. Kept out of 2.5 deliberately.
+
+#### UX / feedback
+
+**Auto Gain gives no sign it is on outside the More view.**
+
+Auto Gain changes how everything sounds, and the only thing in the interface that says so is
+its own toggle on another screen (`App.tsx`, the More view). On the EQ screen there is
+nothing: `VerticalVolume` is handed `eng.gain`, the stored master, so the readout says the
+same number whether compensation is active or not.
+
+*Do not change the Auto Gain model.* The stored master stays exactly as the user set it, and
+`outputGain` keeps being computed for the engine alone. The slider must not move — a
+compensated value fed back into storage would duck the tab further on every message, which is
+the whole reason `lib/auto-gain.ts` keeps the two numbers apart. This item is about showing
+state, not about changing it.
+
+Preferred shape: a small `AG` indicator beside the master volume, present only while the
+feature is on and absent entirely when it is off. Not a second control — More owns the
+control, the EQ screen shows the state, so the two can never disagree. A hover tooltip along
+the lines of *"Auto Gain is active — playback level is being compensated without changing
+your saved volume."*
+
+Worth pairing with the amount, which answers the question the indicator raises ("I set +10 dB
+and it did not get 10 dB louder"):
+
+```
++10.0 dB      <- the saved master, unchanged
+ −2.9 AG      <- the compensation, live, stored nowhere
+```
+
+**MIND THE SCALE.** The two dB numbers in this codebase are not the same unit, and an
+indicator written from a sketch will get this wrong. The master readout prints
+`masterGainToDb = 10*log10(g)`, so a stored gain of `10` shows as `+10.0 dB`. The
+compensation in *that* scale is `compensationDb(bands) / 2`. The un-halved
+`compensationDb` — amplitude dB, the band convention — is roughly twice as large and belongs
+to a scale in which the same master would read `+20 dB`. Printing the un-halved figure next
+to the master readout invites the user to subtract two numbers that do not share a unit.
+
+Cheap to build: `compensationDb` is already exported, and `eng.autoGain` and `eng.bands` are
+already in `App.tsx`. Popup-only, no engine or storage change.
+
+Explicitly NOT wanted: rewriting the master figure itself (`10 → 4.2`); presenting the
+compensation as if it were stored; a second slider; text on the graph; a persistent block of
+copy; any change to the mean-of-all-bands algorithm.
+
+#### Features
+
+- **Let the user rebind the graph's keyboard shortcuts.** The steps and modifiers in
+  `lib/band-input.ts` are fixed; Shift is coarse, Alt is fine, and Q has no binding at all.
+- **Make the Guide follow those bindings once they are configurable.** The keycaps in
+  `GuideOverlay.tsx` are literals today. They were written by reading the code because the
+  component's own header had been describing a binding that did not exist — a static guide
+  beside a configurable binding is the same failure with more steps.
+
+#### Accessibility
+
+**Keyboard focus indicator for the EQ points.**
+
+Since the 2.5 fix that made the arrow keys reachable, pressing a dot focuses it
+programmatically — `dotDown` calls `preventDefault` for the drag, which is exactly what used
+to suppress the focus that made keyboard shaping work. Focus is therefore load-bearing now,
+and Chrome draws its own ring around the focused `<circle>` because the project has no focus
+styling at all: `outline`, `:focus` and `:focus-visible` appear nowhere in `popup/index.css`.
+The result is a system-blue rounded square on the graph after every click.
+
+For 2.6, replace the browser outline with a focus state of Umbra's own. Requirements:
+
+- keyboard accessibility stays complete — Tab must still show, unmistakably, where focus is;
+- do not stop focusing the dot; that is what makes the arrow keys work;
+- never `outline: none` without an alternative indicator in the same change;
+- a pointer press must not look like a stray system outline;
+- the indicator follows the theme tokens, like everything else on the graph;
+- the graph's geometry does not change — no layout shift, no re-measured dots.
+
+**Not to be attempted before 2.5.0 ships.** Hiding the ring with CSS is a two-line change
+that converts a cosmetic regression into an accessibility one, and the release is not the
+place to find that out.
+
+#### Layout
+
+**Resetting the saved sound grows the popup by 34 px.** Measured, not inferred: the Undo
+block in More is 54 px tall plus a 4 px `mt-1`, so it adds 58 px of flow; the shell's
+`min-h-[500px]` floor (`App.tsx`) absorbs the first 24 of them because More's own content is
+only 476 px, and the remaining 34 push the window. Nothing is clipped, no scrollbar appears
+and Chrome's 600 px ceiling is never reached — the window simply jumps under the pointer.
+Accepted for 2.5.0 rather than fixed under freeze.
+
+Two candidate fixes, neither obviously better:
+
+- Give the More view its own 534 px floor. Reset then moves nothing, and switching EQ→More
+  becomes +18 px where today it is −16 — the same magnitude of movement that already exists.
+  No overlay, no change to how Undo behaves.
+- Float the Undo the way the notice floats, anchored above the nav. Costs zero layout, but
+  it covers the bottom of whatever is behind it, and an undo still armed when the user walks
+  to the EQ screen would sit over the graph.
+
+What must NOT change either way: the Undo has to outlive the toast. It is not on a five
+second timer, it is cleared by the next save, because deciding whether you wanted a reset
+means listening to something. Folding it back into the notice would restore a bug that was
+already fixed once — see the toast entry in `CHANGELOG.md` for 2.5.0.
+
+#### Technical
+
+- **Typed band values are only clamped when they commit.** A field accepts `-3120.0` dB or a
+  Q of `32` and silently corrects it on blur (to `-30` and `11`). Both were typed during the
+  2.5 smoke. Limiting entry as it is typed is a behaviour change, not a fix.
+- **Moving the Custom hue slider leaves `data-theme` on the previous preset.** `setHue` calls
+  `applyCustomHue` directly and bypasses `applyThemeId`, so accent colours change immediately
+  but the base palette does not — until the next popup open, when boot runs
+  `applyThemeId('custom')` and switches the base to `eclipse`. Cosmetic; the theme you see
+  after dragging is not the theme you get next time.
+- **A pointer press on a graph dot writes even when nothing moved.** `eqUp` commits whenever
+  `dragIdx` is set, and `dotDown` sets it on pointerdown regardless of movement, so a bare
+  click costs one redundant `chrome.storage.local` write. Harmless — `writeDefaultEq` stores
+  raw values, so the write is identical but for `updatedAt` — but `band-editing.test.tsx`
+  never fires `pointerUp`, so nothing covers it.
+- **`useEngine` has no behavioural harness.** Its planners are pure and well covered, but the
+  hook that sequences them — commit debounce, storage-change refresh, undo arming, the
+  two-window paths — is only ever exercised by hand. Every P1 in the 2.5 cycle lived in
+  wiring of exactly that kind, and `band-editing.test.tsx` exists because source-text
+  assertions could not hold the two that reached components.
+
 ## 15. Documentation index
 
 | Doc | What it covers | In repo? |
@@ -277,10 +424,8 @@ cloud sync, extra themes, export collections) + a donation link, via an external
 | `CHANGELOG.md` | Versioned change history | yes |
 | `CONTRIBUTING.md` | How to build, test, and contribute | yes |
 | `PRIVACY.md` | Privacy policy (for the store listing) | yes |
-| `STORE_LISTING.md` | Copy/paste fields for Chrome/Edge/Opera dashboards | yes |
 | `DEPLOY.md` | Publishing checklist (all Chromium stores + GitHub release) | yes |
 | `FIREFOX_PORT.md` | Deferred Firefox content-script architecture | yes |
 | `CLAUDE.md` | Agent build instructions + hard invariants | yes |
-| `docs/AUDIT.md` | Fix / findings history | yes |
 | `LICENSE` + `public/fonts/OFL-*.txt` | App (MIT) + font licenses | yes |
-| `ENGINE_STUDY.md` · `handoff.md` · `Chat.md` | Deep engine notes / dev state / build log | **private** (gitignored) |
+| Handoff · audit log · store copy | Internal development notes | **private** (`umbra-internal`) |

@@ -39,6 +39,23 @@ All audio processing and all settings stay on your own device.
 - No servers, no external requests, no tracking pixels, no analytics SDKs.
 - No collection of browsing history, personal information, or audio content.
 
+## Why Chrome shows a "tab is being shared" indicator
+
+Reading a tab's audio uses Chrome's tab-capture API — the same mechanism screen sharing uses — so
+Chrome marks the tab with its capture indicator while the equalizer is running.
+
+**Audio only.** The stream is requested with an audio constraint and no video constraint at all, so
+no video frames, screenshots, or page content are ever read — only the sound the tab is playing. The
+audio is processed in memory and played straight back; it is never recorded, stored, or transmitted,
+and the extension makes no network requests of its own, so there is nowhere for it to go.
+
+Chrome's `tabCapture` permission covers audio and video together. Holding the permission is not the
+same as using it for video, and Umbra EQ uses it for audio alone.
+
+The indicator is enforced by the browser and cannot be suppressed by an extension. That is
+deliberate, and good: it means you are always told when something is capturing a tab, including by
+us. It disappears as soon as you stop the equalizer on that tab.
+
 ## Permissions justification
 
 | Permission   | Why it is needed                                                        |

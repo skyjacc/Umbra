@@ -4,6 +4,144 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [2.5.0] — 2026-08-10
+
+### Added
+
+- **Type the numbers instead of dragging them.** Pick a point on the curve and the readout under
+  the graph becomes three fields — frequency, gain and Q — for that band. Tab moves between them,
+  Enter accepts, Escape puts the old value back. On the curve itself the arrow keys still shape the
+  band (up/down for gain, left/right for frequency, Shift for a bigger step, Alt for a smaller
+  one); inside the number fields they move the cursor, the way they should.
+
+
+- **A peak meter** down the right edge of the graph, reading the signal after the equalizer and
+  your volume — so you can see when a boost has pushed the tab into clipping instead of guessing.
+  A held marker shows the recent maximum and a dot lights when you go over. It only shows: it does
+  not touch the sound. (Automatic limiting is a separate feature and is not part of this release —
+  when the meter says you are over, pull the boost back or switch Auto Gain on.)
+
+
+- **Auto Gain**, under More, off by default. Boosting bands makes everything louder, and louder
+  reads as better whether or not the curve is any good — this subtracts what the curve added so you
+  can judge the shape at matched level. It changes only what you hear: your volume and your saved
+  profiles are untouched, and switching it off puts the level straight back.
+
+
+- **A Reset button, next to Save.** After changing the curve there was no obvious way back. There
+  is now: **Reset** puts the sound back to what it was when you opened Umbra — not one step back,
+  all the way back. Edit again afterwards and it still returns to that same starting point. It
+  stays on screen after an edit saves itself, which the earlier attempt did not: that one appeared
+  while you dragged and vanished the moment you let go.
+
+
+- **You can shape the curve while Bypass is on.** The graph used to go dead when you bypassed the
+  equalizer, which no other EQ does. Now it stays live: drag bands while the tab plays unshaped,
+  then switch Bypass off to hear what you built. The flat line on the graph turns solid while
+  bypassed — that line is what you are actually hearing. Nothing is saved until you leave Bypass,
+  so it is a scratch pad: switch it off and the work is written in one go.
+
+
+- **The equalizer now says why it isn't running.** On a page Umbra can't work on (a browser system
+  page), on a tab you stopped by hand, or when audio capture fails, the popup explains what is
+  happening instead of showing a full-size equalizer that doesn't respond — which looked broken.
+
+- **A keyboard shortcut to turn the equalizer on or off** without opening the popup. It has no
+  default combination — assign one at `chrome://extensions/shortcuts`. Useful mainly in fullscreen,
+  where the toolbar is hidden: enter fullscreen first, then switch Umbra on with the shortcut and
+  fullscreen stays real.
+
+- **Save for this site** — a button next to the equalizer turns the sound you are hearing into a
+  rule for the site you are on, and puts your everywhere-sound back to what it was. On a site that
+  already has a rule it says **Update** and replaces that rule's sound instead, leaving its name,
+  its address patterns and whether it is switched on exactly as they were.
+
+- **Bypass** — a button in the equalizer header plays the tab unchanged for a moment, so you can hear
+  what your settings are actually doing. It changes nothing that is saved: switch it off and the
+  sound comes straight back.
+
+### Fixed
+
+- **The Full window editor and the popup could overwrite each other.** Umbra's full-window page
+  edits the sound used everywhere, and it is an ordinary tab you can leave open. It never heard
+  about changes made from the popup, so touching one band there could put back a curve from
+  whenever the page was opened. Both now follow the same stored sound.
+
+- **A sound recovered after a crash forgot which preset it was based on.** The curve came back
+  correctly and the header dropped to "None".
+
+
+- **Undo after a profile reset could be thrown away by a button that did nothing.** After Reset
+  removed a site's rule, the ⟲ button next to Save stayed on screen — and pressing it consumed the
+  offer to undo the reset without putting anything back, because the rule it would have restored
+  was already gone. The deleted rule was then unrecoverable. Reset now retires that button when it
+  has nothing to restore, and only a change that actually reached storage can spend an undo.
+
+- **Undo could put an old sound back over a newer one.** The offer to undo a reset stayed valid
+  however much had changed since — so a rule saved from the other window, or an edit made while the
+  reset's own save was still in flight, could be silently replaced by the world as it stood before
+  the reset. Undo now compares the saved sound against the one the reset produced and declines when
+  they differ, saying so rather than acting. If it cannot read the saved sound at all it also
+  declines: "I don't know" is not "nothing is there". Pressing Undo twice quickly now restores once.
+
+- **Reset and Undo said "done" without checking that anything was saved.** All six of their writes
+  were fired and forgotten, so a refused save left the equalizer showing a sound that storage did
+  not have, the confirmation already on screen and the undo already spent. They now report the
+  failure and keep everything they would have thrown away, so you can try again.
+
+
+- **A curve shaped under Bypass could be lost by closing the popup right after switching Bypass
+  off.** Nothing shaped while bypassed is written until you leave Bypass, so at that moment the
+  work existed in one place only, and the save that follows is asynchronous — closing the popup in
+  the same instant raced it. It is now recorded before the save, the same way an ordinary edit is,
+  so it survives.
+
+- **Restoring the everywhere-sound kept the curve but forgot which preset it came from.** Both
+  Reset and the rollback that runs after Save for this site put the sound back and left the header
+  reading "None" for a curve that was still, visibly, Vocal.
+
+
+- **An old Undo button could appear on an unrelated message and roll back your rules.** After a
+  profile reset, the offer to undo it never expired, while the message carrying it disappeared
+  after five seconds — so the next "Saved" or "Copied" notice showed up with a live Undo attached
+  that restored your rules as they were minutes earlier. The undo now belongs to the reset that
+  created it: saving anything else replaces it, and the message that offers it is the one that
+  armed it. It also has a permanent home under **More**, next to Reset, because deciding whether
+  you wanted a reset takes longer than a toast stays on screen.
+
+
+- **A tweaked preset no longer forgets it was a preset.** Nudging one band used to blank the name
+  in the header, so a curve you built from Vocal became an anonymous "None" — and it happened
+  twice over: once on the first pointer move, and again 200 ms later when the edit was saved. The
+  header now reads **Based on Vocal**, and keeps reading it until you pick a different preset.
+  Drag the band back and it says **Vocal** again. Sites without a rule remember this too, which
+  they previously could not.
+
+
+- **Site rules stopped saving once you had about a dozen of them.** All rules share a single
+  synced storage slot with a hard 8 KB limit, and a hand-shaped curve was stored at full floating
+  point precision — around 700 bytes each, so the eleventh site could push the whole set over the
+  edge and every save after that failed. Curves are now rounded when they are written, to a grid
+  finer than the equalizer can display: 0.1 dB, 0.1 Hz, and Q to three decimals. Same sound, less
+  than half the space, roughly twice as many sites. Existing rules are untouched until you next
+  save, and get the space back automatically at that point.
+
+
+- **An EQ change made just before the popup closes is no longer lost.** Adjusting the sound and then
+  immediately reloading the page or closing the popup could leave the tab playing the new sound
+  while it was never actually saved — so it kept playing, seemed saved, and then reverted the next
+  time you opened Umbra. Umbra now keeps a recovery copy of the change you are making and restores
+  it the next time it opens.
+
+### Changed
+
+- **Reset no longer wipes a saved sound in one click.** The single Reset button deleted a site's
+  rule, or flattened the sound played on every tab, with no confirmation and no way back. It has
+  moved to **More**, asks twice, and can be undone from the message that follows.
+
+- **Better multi-tab behaviour while editing.** Adjusting the sound on one tab no longer stops other
+  tabs from picking up preset and rule changes.
+
 ## [2.4.1] — 2026-07-29
 
 ### Changed
