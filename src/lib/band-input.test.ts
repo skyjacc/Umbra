@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stepKind, nudge, parseField, formatField, type BandField } from './band-input';
+import { stepKind, nudge, parseField, formatField, isUnchanged, type BandField } from './band-input';
 import { clampFreq, clampGainDb, clampQ, DB_TOP, DB_BOTTOM } from './audio';
 
 describe('which step a modifier asks for', () => {
@@ -115,5 +115,51 @@ describe('printing a value back', () => {
     expect(formatField('frequency', 437.4)).toBe('437');
     expect(formatField('gain', -19.73)).toBe('-19.7');
     expect(formatField('q', 0.7071)).toBe('0.71');
+  });
+});
+
+// A field commits on BLUR. So "the user focused this and left" and "the user typed a number" both
+// arrive at the same function, and only one of them is an edit. Telling them apart is not cosmetic:
+// the readout prints at DISPLAY precision, so committing an untouched field rounds the band the
+// user dragged — and the commit spends the Reset-profile undo slot, which is the only copy of a
+// rule Reset just deleted.
+describe('a field the user only passed through is not an edit', () => {
+  it('says nothing changed when the text is what the field was showing', () => {
+    // The exact values that made this a bug: each survives format+parse as a DIFFERENT number, so
+    // a raw `parsed === current` guard would still have written all three.
+    expect(isUnchanged('frequency', '437', 437.3421875)).toBe(true);
+    expect(isUnchanged('gain', '1.3', 1.2534)).toBe(true);
+    expect(isUnchanged('q', '0.71', 0.7071067811865476)).toBe(true);
+  });
+
+  it('and proves those really would have been rewritten', () => {
+    // Pin the damage itself, so the guard above cannot be "fixed" by changing formatField instead.
+    expect(parseField('frequency', formatField('frequency', 437.3421875))).toBe(437);
+    expect(parseField('gain', formatField('gain', 1.2534))).toBe(1.3);
+    expect(parseField('q', formatField('q', 0.7071067811865476))).toBe(0.71);
+  });
+
+  it('tolerates the whitespace a blur can hand back', () => {
+    expect(isUnchanged('frequency', '  437  ', 437.3421875)).toBe(true);
+  });
+
+  it('but a typed value that differs IS an edit', () => {
+    expect(isUnchanged('frequency', '440', 437.3421875)).toBe(false);
+    expect(isUnchanged('gain', '1.4', 1.2534)).toBe(false);
+    expect(isUnchanged('q', '0.72', 0.7071067811865476)).toBe(false);
+  });
+
+  it('treats a value already at display precision as unchanged, not as an edit', () => {
+    // The ordinary case after any previous commit: the band IS 437, the field shows 437.
+    expect(isUnchanged('frequency', '437', 437)).toBe(true);
+    expect(isUnchanged('gain', '0.0', 0)).toBe(true);
+  });
+
+  it('does not call an unreadable field unchanged — the caller must reject it first', () => {
+    // parseField returns null for these; isUnchanged is only consulted afterwards. If the order
+    // were reversed, garbage would read as "no change" and silently do nothing instead of snapping
+    // the field back, which is a different (and worse) behaviour.
+    expect(isUnchanged('frequency', 'abc', 437)).toBe(false);
+    expect(parseField('frequency', 'abc')).toBeNull();
   });
 });

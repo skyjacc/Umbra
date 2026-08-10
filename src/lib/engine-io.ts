@@ -14,7 +14,7 @@ import { parsePatterns, newRuleId, type Rule } from './rules';
 import { quantizeRules } from './quantize';
 import { dbg } from './debug-log';
 
-export const BUILD = '2.4.1';
+export const BUILD = '2.5.0';
 export const PRESET_PREFIX = 'PRESETS.';
 export const RULES_KEY = 'RULES'; // sync: ordered domain-rules array
 
@@ -73,23 +73,54 @@ export const JOURNAL_KEY = 'EDIT_JOURNAL';
  * tell "my unsaved edit is newer" from "a normal save already superseded it", so it is surfaced
  * now. Absent on records written before this field existed, hence nullable.
  */
-export async function readDefaultEq(): Promise<{ bands: Band[]; gain: number; presetName: string; updatedAt: number | null } | null> {
+export type StoredGlobal = { bands: Band[]; gain: number; presetName: string; updatedAt: number | null };
+
+/** Shared by the swallowing read and the reporting one, so they cannot parse differently. */
+function parseDefaultEq(v: any): StoredGlobal | null {
+  if (v && Array.isArray(v.filters) && v.filters.length === NUM_FILTERS) {
+    const bands = v.filters.map((b: any, i: number) => sanitizeFilter({ frequency: b.f, gain: b.g, q: b.q }, i));
+    const updatedAt = typeof v.updatedAt === 'number' && Number.isFinite(v.updatedAt) ? v.updatedAt : null;
+    // `preset` is provenance — which preset this curve came from, not a claim it still equals
+    // it. Absent on records written before the field existed, which reads as 'came from nowhere'.
+    const presetName = typeof v.preset === 'string' ? v.preset : '';
+    return { bands, gain: clampMasterGain(v.gain ?? 1), presetName, updatedAt };
+  }
+  return null;
+}
+
+export async function readDefaultEq(): Promise<StoredGlobal | null> {
   if (!hasChrome() || !chrome.storage) return null;
   try {
     const r: any = await chrome.storage.local.get(DEFAULT_EQ_KEY);
-    const v = r[DEFAULT_EQ_KEY];
-    if (v && Array.isArray(v.filters) && v.filters.length === NUM_FILTERS) {
-      const bands = v.filters.map((b: any, i: number) => sanitizeFilter({ frequency: b.f, gain: b.g, q: b.q }, i));
-      const updatedAt = typeof v.updatedAt === 'number' && Number.isFinite(v.updatedAt) ? v.updatedAt : null;
-      // `preset` is provenance — which preset this curve came from, not a claim it still equals
-      // it. Absent on records written before the field existed, which reads as 'came from nowhere'.
-      const presetName = typeof v.preset === 'string' ? v.preset : '';
-      return { bands, gain: clampMasterGain(v.gain ?? 1), presetName, updatedAt };
-    }
+    return parseDefaultEq(r[DEFAULT_EQ_KEY]);
   } catch {
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Both halves of the stored world, or null when either read FAILED.
+ *
+ * The distinction the ordinary readers cannot make. `readRules` answers `[]` for both "there are
+ * no rules" and "the read threw", and `readDefaultEq` answers `null` for both "nothing is stored"
+ * and "the read threw". That is fine for painting a UI and fatal for a decision: the reset undo
+ * compares the world against the one its reset produced, and a reset performed on an install with
+ * no rules produces exactly the fingerprint of `[]`. A swallowed failure then reproduces it, the
+ * comparison says "unchanged", and the undo writes an empty rules array over a rule that arrived
+ * in the meantime. The read has to be able to say "I don't know" for the caller to refuse.
+ *
+ * Both areas are read together because they fail independently — RULES is in `sync`, DEFAULT_EQ in
+ * `local`, different backends — and a decision made on half a world is not made on the world.
+ */
+export async function readWorld(): Promise<{ rules: Rule[]; global: StoredGlobal | null } | null> {
+  if (!hasChrome() || !chrome.storage) return null;
+  try {
+    const [r, g] = await Promise.all([chrome.storage.sync.get(RULES_KEY), chrome.storage.local.get(DEFAULT_EQ_KEY)]);
+    return { rules: Array.isArray((r as any)[RULES_KEY]) ? (r as any)[RULES_KEY] : [], global: parseDefaultEq((g as any)[DEFAULT_EQ_KEY]) };
+  } catch {
+    return null; // "I don't know" — never "it is empty"
+  }
 }
 /**
  * Outcome of a persistence attempt. Returned rather than swallowed: a write that fails silently
@@ -299,14 +330,34 @@ export async function deletePreset(name: string) {
   await chrome.storage.sync.remove(PRESET_PREFIX + name);
 }
 
-// Domain rules live in one sync array key so ordering (first-match-wins) is preserved.
-export async function readRules(): Promise<Rule[]> {
-  if (!hasChrome() || !chrome.storage) return [];
+/**
+ * Has THIS document ever read the rules successfully?
+ *
+ * A write replaces the whole RULES array, so one assembled from a list we never managed to read
+ * would delete every rule we failed to see. That is not hypothetical. During the 2.5 smoke a
+ * single rejected `sync.get` emptied the list, the popup showed "no rules", the next save
+ * persisted the empty array, and a rule was gone — silently, with no error anywhere on the way.
+ *
+ * Per document, which is the right scope: each one boots by reading, and one that could not read
+ * has nothing to say about what is stored.
+ */
+let rulesRead = false;
+
+/**
+ * Domain rules live in one sync array key so ordering (first-match-wins) is preserved.
+ *
+ * `[]` means the read succeeded and there are none. `null` means it did not succeed, and callers
+ * must not turn that back into `[]` — the distinction is the whole point. See readWorld, which
+ * exists for the same reason on the other side of this module.
+ */
+export async function readRules(): Promise<Rule[] | null> {
+  if (!hasChrome() || !chrome.storage) return null;
   try {
     const r: any = await chrome.storage.sync.get(RULES_KEY);
+    rulesRead = true;
     return Array.isArray(r[RULES_KEY]) ? r[RULES_KEY] : [];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -317,6 +368,9 @@ export async function writeRules(rules: Rule[]): Promise<boolean> {
 /** Same write, with the reason when it fails — sync enforces both a per-minute and an hourly cap. */
 export async function writeRulesResult(rules: Rule[]): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
+  // Refuse before we can delete something we never saw. The caller reports this the same way it
+  // reports a quota refusal, which is what makes the failure visible instead of destructive.
+  if (!rulesRead) return { ok: false, error: 'rules not read' };
   try {
     // Round the curves here and only here. sync allows 8192 bytes for this one item and a fully
     // dragged rule is 702 of them unrounded, so the array stops fitting at eleven saved sites.

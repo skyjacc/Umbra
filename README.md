@@ -118,7 +118,7 @@ The popup is React + TypeScript, bundled with Vite and [CRXJS](https://crxjs.dev
 npm install
 npm run build      # → dist/  (loadable, CSP-clean MV3 extension)
 npm run dev        # HMR dev build
-npm test           # 340 Vitest unit tests
+npm test           # 419 Vitest tests
 npm run typecheck  # tsc, also in CI
 ```
 
@@ -182,7 +182,7 @@ Most browser equalizers are a fixed set of graphic-EQ sliders that inject a cont
 | Popup | React 18, TypeScript |
 | Build | Vite + CRXJS |
 | UI | Tailwind CSS, shadcn/ui, lucide icons |
-| Tests | Vitest (340) |
+| Tests | Vitest (419) |
 | CI/CD | GitHub Actions — builds the `dist/` zip on push, PR & `v*` tags |
 
 ## Stars

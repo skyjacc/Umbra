@@ -130,6 +130,39 @@ describe('cross-file invariants', () => {
     expect(read, 'reading must not rewrite what is stored').not.toContain('quantize');
   });
 
+  it('the rules array is never written by a document that could not read it', () => {
+    // A write replaces the WHOLE array, so one assembled from a list we failed to read deletes
+    // every rule we never saw. That happened, in a browser, on 2026-08-10: one rejected sync.get
+    // emptied the popup's list, the user added a rule, and the save persisted just that one.
+    //
+    // engine-io.test.ts pins the behaviour. This pins the two spellings that would quietly undo
+    // it — a reader that swallows, and a call site that coerces the failure straight back to [].
+    const read = engineIoSrc.match(/export async function readRules[\s\S]*?\n}/)?.[0] ?? '';
+    expect(read, 'a failed read must report itself').toContain('return null');
+
+    const write = engineIoSrc.match(/export async function writeRulesResult[\s\S]*?\n}/)?.[0] ?? '';
+    expect(write, 'and the write must refuse until a read has succeeded').toContain('rulesRead');
+    expect(
+      write.indexOf('rulesRead'),
+      'the refusal has to come before the set, or it guards nothing'
+    ).toBeLessThan(write.indexOf('chrome.storage.sync.set'));
+
+    // Both call sites in the popup compare against null. `?? []` or `|| []` here is the bug.
+    const boot = useEngineSrc.match(/Promise\.all\(\[io\.readInitialState\(\)[\s\S]*?globalRef\.current = g;/)?.[0];
+    const refresh = useEngineSrc.match(/if \(want\.rules\)[\s\S]*?if \(want\.global\)/)?.[0];
+    for (const [name, site] of [
+      ['the boot read', boot],
+      ['the storage-change read', refresh]
+    ] as const) {
+      expect(site, `${name} not found — this test is anchored to it`).toBeTruthy();
+      // Comments off first: both sites name the bad spelling in prose so the next reader knows
+      // what not to write, and that prose must not be what fails the test.
+      const code = site!.replace(/\/\/.*$/gm, '');
+      expect(code, `${name} must not coerce a failure to an empty list`).not.toMatch(/\?\?\s*\[\]|\|\|\s*\[\]/);
+      expect(code, `${name} must recognise the failure explicitly`).toContain('=== null');
+    }
+  });
+
   it('the in-memory rules array is the one that was persisted', () => {
     // rulesRef is a mirror of storage, not a second source of truth. If the popup keeps the exact
     // curve in memory while storage holds the rounded one, the two disagree for the rest of the
@@ -366,6 +399,187 @@ describe('cross-file invariants', () => {
       /outcome === 'restored'\s*\)\s*noteUndoEvent\('commit'\)/
     );
   });
+
+  it('Reset profile and its Undo are one record, armed once, checked against the world', () => {
+    // Everything this block pins was a separate bug first, and every one came from the same shape:
+    // one operation spread across two clocks and guarded by a flag.
+    //
+    //   the snapshot was set when the write resolved, the debt written synchronously beside it
+    //   -> a second reset issued before the first resolved armed one reset's snapshot next to the
+    //      other's bookkeeping, and — different storage areas, so ordinary rather than exotic — a
+    //      refused first write handed a stale debt back over a reset that had already succeeded;
+    //   validity was "a later write invalidates the slot", raised by this popup's own writers
+    //   -> the Full-window editor writes the same keys and raises nothing, so Undo overwrote it;
+    //   and the arming ran inside .then while a commit invalidated synchronously
+    //   -> an edit made during the in-flight write cleared the slot before the reset armed it,
+    //      and the arming then put a stale world back on the button.
+    //
+    // The hook has no behavioural test, so this is asserted on the source; comments are stripped
+    // first so the note above cannot satisfy any of it.
+    const block = useEngineSrc.match(/const resetProfile = useCallback\([\s\S]*?\n  \}, \[/)?.[0] ?? '';
+    expect(block, 'resetProfile not found').toBeTruthy();
+    const code = block.replace(/\/\/.*$/gm, '');
+
+    // ONE record: snapshot, debt, and the world the reset produced, built together.
+    // Arguments pinned, not just the call. This escaped a looser assertion: fingerprinting a
+    // literal empty world instead of the real one made every undo look current forever.
+    expect(code, 'the undo payload must be one record, fingerprinting the world it just made').toMatch(
+      /const record: ResetUndoRecord = \{ snapshot, debt, produces: fingerprintWorld\(rulesRef\.current, globalRef\.current\) \}/
+    );
+    expect(code, 'and the pending slot must hold that same record').toContain('pendingReset.current = record;');
+    // `committed` is READ at reset time. Deriving it later from whether a baseline exists
+    // over-reports: a drag latches on its first move, an edit under bypass never commits at all.
+    expect(code, 'the debt must carry committed as its own fact').toMatch(
+      /const debt = \{ baseline: baselineRef\.current, committed: committedSinceBaseline\.current \}/
+    );
+    expect(useEngineSrc, 'the two-clock stash must be gone').not.toContain('baselineBeforeReset');
+
+    // The baseline retires synchronously, so an edit started during the in-flight write latches
+    // against the profile the reset actually produced instead of inheriting a doomed one.
+    expect(code, 'Reset profile must drop the baseline it made meaningless').toContain('baselineRef.current = NO_BASELINE');
+    expect(code, 'and must retire the Reset control too').toContain('committedSinceBaseline.current = false');
+    expect(
+      code.indexOf('baselineRef.current = NO_BASELINE') < code.indexOf('void write.then'),
+      'the clear must be synchronous, ahead of the write callback'
+    ).toBe(true);
+
+    // Arming is a decision, and a superseded reset must not speak for a world it no longer names.
+    expect(code, 'arming must go through the tested planner').toMatch(/planArm\(\{ ok: res\.ok, isCurrent: pendingReset\.current === record \}\)/);
+    expect(code, 'a superseded reset says nothing at all').toMatch(/=== 'superseded'\) return;/);
+    const failure = code.match(/=== 'refused'\) \{([\s\S]*?)\n      \}/)?.[1] ?? '';
+    expect(failure, 'the refused-write branch was not found').toBeTruthy();
+    expect(failure, 'a reset that did not happen gives the whole debt back').toContain('baselineRef.current = record.debt.baseline');
+    expect(failure, 'both halves of it').toContain('committedSinceBaseline.current = record.debt.committed');
+    expect(failure, 'but must not steal a baseline a later edit has since latched').toContain('!baselineRef.current.has');
+
+    // A reset owes no rollback, so it must not manufacture one either.
+    expect(code, 'Reset profile must not latch a baseline of its own').not.toContain('captureBaseline()');
+
+    // --- Undo ---
+    // The restore lives in runUndo; undoReset is the click handler that serialises it.
+    const undo = useEngineSrc.match(/const runUndo = useCallback\([\s\S]*?\n  \);/)?.[0] ?? '';
+    expect(undo, 'runUndo not found').toBeTruthy();
+    const undoCode = undo.replace(/\/\/.*$/gm, '');
+
+    // One restore at a time. The slot is not spent until the write lands, several awaits away, so
+    // `armed` cannot stop a second click — and two buttons carry this action at once, which would
+    // mean two chrome.storage.sync writes for one user action.
+    const click = useEngineSrc.match(/const undoReset = useCallback\([\s\S]*?\n  \}, \[/)?.[0] ?? '';
+    expect(click, 'undoReset not found').toBeTruthy();
+    const clickCode = click.replace(/\/\/.*$/gm, '');
+    expect(clickCode, 'a second click must not start a second restore').toContain('if (undoInFlight.current) return;');
+    expect(clickCode, 'and the guard must be released however the restore ends').toMatch(/finally \{\s*\n\s*undoInFlight\.current = false;/);
+    // Raised BEFORE the await, not after it. Setting it inside the try, past the await, leaves the
+    // flag true only for the instant between the restore resolving and the finally — it guards
+    // nothing, and every assertion above still passes because the check and the release are both
+    // still present. Ordering is the invariant here, not presence.
+    expect(clickCode.indexOf('undoInFlight.current = true'), 'the flag must be raised before the restore starts').toBeGreaterThan(-1);
+    expect(clickCode.indexOf('undoInFlight.current = true'), 'and before the await, or it guards nothing').toBeLessThan(
+      clickCode.indexOf('await runUndo(')
+    );
+
+    // "I don't know" is not "the world is empty": a reset performed with no rules produces exactly
+    // the fingerprint of []. A reader that swallowed its failure would reproduce that fingerprint
+    // and the undo would write an empty rules array over a rule added since. readRules reports its
+    // failures now as well, but this guard does not lean on that — it asks the world directly.
+    expect(undoCode, 'the world must be read through the reporting reader').toContain('await io.readWorld()');
+    expect(undoCode, 'and a read that failed must refuse rather than guess').toMatch(/if \(!world\) \{[\s\S]*?return;\s*\n\s*\}/);
+
+    // The world decides, not a flag of ours — that is what makes this right about writers we never
+    // hear from, and it must be asked BEFORE anything is written.
+    expect(undoCode, 'the undo must be checked against the world it promised to restore').toMatch(
+      /planUndo\(\{ record, world: fingerprintWorld\(quantizeRules\(world\.rules\), world\.global\) \}\) !== 'restore'/
+    );
+    // Against STORAGE, not the mirrors. `onChanged` refreshes them a render late, so a click
+    // inside that window would fingerprint the pre-change world, match, and restore over the
+    // other window's write — the defect this check exists to prevent, narrowed to a race.
+
+
+    // The superseded branch must RETURN. Without it the undo restores over any newer world while
+    // showing the notice that says it did not — every other assertion here still passes, and a
+    // dropped `return` is the most ordinary accidental mutation there is.
+    const superseded = undoCode.match(/\!== 'restore'\) \{([\s\S]*?)\n      \}/)?.[1] ?? '';
+    expect(superseded, 'the superseded branch was not found').toBeTruthy();
+    expect(superseded, 'a superseded undo must not fall through into the restore').toMatch(/\n\s*return;\s*$/);
+    // ...and must not spend the slot. Nothing was written, and the snapshot is the only copy of a
+    // rule the reset deleted — the journal was cleared when it succeeded.
+    expect(superseded, 'a path that stores nothing must not destroy the only copy').not.toContain('setUndoSlot(');
+    expect(undoCode.indexOf('planUndo('), 'and checked before the restore is attempted').toBeLessThan(undoCode.indexOf('applyUndoReset('));
+    // What is restored is the SNAPSHOT — the world before the reset — never the session debt that
+    // travels beside it. Passing the wrong half writes undefined rules over the user's own.
+    expect(undoCode, 'the restore must replay the snapshot itself').toContain('applyUndoReset(record.snapshot, restoreWriters)');
+    // A commit armed before the click would land after the restore and overwrite it.
+    expect(undoCode, 'Undo must cancel a pending commit').toContain('clearTimeout(commitTimer.current)');
+
+    // NOTHING may claim a restore before every part of it is stored. applyUndoReset writes rules
+    // first and reports write-failed if the global write then fails; the version this replaces
+    // updated the mirror and the audio synchronously regardless, so a partial failure left the
+    // user looking at and hearing a full restore that storage did not have.
+    const success = undoCode.match(/if \(outcome !== 'restored'\) \{[\s\S]*?\n      \}([\s\S]*?)\n    \},/)?.[1] ?? '';
+    expect(success, 'the restored branch of the undo was not found').toBeTruthy();
+    // The slot is the ONLY copy of a rule Reset deleted, so a refused restore must leave it armed
+    // to try again. Disarming anywhere but here throws that copy away on the one path where it is
+    // still needed.
+    expect((undoCode.match(/setUndoSlot\(undoAfter\(/g) ?? []).length, 'the undo may be spent in exactly one place').toBe(1);
+    expect(success, 'and only once the restore is stored').toContain('setUndoSlot(undoAfter(undoSlot,');
+    for (const step of [
+      'setRulesMirror(record.snapshot.rules)',
+      'globalRef.current = record.snapshot.global',
+      'baselineRef.current = record.debt.baseline',
+      'committedSinceBaseline.current = record.debt.committed',
+      'applyEverywhere(',
+      'mirrorResolved()'
+    ]) {
+      expect(success, step + ' may only run once the whole restore is stored').toContain(step);
+    }
+  });
+
+  it('the editing buffer is claimed by host, never by tab identity', () => {
+    // The full-window editor sets activeTabId to null by construction, so the old
+    // `tabs.find(t => t.id === activeTabId)` could never match and the mirror step was dead code
+    // for the whole life of that page: its graph kept the curve it had at boot while storage moved
+    // on, and its next edit wrote that stale curve over everything the popup had saved. The audio
+    // path was already fixed by storage-events.ts; the buffer was not.
+    const block = useEngineSrc.match(/const applyEverywhere = useCallback\([\s\S]*?\n  \);/)?.[0] ?? '';
+    expect(block, 'applyEverywhere not found').toBeTruthy();
+    const code = block.replace(/\/\/.*$/gm, '');
+    expect(code, 'the owner comes from the tested planner').toContain('mirrorHost({');
+    expect(code, 'and the tab-identity lookup must not come back').not.toMatch(/const cur = tabsList\.find/);
+    // The planner is only as good as what it is told. Passing a literal `false` here — or reading
+    // the state instead of the ref, which is captured stale in a message-handler closure — puts
+    // the bug straight back with the call still in place.
+    expect(code, 'the planner must be told the real answer, from the ref').toMatch(
+      /mirrorHost\(\{\s*globalEditor:\s*globalEditorRef\.current\s*,/
+    );
+    // null means "no owner", '' means "the global profile". A falsy test, or an explicit !== '',
+    // collapses them and stops the global editor mirroring at all — the same bug, one layer up.
+    expect(code, 'no-owner must be distinguished from the global profile by identity').toMatch(/if \(host !== null\)/);
+    expect(code, "and '' must not be excluded as if it were empty").not.toMatch(/host !== ''/);
+    // The ref has to be kept fresh, or the planner is told the truth of the first render forever.
+    // Dropping the per-render assignment leaves `.current` at useState's initial false for the
+    // whole life of the page and restores the bug with the call site untouched — and that line
+    // lives two hundred lines above this block, where the extract cannot see it.
+    expect(useEngineSrc, 'globalEditorRef must be re-synced every render').toMatch(
+      /const globalEditorRef = useRef\(globalEditor\);\s*\n\s*globalEditorRef\.current = globalEditor;/
+    );
+  });
+
+  it('the band the graph selects has somewhere in App to land', () => {
+    // What is left of two source-text guards that used to describe pointer selection and the
+    // no-op-blur write in full. Both are now asserted BEHAVIOURALLY, by rendering the components
+    // in band-editing.test.tsx — which is strictly better, and was worth a jsdom dependency: with
+    // these two text assertions deleted, that file still catches every one of the eight mutations
+    // they were written for, including the `!isUnchanged(...)` and dead-store bypasses that
+    // walked straight through them.
+    //
+    // Except this one. The DOM tests render EqGraph directly, so they cannot see the other end of
+    // the wire: App has to actually pass a handler for the selection to reach the readout, and
+    // `onSelectBand={undefined}` restores the original bug with all of them green. Asserting the
+    // wire is the one job text still does better here.
+    expect(appSrc, 'App must hand the graph somewhere to put the selection').toContain('onSelectBand={setSelBand}');
+    expect(appSrc, 'and must render the fields against that same selection').toMatch(/index=\{selBand !== null/);
+  });
+
 
   it('the storage listener routes by the tested decision, not by its own area check', () => {
     // The lost update: DEFAULT_EQ lives in `local` and the handler returned early for every area

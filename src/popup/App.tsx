@@ -3,7 +3,7 @@ import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, A
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { BandFields } from './components/BandFields';
-import { startDebug, stopDebug, clearDebug, dbg, debugOn, debugCount, debugDump, onDebugFlush, type DebugEntry } from '@/lib/debug-log';
+import { startDebug, stopDebug, clearDebug, dbg, debugOn, debugCount, debugEntries, debugDump, onDebugFlush, type DebugEntry } from '@/lib/debug-log';
 import * as engineIo from '@/lib/engine-io';
 import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
@@ -39,16 +39,24 @@ export default function App() {
   // tabbing from a dot into a field must not empty the row you were about to type into.
   const [selBand, setSelBand] = useState<number | null>(null);
 
-  // ---- debug recorder (temporary; see lib/debug-log.ts and the DEPLOY.md removal note) --------
+  // ---- DEBUG RECORDER — remove before 2.5.0, see DEPLOY.md and lib/debug-log.ts --------------
+  //
+  // Driven from the devtools console, not from a panel in More. The panel cost about a hundred
+  // pixels on a screen whose HEIGHT is itself under test — Chrome sizes a popup to its content, so
+  // the instrument was tall enough to move the measurement it existed to take. It also called
+  // setState on every recorded event, re-rendering App at pointermove rate all through a drag.
+  //
+  //   right-click the toolbar icon -> Inspect popup, then:
+  //     umbra.start()        begin; survives closing the popup AND closing devtools
+  //     umbra.status()       { on, n }
+  //     umbra.stop()         stop; the log stays readable
+  //     copy(umbra.dump())   hand it over, using devtools' own copy()
   const [dbgRec, setDbgRec] = useState(false);
-  const [dbgN, setDbgN] = useState(0);
-  const [dbgCopied, setDbgCopied] = useState(false);
 
   // The popup dies on any click outside it, so the log lives in session storage between opens.
   // Throttled: a write per pointermove would cost more than it records.
   const flushT = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persist = (entries: DebugEntry[]) => {
-    setDbgN(entries.length);
     if (flushT.current) return;
     flushT.current = setTimeout(() => {
       flushT.current = null;
@@ -64,11 +72,14 @@ export default function App() {
     try {
       chrome.storage?.session?.get('UMBRA_DEBUG', (r: any) => {
         const d = r?.UMBRA_DEBUG;
-        if (!d?.on) return;
+        if (!d) return;
+        // Load the buffer either way. A stopped recording keeps its entries, so `umbra.dump()`
+        // still works in a popup opened after the one that stopped it — the old flow wiped them
+        // on stop, which turned "I clicked away before copying" into a lost smoke run.
         startDebug(Date.now(), d.entries || []);
+        if (!d.on) return void stopDebug();
         onDebugFlush(persist);
         setDbgRec(true);
-        setDbgN((d.entries || []).length);
         dbg('popup:open', { h: window.innerHeight, w: window.innerWidth, view });
       });
     } catch {
@@ -193,35 +204,43 @@ export default function App() {
     if (dbgRec) dbg('notice', { text: eng.notice.text || '(cleared)', undo: eng.notice.undo, h: window.innerHeight });
   }, [eng.notice.text, eng.notice.undo, dbgRec]);
 
-  const dbgStart = () => {
-    clearDebug();
-    startDebug(Date.now());
-    onDebugFlush(persist);
-    setDbgRec(true);
-    setDbgN(0);
-    dbg('recording:start', { build: engineIo.BUILD, h: window.innerHeight, ua: navigator.userAgent.slice(0, 70) });
-  };
-  const dbgStop = () => {
-    dbg('recording:stop');
-    stopDebug();
-    onDebugFlush(null);
-    setDbgRec(false);
-    try {
-      chrome.storage?.session?.set({ UMBRA_DEBUG: { on: false, entries: [] } });
-    } catch {
-      /* no session area */
-    }
-  };
-  const dbgCopy = async () => {
-    const text = debugDump({ build: engineIo.BUILD, host: eng.activeHost, at: new Date().toISOString() });
-    try {
-      await navigator.clipboard.writeText(text);
-      setDbgCopied(true);
-      setTimeout(() => setDbgCopied(false), 1500);
-    } catch {
-      console.log(text);
-    }
-  };
+  // The host is read at dump time, not at registration time, so the API can be installed once.
+  const hostRef = useRef(eng.activeHost);
+  hostRef.current = eng.activeHost;
+
+  useEffect(() => {
+    const api = {
+      start() {
+        clearDebug();
+        startDebug(Date.now());
+        onDebugFlush(persist);
+        setDbgRec(true);
+        dbg('recording:start', { build: engineIo.BUILD, h: window.innerHeight, ua: navigator.userAgent.slice(0, 70) });
+        return 'recording — close devtools and use the popup normally';
+      },
+      stop() {
+        dbg('recording:stop');
+        stopDebug();
+        onDebugFlush(null);
+        setDbgRec(false);
+        // on:false, entries KEPT — see the boot effect. Stopping must not destroy the evidence.
+        try {
+          chrome.storage?.session?.set({ UMBRA_DEBUG: { on: false, entries: debugEntries().slice(-3000) } });
+        } catch {
+          /* no session area */
+        }
+        return `stopped — ${debugCount()} entries, hand over with copy(umbra.dump())`;
+      },
+      status: () => ({ on: debugOn(), n: debugCount(), build: engineIo.BUILD }),
+      dump: () => debugDump({ build: engineIo.BUILD, host: hostRef.current, at: new Date().toISOString() })
+    };
+    (window as unknown as { umbra?: typeof api }).umbra = api;
+    console.info('[umbra] recorder: umbra.start() / umbra.status() / umbra.stop() / copy(umbra.dump())');
+    return () => {
+      delete (window as unknown as { umbra?: typeof api }).umbra;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [presetName, setPresetName] = useState('');
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
@@ -325,41 +344,49 @@ export default function App() {
   }, [view]);
 
   const hide = (v: ViewId) => (view === v ? '' : 'hidden');
+  // The engine banner owns the top of the window when it is up; the notice steps below it rather
+  // than being covered by it, which is what used to happen to the Undo button.
+  const engineBanner = ['stale', 'error', 'notResponding'].includes(eng.engineStatus);
 
   // h-full, not min-h alone: the shell fills the fixed popup box rather than deciding how big
   // it is. See index.css — the popup's geometry is a contract and content may not change it.
   return (
-    <div className="flex h-full min-h-[500px] flex-col">
-      {/* A slot that is ALWAYS here, whether or not there is anything to say.
-          Chrome sizes a popup to its content, so anything that appears and disappears in the flow
-          resizes the window under the pointer — which is what putting the notice at the top fixed
-          about covering things and immediately reintroduced as a jump. Holding the space costs a
-          row of blank at the top and buys a popup that never changes size: no overlay to bury a
-          button, no inner scroll container, no resize. The live region is mounted permanently too,
-          which is what makes a screen reader announce a change of text rather than an insertion. */}
+    <div className="relative flex h-full min-h-[500px] flex-col">
+      {/* The notice FLOATS. It used to be a permanently mounted 36px row at the top of the flex
+          column, which solved the right problem the wrong way: Chrome sizes a popup to its content,
+          so a notice that appears in the flow resizes the window under the pointer, and holding the
+          space stopped that by charging every screen a blank row forever. Overlaying costs nothing
+          in layout and cannot move the window.
+
+          The live REGION stays mounted whether or not there is anything to say — that is what makes
+          a screen reader announce a change of text rather than an insertion, and it was the one
+          genuinely good reason the old row was always present. The visible chip inside it is
+          conditional, so an empty notice has no box, no opacity trick and no pointer target: an
+          invisible chip with pointer-events sitting over the header would eat clicks meant for the
+          buttons underneath it. */}
       <div
         role="status"
         aria-live="polite"
         aria-atomic="true"
         className={
-          'sticky top-0 z-40 flex h-9 shrink-0 items-center gap-2 px-3.5 text-[11.5px] text-foreground transition-colors ' +
-          (eng.notice.text ? 'border-b border-primary/30 bg-secondary/70 shadow-[0_2px_10px_rgba(0,0,0,.35)] backdrop-blur-xl' : '')
+          'pointer-events-none absolute inset-x-0 z-50 flex justify-center px-3 transition-[top] duration-200 ' +
+          (engineBanner ? 'top-16' : 'top-2')
         }
       >
         {eng.notice.text && (
-          <>
-            <span className="min-w-0 flex-1 truncate">{eng.notice.text}</span>
+          <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-white/[.12] bg-white/[.07] px-3 py-1.5 text-[11.5px] text-foreground shadow-[0_8px_24px_-8px_rgba(0,0,0,.7)] backdrop-blur-xl [box-shadow:var(--shadow-border)]">
+            <span className="min-w-0 truncate">{eng.notice.text}</span>
             {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
                 slot alone, so any later unrelated notice inherited a live Undo. */}
             {eng.notice.undo && eng.canUndoReset && (
               <button
                 onClick={eng.undoReset}
-                className="shrink-0 rounded-md border border-primary/50 bg-primary/10 px-2 py-0.5 font-semibold text-foreground hover:bg-primary/25"
+                className="shrink-0 rounded-full border border-primary/50 bg-primary/15 px-2 py-0.5 font-semibold text-foreground transition-colors hover:bg-primary/30"
               >
                 {tr('eq.undo')}
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -731,11 +758,11 @@ export default function App() {
         </section>
 
         {/* ================= MORE ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
+        <section className={'flex flex-col gap-2 p-3 ' + hide('more')}>
           <h1 className="text-[15px] font-semibold">{tr('more.title')}</h1>
 
           {/* Language */}
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] px-3 py-2.5 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
               <span className="text-[13px] font-semibold">{tr('more.language')}</span>
               <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.languageDesc')}</span>
@@ -758,7 +785,7 @@ export default function App() {
           </div>
 
           {/* Theme + custom color */}
-          <div className="flex flex-col gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+          <div className="flex flex-col gap-2.5 rounded-xl bg-white/[.05] px-3 py-2.5 [box-shadow:var(--shadow-border)]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="text-[13px] font-semibold">{tr('more.theme')}</span>
@@ -801,7 +828,7 @@ export default function App() {
 
           {/* Auto Gain. A listening preference, not part of any profile — switching it on rewrites
               nothing, which is why it sits with the view toggles rather than near Save. */}
-          <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2">
             <button
               onClick={eng.toggleAutoGain}
               role="switch"
@@ -853,7 +880,7 @@ export default function App() {
           {/* The destructive reset lives only here. Two steps rather than a modal — the project has
               no modal pattern and adding one for a single action isn't worth it — and the notice
               that follows offers an undo, so a mis-click is recoverable either way. */}
-          <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2">
             <button
               onClick={() => {
                 if (!confirmReset) {
@@ -881,34 +908,6 @@ export default function App() {
                 means listening to something, which takes longer than any notice should stay on
                 screen — so it outlives the toast and is cleared by a later save instead of by a
                 timer. See lib/undo.ts. */}
-            {/* ── DEBUG RECORDER — remove before 2.5.0, see DEPLOY.md ─────────────────────── */}
-            <div className="mt-3 flex flex-col gap-1.5 border-t border-dashed border-border pt-3">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={dbgRec ? dbgStop : dbgStart}
-                  className={
-                    'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-semibold transition-colors ' +
-                    (dbgRec ? 'border-destructive/60 bg-destructive/15 text-foreground' : 'border-border bg-white/[.05] text-muted-foreground hover:text-foreground')
-                  }
-                >
-                  <span className={'size-2 rounded-full ' + (dbgRec ? 'animate-pulse bg-destructive' : 'bg-muted-foreground/50')} />
-                  {dbgRec ? `Recording — ${dbgN}` : 'Start debug recording'}
-                </button>
-                <button
-                  onClick={dbgCopy}
-                  disabled={dbgN === 0}
-                  className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border bg-white/[.05] px-3 py-2 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
-                >
-                  {dbgCopied ? 'Copied' : 'Copy log'}
-                </button>
-              </div>
-              <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">
-                Records what you click, what reaches storage and what the audio engine is told — and keeps recording while the
-                popup is closed. It cannot see page content or audio, but it does note the sites you visit while it runs. Nothing
-                leaves your machine until you press Copy.
-              </p>
-            </div>
-
             {eng.canUndoReset && (
               <div className="mt-1 flex flex-col gap-1">
                 <button
@@ -927,7 +926,7 @@ export default function App() {
 
       <BottomNav view={view} onView={setView} />
 
-      {['stale', 'error', 'notResponding'].includes(eng.engineStatus) && (
+      {engineBanner && (
         <div
           role="alert"
           aria-live="assertive"

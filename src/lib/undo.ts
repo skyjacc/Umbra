@@ -22,7 +22,16 @@
 
 import type { ResetSnapshot } from './reset';
 
-export type UndoSlot = { armed: false } | { armed: true; snapshot: ResetSnapshot };
+/**
+ * Generic over what is being held, because the payload grew.
+ *
+ * It used to be the reset snapshot alone, and the bookkeeping the reset displaced lived beside it
+ * in a separate ref written on a different clock — one synchronously, one when the write resolved.
+ * They drifted, and a second reset issued before the first resolved could arm one reset's snapshot
+ * next to the other's bookkeeping. Whatever the slot holds now travels as ONE value; see
+ * undo-state.ts.
+ */
+export type UndoSlot<T = ResetSnapshot> = { armed: false } | { armed: true; snapshot: T };
 
 export type UndoEvent =
   /** The user took it. */
@@ -36,14 +45,23 @@ export type UndoEvent =
   | 'notice-expired'
   | 'tab-switch';
 
-export const NO_UNDO: UndoSlot = { armed: false };
+export const NO_UNDO: UndoSlot<never> = { armed: false };
 
-export const canUndo = (slot: UndoSlot): boolean => slot.armed;
+export const canUndo = <T,>(slot: UndoSlot<T>): boolean => slot.armed;
 
-/** Arm from a fresh snapshot. Replaces whatever was there — see the one-operation rule above. */
-export const armUndo = (snapshot: ResetSnapshot): UndoSlot => ({ armed: true, snapshot });
+/** Arm from a fresh record. Replaces whatever was there — see the one-operation rule above. */
+export const armUndo = <T,>(snapshot: T): UndoSlot<T> => ({ armed: true, snapshot });
 
-export function undoAfter(slot: UndoSlot, event: UndoEvent): UndoSlot {
+/**
+ * Retire the slot when this popup writes.
+ *
+ * A COURTESY, not the guarantee. It exists so the button disappears the moment we know it is
+ * stale, rather than waiting to refuse at press time. It cannot be the authority: it only sees
+ * writes made through this popup's own writers, and the Full-window editor is a separate
+ * long-lived instance of the same hook writing the same keys. Whether an undo may actually be
+ * applied is settled against the world itself — see planUndo in undo-state.ts.
+ */
+export function undoAfter<T>(slot: UndoSlot<T>, event: UndoEvent): UndoSlot<T> {
   switch (event) {
     case 'undo':
     case 'commit':

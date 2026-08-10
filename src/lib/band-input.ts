@@ -68,3 +68,21 @@ export function formatField(field: BandField, value: number): string {
   if (field === 'gain') return (Math.round(value * 10) / 10).toFixed(1);
   return (Math.round(value * 100) / 100).toFixed(2);
 }
+
+/**
+ * Is this text just what the field was already showing?
+ *
+ * Focusing a field and leaving it is not an edit, and the field commits on blur — so without this
+ * question a Tab through the row, or Escape (which blurs), wrote the band back to storage. That
+ * write is not harmless. The readout is printed at DISPLAY precision, so what gets committed is
+ * the rounded number: a band dragged to 437.34 Hz comes back 437, gain 1.2534 comes back 1.3, Q
+ * 0.7071 comes back 0.71. Worse, the commit counts as a canonical write, and a canonical write
+ * spends the Reset-profile undo slot — which is the only copy of a rule that Reset just deleted.
+ *
+ * Compared against the FORMATTED value rather than the raw one, because the formatted value is
+ * what the user was looking at. Retyping the same digits is not a change either; the raw
+ * comparison would call it one, since the band behind "437" is 437.34.
+ */
+export function isUnchanged(field: BandField, text: string, current: number): boolean {
+  return String(text).trim() === formatField(field, current);
+}

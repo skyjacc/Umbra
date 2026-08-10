@@ -4,7 +4,7 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.5.0] — 2026-08-10
 
 ### Added
 
@@ -76,6 +76,13 @@ All notable changes to Umbra EQ are documented here. The format follows
   offer to undo the reset without putting anything back, because the rule it would have restored
   was already gone. The deleted rule was then unrecoverable. Reset now retires that button when it
   has nothing to restore, and only a change that actually reached storage can spend an undo.
+
+- **Undo could put an old sound back over a newer one.** The offer to undo a reset stayed valid
+  however much had changed since — so a rule saved from the other window, or an edit made while the
+  reset's own save was still in flight, could be silently replaced by the world as it stood before
+  the reset. Undo now compares the saved sound against the one the reset produced and declines when
+  they differ, saying so rather than acting. If it cannot read the saved sound at all it also
+  declines: "I don't know" is not "nothing is there". Pressing Undo twice quickly now restores once.
 
 - **Reset and Undo said "done" without checking that anything was saved.** All six of their writes
   were fired and forgotten, so a refused save left the equalizer showing a sound that storage did

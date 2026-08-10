@@ -115,7 +115,7 @@
 npm install
 npm run build      # → dist/  (загружаемое, чистое по CSP расширение MV3)
 npm run dev        # dev-сборка с HMR
-npm test           # 340 модульных тестов Vitest
+npm test           # 419 тестов Vitest
 npm run typecheck  # tsc, также в CI
 ```
 
@@ -173,7 +173,7 @@ Manifest V3. **Попап** (React + TypeScript) — источник истин
 | Попап | React 18, TypeScript |
 | Сборка | Vite + CRXJS |
 | UI | Tailwind CSS, shadcn/ui, иконки lucide |
-| Тесты | Vitest (340) |
+| Тесты | Vitest (419) |
 | CI/CD | GitHub Actions — собирает zip `dist/` на push, PR и тегах `v*` |
 
 ## Звёзды

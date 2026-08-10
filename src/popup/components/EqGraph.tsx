@@ -215,8 +215,27 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   }, [fft, sampleRate]);
 
   // ---- Drag: filter dots ----
-  function dotDown(i: number, e: React.PointerEvent) {
+  // Typed to the element it is actually attached to, so `currentTarget` is the dot itself rather
+  // than a bare Element — focusing it is the whole point, and a bare Element cannot be focused.
+  function dotDown(i: number, e: React.PointerEvent<SVGCircleElement>) {
     if (!editable) return; // no live capture on the active tab — read-only
+    // Take the focus the pointer press would have given this dot, and take it BEFORE
+    // preventDefault, which is what removes it.
+    //
+    // preventDefault has to stay: it suppresses text selection and the compatibility mouse
+    // events, which is what makes the drag work at all. But focus is a default action of the
+    // press too, and suppressing it left the dot unfocused after a click — so the arrow keys
+    // went to whatever the popup had focused instead (a smoke log shows them landing on the
+    // section, not the dot) and did nothing at all. Keyboard shaping was reachable only by
+    // Tabbing to a dot, never by clicking one.
+    //
+    // Focusing also selects, because onFocus does — so the direct call is a FALLBACK for a dot
+    // that was refused focus, not a second selection. Calling both unconditionally fired
+    // onSelectBand twice per press; harmless today, since it only sets a number, but a callback
+    // that fires twice for one gesture is a trap for whatever is wired to it next.
+    const dot = e.currentTarget;
+    dot.focus();
+    if (document.activeElement !== dot) onSelectBand?.(i);
     e.preventDefault();
     dragIdx.current = i;
     liveRef.current = bands.slice();
@@ -265,8 +284,14 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
     onBands(nb);
     onCommit();
   }
-  // Keyboard editing (a11y): Up/Down = gain, Left/Right = frequency (~1/6 octave), Shift+Up/Down =
-  // Q, Enter/Delete = reset. Each press is a discrete commit.
+  // Keyboard editing (a11y): Up/Down = gain, Left/Right = frequency (~1/6 octave), Shift = a
+  // COARSER step of whichever of those two you are moving, Alt = a finer one, Enter/Delete/
+  // Backspace = reset. Each press is a discrete commit.
+  //
+  // This used to say "Shift+Up/Down = Q", which was never what the code did: `stepKind` maps Shift
+  // to 'coarse' and Alt to 'fine', and both arrow branches feed gain or frequency. Q has NO
+  // keyboard binding on a dot — it is Shift+drag (see eqMove) or the Q field under the graph. The
+  // guide is built from these bindings, so the two must not drift again.
   // Arrows on a DOT shape the band. Arrows inside the numeric fields under the graph do not —
   // there they have to move the text cursor, which is what anyone typing expects. The two never
   // meet because this handler lives on the dot and those inputs are outside the SVG entirely.

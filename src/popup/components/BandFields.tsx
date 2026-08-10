@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseField, formatField, type BandField } from '@/lib/band-input';
+import { parseField, formatField, isUnchanged, type BandField } from '@/lib/band-input';
 import type { Band } from '@/lib/audio';
 import { t } from '../i18n';
 
@@ -62,6 +62,10 @@ export function BandFields({
     const n = parseField(k, text);
     setDraft(null);
     if (n === null) return; // unreadable: leave the band alone and let the field snap back
+    // A field commits on blur, so tabbing through the row — or pressing Escape, which blurs —
+    // used to write the band back at display precision and spend the Reset-profile undo slot,
+    // for a gesture in which the user changed nothing. See band-input.isUnchanged.
+    if (isUnchanged(k, text, band[k])) return;
     onBand({ [k]: n } as Partial<Band>);
     onCommit();
   };

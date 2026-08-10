@@ -17,10 +17,12 @@ import {
   commitOnUnbypass
 } from '@/lib/bypass';
 import { planResetProfile, makeResetSnapshot, applyUndoReset, resetControls } from '@/lib/reset';
-import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent } from '@/lib/undo';
+import { NO_UNDO, armUndo, undoAfter, canUndo, type UndoEvent, type UndoSlot } from '@/lib/undo';
+import { fingerprintWorld, planArm, planUndo, type ResetUndoRecord } from '@/lib/undo-state';
 import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } from '@/lib/reset-changes';
 import { AUTO_GAIN_DEFAULT, outputGain } from '@/lib/auto-gain';
 import { refreshFor } from '@/lib/storage-events';
+import { mirrorHost } from '@/lib/mirror-target';
 import { dbg, debugOn } from '@/lib/debug-log';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
@@ -81,7 +83,7 @@ export function useEngine() {
   const [previewOn, setPreviewOn] = useState(false);
   // What the last Reset profile overwrote, and whether it is still offerable. One slot for one
   // operation — see lib/undo.ts for why a boolean beside a ref was the wrong shape.
-  const [undoSlot, setUndoSlot] = useState(NO_UNDO);
+  const [undoSlot, setUndoSlot] = useState<UndoSlot<ResetUndoRecord>>(NO_UNDO);
   // Bypass is a listening mode, not an edit: the stored EQ is simply not applied for a while.
   const [bypassed, setBypassed] = useState(false);
   // Render mirror for the Reset control. The three things it depends on — the session baseline,
@@ -140,6 +142,10 @@ export function useEngine() {
   activeIdRef.current = activeTabId;
   const activeHostRef = useRef(activeHost);
   activeHostRef.current = activeHost;
+  // Read by applyEverywhere, which runs from message-handler closures — the state alone would be
+  // the value captured when that closure was created.
+  const globalEditorRef = useRef(globalEditor);
+  globalEditorRef.current = globalEditor;
   const bandsRef = useRef(bands);
   bandsRef.current = bands;
   const gainRef = useRef(gain);
@@ -261,6 +267,21 @@ export function useEngine() {
   // replace it, or the restore would restore the damage.
   const baselineRef = useRef<Baseline>(NO_BASELINE);
 
+  /**
+   * The reset whose write has not resolved yet.
+   *
+   * Identity is the guard: a second reset replaces this, and the first reset's late callback finds
+   * it is no longer the pending one and says nothing. That is the fix for a real hole — the two
+   * writes go to DIFFERENT storage areas (a ruled site deletes a rule in `sync`, anywhere else
+   * flattens the profile in `local`), so "the second one resolves first" is ordinary, not exotic,
+   * and the first one's failure branch used to hand back a debt over a reset that had already
+   * succeeded.
+   */
+  const pendingReset = useRef<ResetUndoRecord | null>(null);
+
+  /** One restore at a time — see undoReset. */
+  const undoInFlight = useRef(false);
+
   // Every writer of saved state calls this BEFORE its first mutation. There are four today
   // (commitTarget, resetAll, applyPreset, and saveForThisSite once it lands); missing one means a
   // silent loss of the global profile, so keep this list and the call sites in step.
@@ -335,9 +356,12 @@ export function useEngine() {
       // on the editing buffer — freezing it for a whole bypass session let the graph keep showing
       // a rule that had just been deleted, and the next commit wrote that curve somewhere else.
       if (!mayMirrorBuffer({ interacting: interacting.current, dirty: dirty.current, preview: previewRef.current })) return;
-      const cur = tabsList.find((t) => t.id === activeIdRef.current);
-      if (cur) {
-        const r = resolvedFor(cur.host);
+      // Whose buffer this is, asked by HOST rather than by tab identity — see lib/mirror-target.ts.
+      // The full-window editor has no tab id at all, so the old `find(t => t.id === activeTabId)`
+      // could never match there and its graph never refreshed from storage.
+      const host = mirrorHost({ globalEditor: globalEditorRef.current, activeTabId: activeIdRef.current, tabs: tabsList });
+      if (host !== null) {
+        const r = resolvedFor(host);
         // Skip the state write when the resolved curve is value-identical: resolvedFor allocates
         // fresh arrays, so a no-change broadcast would otherwise bust EqGraph's memo every time.
         if (r.gain !== gainRef.current || r.presetName !== activeRef.current || !bandsEqual(r.bands, bandsRef.current)) {
@@ -455,7 +479,13 @@ export function useEngine() {
         if (!mounted) return;
         presetsRef.current = init.presets;
         setPresets(init.presets);
-        const rules0 = setRulesMirror(rs);
+        // Same distinction as the refresh below: `null` is "could not read", not "there are
+        // none". Leaving the mirror untouched is only half of it — at boot there is nothing to
+        // preserve, so the other half lives in engine-io, which refuses to write the rules array
+        // until a read has succeeded. Without that, a failed boot read plus one new rule deletes
+        // every rule the popup never saw.
+        const rules0 = rs === null ? rulesRef.current : setRulesMirror(rs);
+        if (rs === null) showNoticeRef.current(t('note.rulesUnread'));
         globalRef.current = g;
 
         // The whole recovery decision lives in planReplay so it is testable; this is just the
@@ -544,7 +574,15 @@ export function useEngine() {
     const onChanged = (changes: any, area: string) => {
       const want = refreshFor(area, Object.keys(changes || {}));
       if (want.presets) io.refreshPresets().then((p) => mounted && setPresets(p));
-      if (want.rules) io.readRules().then((rs) => mounted && setRules(rs));
+      if (want.rules)
+        io.readRules().then((rs) => {
+          if (!mounted) return;
+          // NOT `rs ?? []`. That spelling is the bug this replaced: a rejected read emptied the
+          // list, the user saw "no rules", and the next save wrote the empty array over a rule
+          // that was still in storage. A read that failed leaves the list we already have.
+          if (rs === null) showNotice(t('note.rulesUnread'));
+          else setRules(rs);
+        });
       if (want.global) {
         // The everywhere-sound changed under us — most likely the other window of this extension.
         // Re-read rather than trust the incoming value: this also fires for our OWN writes, and a
@@ -1000,7 +1038,10 @@ export function useEngine() {
   // every tab without a rule plays. Snapshot first so the notice can offer an undo.
   const resetProfile = useCallback(() => {
     dbgState('resetProfile');
-    captureBaseline(); // writer #2 — bypasses commitTarget entirely
+    // No captureBaseline() here. It used to latch one so the clear below had something to discard,
+    // which made it a no-op after any real edit and, in a session that had edited nothing,
+    // MANUFACTURED a debt describing a profile this session never displaced. A reset is not an
+    // edit; it has its own undo and owes no rollback. See the clear below for what does happen.
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
       commitTimer.current = null;
@@ -1009,9 +1050,17 @@ export function useEngine() {
     dirty.current = false;
     setPreview(NO_PREVIEW);
 
-    // Snapshot BEFORE the plan touches anything, but do not arm the undo until the write lands:
-    // an armed undo over a write that never happened offers to restore a world nobody left.
+    // Snapshot BEFORE the plan touches anything, and take the session bookkeeping with it.
+    //
+    // `committed` is READ here and stored, never reconstructed later from whether a baseline
+    // exists. Every writer latches a baseline before writing, so committed implies has — but the
+    // implication runs one way only, and both counter-examples are ordinary: a drag latches on its
+    // first move and commits 200ms after the last one, and an edit made under bypass latches and
+    // never commits at all, because bypass is a draft mode. Deriving it would restore `true` in
+    // both cases and make planResetChanges spend a storage.sync write to store what is already
+    // stored — the write its own comment calls out as the one not to make.
     const snapshot = makeResetSnapshot(rulesRef.current, globalRef.current);
+    const debt = { baseline: baselineRef.current, committed: committedSinceBaseline.current };
     const plan = planResetProfile(activeHostRef.current, rulesRef.current);
     const write =
       plan.action === 'delete-rule'
@@ -1022,17 +1071,39 @@ export function useEngine() {
             return io.writeDefaultEq(flat, 1, '');
           })();
 
-    // This operation has its own undo. The session baseline the main-row Reset restores may name a
-    // rule that no longer exists, so that control retires here rather than offering a no-op.
+    // One record, armed as one thing. The snapshot used to live in React state (set when the write
+    // resolved) and the debt in a ref (written synchronously), and two clocks for one operation is
+    // how they came to disagree. `produces` is fingerprinted AFTER the plan has been applied to
+    // the mirrors, so it describes the world this reset just created — the only world its undo is
+    // allowed to undo. See lib/undo-state.ts.
+    const record: ResetUndoRecord = { snapshot, debt, produces: fingerprintWorld(rulesRef.current, globalRef.current) };
+    pendingReset.current = record;
+
+    // This operation has its own undo, so the session baseline retires with it: a reset is not a
+    // displacement and must not be rolled back by the next "Save for this site". Synchronously,
+    // so an edit started while the write is still in flight latches against the profile the reset
+    // actually produced rather than inheriting one that is about to be thrown away.
+    baselineRef.current = NO_BASELINE;
     committedSinceBaseline.current = false;
     refreshResettable();
 
     void write.then((res) => {
-      if (!res.ok) {
+      const outcome = planArm({ ok: res.ok, isCurrent: pendingReset.current === record });
+      if (outcome === 'superseded') return; // a newer reset owns the slot; this one is not on screen
+      pendingReset.current = null;
+      if (outcome === 'refused') {
+        // The reset never happened, so the displacement it cancelled is still owed — put the whole
+        // debt back, both halves. Unless a new edit has since latched its own baseline against the
+        // (still unchanged) profile, in which case it owns the slot now.
+        if (!baselineRef.current.has) {
+          baselineRef.current = record.debt.baseline;
+          committedSinceBaseline.current = record.debt.committed;
+          refreshResettable();
+        }
         showNoticeRef.current(t('note.rulesSaveFailed'));
         return; // nothing to undo, and nothing to celebrate
       }
-      setUndoSlot(armUndo(snapshot));
+      setUndoSlot(armUndo(record));
       void io.clearJournal();
       showNoticeRef.current(t('note.profileReset'), true);
     });
@@ -1042,25 +1113,98 @@ export function useEngine() {
 
   // Put back exactly what resetProfile overwrote. The snapshot is deep, so it survived the reset
   // replacing those very arrays.
-  const undoReset = useCallback(() => {
-    dbgState('undoReset');
-    if (!undoSlot.armed) return;
-    const snap = undoSlot.snapshot;
-    // NOT disarmed here. This snapshot is the only copy of a rule Reset profile deleted, so it is
-    // held until the restore is actually stored — otherwise a refused write leaves the UI showing
-    // rules that storage does not have, with nothing left to try again from.
-    void applyUndoReset(snap, restoreWriters).then((outcome) => {
-      if (outcome !== 'restored') {
-        showNoticeRef.current(t('note.rulesSaveFailed'));
+  /**
+   * The restore itself. Split from the click handler so the in-flight guard cannot be bypassed by
+   * an early return inside the body, and so the guard's release is a `finally` around one call.
+   */
+  const runUndo = useCallback(
+    async (record: ResetUndoRecord) => {
+      // Is the world still the one that reset produced? This — not any flag of ours — is the
+      // guarantee that an undo returns the user to the state immediately before the reset and
+      // never to an older state at the cost of a newer one. A flag records that WE think the world
+      // moved; a fingerprint records what the world actually is, so it is also right about writers
+      // we never hear from: the Full-window editor, another machine's sync, a rules import.
+      //
+      // Asked of STORAGE, not of the mirrors. The mirrors are refreshed a render late — a storage
+      // change arrives, `onChanged` starts an async read, and only the render after that reassigns
+      // rulesRef — so a click landing inside that window would fingerprint the pre-change world,
+      // match, and restore over the other window's write.
+      //
+      // And "I don't know" is not "the world is empty". readRules answers [] for both a missing
+      // key and a failed read, and a reset performed on an install with no rules produces exactly
+      // the fingerprint of [] — so a swallowed failure would reproduce it, the comparison would
+      // say "unchanged", and the undo would write an empty rules array over a rule that had
+      // arrived since. readWorld reports the failure so this can refuse instead of guessing.
+      const world = await io.readWorld();
+      if (!world) {
+        showNoticeRef.current(t('note.undoUnavailable'));
         return;
       }
+      // quantizeRules on the way in because `produces` was fingerprinted from the mirror, which
+      // setRulesMirror keeps on the storage grid. Comparing a raw read against a rounded mirror
+      // would report a difference that is only a representation, and refuse every undo on an
+      // install still holding rules written before quantization existed.
+      if (planUndo({ record, world: fingerprintWorld(quantizeRules(world.rules), world.global) }) !== 'restore') {
+        // The slot is NOT spent here. Nothing was written, and this snapshot is the only copy of a
+        // rule Reset profile deleted — the journal was cleared when the reset succeeded, so there
+        // is no other record of it anywhere. Discarding it on a path that stores nothing destroys
+        // the rule with a click labelled Undo. Held instead: the state is conditional, not
+        // terminal — if the other window puts its own change back, this works again.
+        showNoticeRef.current(t('note.undoSuperseded'));
+        return;
+      }
+
+      // A commit armed before this click would land after the restore and overwrite it.
+      // resetProfile already cancels its own; the undo has to cancel one too.
+      if (commitTimer.current) {
+        clearTimeout(commitTimer.current);
+        commitTimer.current = null;
+      }
+      interacting.current = false;
+      dirty.current = false;
+
+      // Nothing below happens before the write lands. applyUndoReset writes rules first and
+      // reports 'write-failed' if the global write then fails, and the version this replaces ran
+      // its mirror update synchronously regardless — so a partial failure left the user looking at
+      // and hearing a full restore that storage did not have.
+      const outcome = await applyUndoReset(record.snapshot, restoreWriters);
+      if (outcome !== 'restored') {
+        showNoticeRef.current(t('note.rulesSaveFailed'));
+        return; // slot stays armed: this snapshot is still the only copy
+      }
+      setRulesMirror(record.snapshot.rules);
+      globalRef.current = record.snapshot.global;
+      // The bookkeeping travels with the sound. Both halves, verbatim from the record: the
+      // baseline so "Save for this site" still owes what the session displaced, and `committed` so
+      // "Reset changes" agrees with it instead of reading a different world.
+      baselineRef.current = record.debt.baseline;
+      committedSinceBaseline.current = record.debt.committed;
+      refreshResettable();
       setUndoSlot(undoAfter(undoSlot, 'undo'));
-    });
-    setRulesMirror(snap.rules);
-    globalRef.current = snap.global;
-    applyEverywhere(tabsRef.current);
-    mirrorResolved();
-  }, [applyEverywhere, mirrorResolved, setRulesMirror, undoSlot]);
+      applyEverywhere(tabsRef.current);
+      mirrorResolved();
+    },
+    [applyEverywhere, mirrorResolved, setRulesMirror, undoSlot]
+  );
+
+  // Put back exactly what resetProfile overwrote, if the world has not moved since.
+  const undoReset = useCallback(async () => {
+    dbgState('undoReset');
+    if (!undoSlot.armed) return;
+    // `armed` alone does not stop a second click: the slot is not spent until the restore lands,
+    // several awaits away. Two buttons carry this action — the toast and the More view — and both
+    // can be on screen at once, so two runs would issue two chrome.storage.sync writes for one
+    // user action, against a quota this codebase guards everywhere else. The later interleaving is
+    // worse than wasteful: the second run fingerprints the world the first one just restored,
+    // finds it changed, and reports "superseded" immediately after a successful undo.
+    if (undoInFlight.current) return;
+    undoInFlight.current = true;
+    try {
+      await runUndo(undoSlot.snapshot);
+    } finally {
+      undoInFlight.current = false;
+    }
+  }, [runUndo, undoSlot]);
 
   // Turn the sound you are hearing into a rule for this site.
   //

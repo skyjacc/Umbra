@@ -12,7 +12,8 @@ the machine on its own, but a published extension should not carry a recorder no
 - [ ] Delete `src/lib/debug-log.ts` and `src/lib/debug-log.test.ts`
 - [ ] Remove the `dbg(...)` calls from `src/lib/engine-io.ts` and the `dbgState(...)` calls from
       `src/popup/useEngine.ts`
-- [ ] Remove the recorder block from the More view in `src/popup/App.tsx`, and its state
+- [ ] Remove the recorder from `src/popup/App.tsx`: the `window.umbra` console API, the `dbgRec`
+      state, the instrumentation effects and the `UMBRA_DEBUG` session-storage handling
 - [ ] Remove this section and the invariant test that points at it
 - [ ] `git grep -n "dbg\\|debug-log"` comes back empty, then rebuild
 
@@ -56,14 +57,14 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
   - [ ] Stop a tab, reopen the popup → it stays un-EQ'd.
   - [ ] Presets save/apply/delete, Export/Import file, Copy code / Paste code.
   - [ ] Spectrum toggle, Guide overlay, EN/RU switch, theme + custom color.
-- [ ] Version bumped in all six places (see **Version bump** above; now `2.3.0`).
+- [ ] Version bumped in all six places (see **Version bump** above; now `2.5.0`).
 - [ ] `DEBUG` is `false` in `src/background.js` and `public/offscreen.js` (default).
 - [ ] Toolbar icons are the Umbra crescent (`public/icon{16,32,48,128}.png`) — done.
 - [ ] Privacy policy is reachable at a public URL for the store forms — the repo file
       `https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md` works (or GitHub Pages).
 - [ ] Contact is the GitHub Issues link (already in `PRIVACY.md`).
 - [ ] Verify "Umbra EQ" is free / untrademarked on each store.
-- [ ] Screenshots at 1280×800 (or 640×400), 1–5 images (see `store-assets/`).
+- [ ] Screenshots at 1280×800 (or 640×400), 1–5 images. Not in the repo — produce them at release time.
 
 ## Package
 
