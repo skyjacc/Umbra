@@ -48,6 +48,7 @@ function RulesViewImpl({
         <h1 className="text-[15px] font-semibold">{tr('rules.title')}</h1>
         <button
           onClick={() => setGuide((g) => !g)}
+          aria-expanded={guide}
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
           <HelpCircle className="size-3.5" /> {tr('rules.guide')}
@@ -151,6 +152,7 @@ function RuleCard({
           onBlur={commitPatterns}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           placeholder={tr('rules.placeholder')}
+          aria-label={tr('rules.placeholder')}
           spellCheck={false}
           className="min-w-0 flex-1 rounded-lg border border-border bg-black/25 px-2.5 py-1.5 font-mono text-[11.5px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
         />
@@ -166,6 +168,7 @@ function RuleCard({
         <button
           onClick={() => onDelete(r.id)}
           title={tr('rules.deleteTitle')}
+          aria-label={tr('rules.deleteTitle')}
           className="flex size-[22px] shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
         >
           <Trash2 className="size-3.5" />
@@ -175,10 +178,11 @@ function RuleCard({
       <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
         <span aria-hidden>→</span>
         <Select
+          ariaLabel={tr('rules.soundLabel')}
           value={isCurve ? CURVE_VALUE : r.preset || ''}
           options={targetOptions}
           onChange={(v) => onUpdate(r.id, v === CURVE_VALUE ? { mode: 'curve' } : { mode: 'preset', preset: v })}
-          className="min-w-[130px]"
+          className="min-w-0 flex-1"
         />
         {matched && <span className="ml-auto shrink-0 font-semibold text-accent">{tr('rules.matches')}</span>}
       </div>

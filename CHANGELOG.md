@@ -4,6 +4,82 @@ All notable changes to Umbra EQ are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [2.5.0] — 2026-11-08
+
+Prepared release candidate. Chrome Web Store publication is tracked separately in
+[PROJECT.md](PROJECT.md); this entry does not mean store review has completed.
+
+### Added
+
+- **Exact band editing:** select a graph point, then type its frequency and gain below
+  the graph. Peaking bands also expose Q; shelf filters do not use it. Enter commits,
+  Escape restores the field, and keyboard navigation does not alter untouched values.
+- **Shared output limiter:** a stereo-linked AudioWorklet limits the sum of captured
+  tabs at a −1 dBFS sample-peak ceiling with 5 ms lookahead. It is not a true-peak
+  limiter and cannot repair distortion already present in the source recording.
+- **Output peak meter:** shows the common stereo output after limiting, with a held
+  peak marker. The spectrum continues to show the selected tab.
+- **Auto Gain:** optional compensation estimated from the EQ settings, off by default.
+  It leaves stored master volume unchanged. It does not measure track loudness,
+  guarantee matched listening levels or normalize volume between videos.
+- **Reset changes:** restore the sound from when the editor opened. Destructive profile
+  reset stays under More, requires confirmation and offers Undo.
+- **Save for this site / Update:** create or update a site rule from the current sound
+  while preserving the global profile and existing rule metadata.
+- **Capture shortcut:** toggle the active tab's EQ without opening the popup. Assign a
+  combination at `chrome://extensions/shortcuts`; no default binding is imposed.
+- **English/Russian store metadata:** bundled manifest locales, ready-to-paste descriptions,
+  permission explanations and an asset brief in [docs/store](docs/store/README.md).
+  Dashboard descriptions and store submission remain separate publication steps.
+
+### Changed
+
+- Retained the original compact interface: master volume on the left, colored round
+  graph points, lower navigation and a 620 × 580 px popup. The full-window editor
+  keeps its centered instrument layout. See [the current UI](docs/DESIGN.md).
+- Improved small text, focus visibility, preset remove targets, selected-theme semantics
+  and reduced-motion behavior. The Guide traps focus, makes the background inert and
+  restores focus on close. Menus support keyboard navigation and focus restoration.
+- Kept the original onboarding composition with clearer privacy text, complete EN/RU
+  labels, narrow-screen fixes and a static response drawn from a real preset.
+- Bypass keeps the curve editable while the tab plays without EQ. Sound edits remain
+  a draft until Bypass ends. Capture-state messages explain unavailable or failed capture.
+- Privacy and product copy distinguish local audio from presets/rules that can use Chrome
+  Sync, and describe site/protected-media limitations without universal compatibility claims.
+- Updated build/test dependencies and the CI runtime to Node 24. Release packaging includes
+  application and production dependency licenses and rejects development/debug artifacts.
+  Temporary popup recording instrumentation was removed; no production dependencies were added.
+
+### Fixed
+
+- Corrected master volume to amplitude decibels (`20 log10`), labelled −50 to +20 dB.
+  Stored linear gains retain their sound. Auto Gain uses the corrected units and no longer
+  compensates a bypassed curve during a master-volume drag.
+- Corrected plotted biquad responses to match Web Audio bell and shelf filters. Shelf Q
+  controls are disabled. Pointer coordinates scale with the rendered graph; labels remain
+  readable and selected-band highlighting survives focus moving into the fields.
+- Serialized offscreen recovery, surfaced fatal audio-processor failures and rejected stale
+  Stop/capture-error completions. Saved rules, the global profile and Auto Gain preference
+  are resolved before shortcut-started capture; stopped tabs remain stopped after reopening.
+  Navigation invalidates stale captures instead of carrying the previous site's sound forward.
+- Protected newer edits from old journal/save callbacks. Bypass and Reset cancel conflicting
+  pending work; the latest gesture is retained if the popup closes before its animation frame.
+  Recovery and reset preserve preset provenance, including the “Based on” label.
+- Prevented popup/full-window storage changes from overwriting newer sound. Rule and preset
+  changes from another window apply to running audio without interrupting a live edit.
+- Failed storage reads preserve the last known sound and block writes until Retry reloads a
+  complete state. Site-save and Undo briefly lock conflicting edits; Reset/Undo verify storage
+  writes and reject stale or duplicate restores. Undo appears only with the operation that armed it.
+- Preset deletion and shared import report confirmed or partial results. Shared rules include
+  referenced presets; failed dependencies cannot create rules pointing at missing presets.
+  Rounded persisted curve values reduce synced-rule storage use without changing live editing.
+- Hidden built-in presets remain recoverable when the list is empty. Long names no longer
+  push Save/Update buttons or rule selectors outside the panel. The lower navigation indicator
+  stays contained during resize, including a 320 px full-window editor.
+- Corrected document language, graph heading, main landmark and rule listbox names.
+
 ## [2.4.1] — 2026-07-29
 
 ### Changed

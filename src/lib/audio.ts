@@ -1,5 +1,4 @@
-// Pure audio/graph math — ported verbatim from the vanilla popup.js so the React
-// graph reuses the exact, test-covered logic (no behavior change). No DOM here.
+// Pure audio/graph math, using the Web Audio amplitude-dB and biquad conventions.
 
 export const EQ_W = 524;
 export const EQ_H = 252;
@@ -8,8 +7,9 @@ export const DB_TOP = 30;
 export const DB_BOTTOM = -30;
 export const VIEW_DB_TOP = 60;
 export const VIEW_DB_BOTTOM = -60;
-export const MASTER_DB_MAX = 10; // master volume ceiling (10*log10(gain) scale)
-export const MASTER_DB_MIN = -25; // master volume floor — matches the engine's 0.00316 linear clamp
+// Stored gains remain linear: keep the existing 0.003162…10 range and correct only its dB scale.
+export const MASTER_DB_MAX = 20;
+export const MASTER_DB_MIN = -50;
 export const AXIS_MAX_FREQ = 22050;
 
 export const NUM_FILTERS = 11;
@@ -34,8 +34,8 @@ export const xToFreq = (x: number) => Math.pow(x / EQ_W, 4) * AXIS_MAX_FREQ;
 export const freqToX = (f: number) => Math.pow(f / AXIS_MAX_FREQ, 1 / 4) * EQ_W;
 export const dbToY = (db: number) => EQ_H * (1 - (db - VIEW_DB_BOTTOM) / (VIEW_DB_TOP - VIEW_DB_BOTTOM));
 export const yToDb = (y: number) => (1 - y / EQ_H) * (VIEW_DB_TOP - VIEW_DB_BOTTOM) + VIEW_DB_BOTTOM;
-export const masterGainToDb = (g: number) => 10 * Math.log10(g);
-export const dbToMasterGain = (db: number) => Math.pow(10, db / 10);
+export const masterGainToDb = (g: number) => 20 * Math.log10(g);
+export const dbToMasterGain = (db: number) => Math.pow(10, db / 20);
 
 export const clampQ = (q: number) => Math.max(0.2, Math.min(11, q));
 export const clampGainDb = (g: number) => Math.max(DB_BOTTOM, Math.min(DB_TOP, g));
@@ -45,7 +45,7 @@ export const clampFreq = (f: number) => Math.max(5, Math.min(22000, f));
 export const clampMasterGain = (g: number) => {
   const n = Number(g);
   if (!Number.isFinite(n) || n <= 0) return 1;
-  return dbToMasterGain(Math.max(MASTER_DB_MIN, Math.min(MASTER_DB_MAX, masterGainToDb(n))));
+  return Math.max(dbToMasterGain(MASTER_DB_MIN), Math.min(dbToMasterGain(MASTER_DB_MAX), n));
 };
 
 // Pixel clamps that neutralize NaN and keep dots inside + grabbable.
@@ -71,62 +71,38 @@ export interface Coeff {
 }
 
 export function biquadCoefficients(type: FilterKind, f0: number, q: number, gainDb: number, sampleRate: number): Coeff {
-  const o = Math.tan((Math.PI * f0) / sampleRate);
-  const c = Math.pow(10, Math.abs(gainDb) / 20);
-  const boost = gainDb >= 0;
-  let s: number, b0: number, b1: number, b2: number, a1: number, a2: number;
-
+  // Web Audio / RBJ cookbook coefficients. Shelf slope is fixed at S=1; shelf Q is unused.
+  const frequency = Math.max(0, Math.min(sampleRate / 2, f0));
+  const w0 = (2 * Math.PI * frequency) / sampleRate;
+  const cs = Math.cos(w0);
+  const sn = Math.sin(w0);
+  const A = Math.pow(10, gainDb / 40);
+  const alpha = sn / (2 * Math.max(0.000001, q));
+  const shelf = sn * Math.sqrt(2 * A);
+  let b0: number, b1: number, b2: number, a0: number, a1: number, a2: number;
   if (type === 'peaking') {
-    if (boost) {
-      s = 1 / (1 + (1 / q) * o + o * o);
-      b0 = (1 + (c / q) * o + o * o) * s;
-      b1 = 2 * (o * o - 1) * s;
-      b2 = (1 - (c / q) * o + o * o) * s;
-      a1 = b1;
-      a2 = (1 - (1 / q) * o + o * o) * s;
-    } else {
-      s = 1 / (1 + (c / q) * o + o * o);
-      b0 = (1 + (1 / q) * o + o * o) * s;
-      b1 = 2 * (o * o - 1) * s;
-      b2 = (1 - (1 / q) * o + o * o) * s;
-      a1 = b1;
-      a2 = (1 - (c / q) * o + o * o) * s;
-    }
-  } else if (type === 'highshelf') {
-    if (boost) {
-      s = 1 / (1 + Math.SQRT2 * o + o * o);
-      b0 = (c + Math.sqrt(2 * c) * o + o * o) * s;
-      b1 = 2 * (o * o - c) * s;
-      b2 = (c - Math.sqrt(2 * c) * o + o * o) * s;
-      a1 = 2 * (o * o - 1) * s;
-      a2 = (1 - Math.SQRT2 * o + o * o) * s;
-    } else {
-      s = 1 / (c + Math.sqrt(2 * c) * o + o * o);
-      b0 = (1 + Math.SQRT2 * o + o * o) * s;
-      b1 = 2 * (o * o - 1) * s;
-      b2 = (1 - Math.SQRT2 * o + o * o) * s;
-      a1 = 2 * (o * o - c) * s;
-      a2 = (c - Math.sqrt(2 * c) * o + o * o) * s;
-    }
+    b0 = 1 + alpha * A;
+    b1 = -2 * cs;
+    b2 = 1 - alpha * A;
+    a0 = 1 + alpha / A;
+    a1 = -2 * cs;
+    a2 = 1 - alpha / A;
+  } else if (type === 'lowshelf') {
+    b0 = A * ((A + 1) - (A - 1) * cs + shelf);
+    b1 = 2 * A * ((A - 1) - (A + 1) * cs);
+    b2 = A * ((A + 1) - (A - 1) * cs - shelf);
+    a0 = (A + 1) + (A - 1) * cs + shelf;
+    a1 = -2 * ((A - 1) + (A + 1) * cs);
+    a2 = (A + 1) + (A - 1) * cs - shelf;
   } else {
-    // lowshelf
-    if (boost) {
-      s = 1 / (1 + Math.SQRT2 * o + o * o);
-      b0 = (1 + Math.sqrt(2 * c) * o + c * o * o) * s;
-      b1 = 2 * (c * o * o - 1) * s;
-      b2 = (1 - Math.sqrt(2 * c) * o + c * o * o) * s;
-      a1 = 2 * (o * o - 1) * s;
-      a2 = (1 - Math.SQRT2 * o + o * o) * s;
-    } else {
-      s = 1 / (1 + Math.sqrt(2 * c) * o + c * o * o);
-      b0 = (1 + Math.SQRT2 * o + o * o) * s;
-      b1 = 2 * (o * o - 1) * s;
-      b2 = (1 - Math.SQRT2 * o + o * o) * s;
-      a1 = 2 * (c * o * o - 1) * s;
-      a2 = (1 - Math.sqrt(2 * c) * o + c * o * o) * s;
-    }
+    b0 = A * ((A + 1) + (A - 1) * cs + shelf);
+    b1 = -2 * A * ((A - 1) + (A + 1) * cs);
+    b2 = A * ((A + 1) + (A - 1) * cs - shelf);
+    a0 = (A + 1) - (A - 1) * cs + shelf;
+    a1 = 2 * ((A - 1) - (A + 1) * cs);
+    a2 = (A + 1) - (A - 1) * cs - shelf;
   }
-  return { b0, b1, b2, a1, a2 };
+  return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 };
 }
 
 // Magnitude (dB) of one biquad at a given frequency-domain y = sin^2(omega/2).

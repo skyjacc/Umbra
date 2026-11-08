@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, Activity, Captions, Globe, BookOpen, X, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
+import { BandFields } from './components/BandFields';
 import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
 import { GuideOverlay } from './components/GuideOverlay';
@@ -12,21 +13,40 @@ import { useT, useLang } from './i18n';
 import { applyThemeId, applyCustomHue, type ThemeId } from './theme';
 import { hasChrome } from '@/lib/engine-io';
 import { BUILTIN_ORDER } from '@/lib/builtins';
+import { showsGraph, offersCapture, type CaptureUIState } from '@/lib/capture-state';
 
 const THEMES = ['eclipse', 'nocturne', 'aurora', 'solar'] as const;
+
+// Copy for the states that replace the graph. The three graph states never reach this map.
+const CAPTURE_COPY: Record<CaptureUIState, string> = {
+  globalEditor: '',
+  active: '',
+  pending: '',
+  uncapturable: 'capture.uncapturable',
+  stopped: 'capture.stopped',
+  idle: 'capture.idle',
+  error: 'capture.error'
+};
 
 export default function App() {
   const eng = useEngine();
   const tr = useT();
   const { lang, setLang } = useLang();
   const [view, setView] = useState<ViewId>('eq');
+  // Which band the editable readout under the graph is showing. Survives blur, unlike focus:
+  // tabbing from a dot into a field must not empty the row you were about to type into.
+  const [selBand, setSelBand] = useState<number | null>(null);
+
   const [presetName, setPresetName] = useState('');
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
   const [guideOpen, setGuideOpen] = useState(false);
+  // Two-step arm for the destructive reset; cleared whenever the user leaves the More view.
+  const [confirmReset, setConfirmReset] = useState(false);
   const [hiddenBuiltins, setHiddenBuiltins] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.HIDDEN_BUILTINS || '[]');
+      const saved: unknown = JSON.parse(localStorage.HIDDEN_BUILTINS || '[]');
+      return Array.isArray(saved) ? saved.filter((name): name is string => typeof name === 'string') : [];
     } catch {
       return [];
     }
@@ -94,7 +114,7 @@ export default function App() {
       /* ignore */
     }
   };
-  const saveLabel = presetName && eng.presets[presetName] ? tr('presets.update', { name: presetName }) : tr('presets.save');
+  const saveLabel = presetName && eng.presets[presetName] ? tr('presets.update') : tr('presets.save');
   const fsHref = hasChrome() ? chrome.runtime.getURL('src/popup/index.html') : '#';
 
   const doSave = () => {
@@ -115,13 +135,71 @@ export default function App() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const hide = (v: ViewId) => (view === v ? '' : 'hidden');
+  // Disarm the destructive reset when the user navigates away, so it can't stay armed unseen.
+  useEffect(() => {
+    if (view !== 'more') setConfirmReset(false);
+  }, [view]);
 
+  const hide = (v: ViewId) => (view === v ? '' : 'hidden');
+  // The engine banner owns the top of the window when it is up; the notice steps below it rather
+  // than being covered by it, which is what used to happen to the Undo button.
+  const engineBanner = ['stale', 'error', 'notResponding'].includes(eng.engineStatus);
+
+  // h-full, not min-h alone: the shell fills the fixed popup box rather than deciding how big
+  // it is. See index.css — the popup's geometry is a contract and content may not change it.
   return (
-    <div className="flex min-h-[500px] flex-col">
-      <div className="flex-1">
+    <div data-layout={eng.globalEditor ? 'window' : 'popup'} className="relative flex h-full min-h-[500px] flex-col">
+      {/* The notice FLOATS. It used to be a permanently mounted 36px row at the top of the flex
+          column, which solved the right problem the wrong way: Chrome sizes a popup to its content,
+          so a notice that appears in the flow resizes the window under the pointer, and holding the
+          space stopped that by charging every screen a blank row forever. Overlaying costs nothing
+          in layout and cannot move the window.
+
+          The live REGION stays mounted whether or not there is anything to say — that is what makes
+          a screen reader announce a change of text rather than an insertion, and it was the one
+          genuinely good reason the old row was always present. The visible chip inside it is
+          conditional, so an empty notice has no box, no opacity trick and no pointer target: an
+          invisible chip with pointer-events sitting over the header would eat clicks meant for the
+          buttons underneath it. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className={
+          'pointer-events-none absolute inset-x-0 z-50 flex justify-center px-3 ' +
+          (engineBanner ? 'top-16' : 'top-2')
+        }
+      >
+        {eng.notice.text && (
+          <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-foreground shadow-lg">
+            <span className="min-w-0 truncate">{eng.notice.text}</span>
+            {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
+                slot alone, so any later unrelated notice inherited a live Undo. */}
+            {eng.notice.undo && eng.canUndoReset && (
+              <button
+                onClick={eng.undoReset}
+                className="shrink-0 rounded-full border border-primary/50 bg-primary/15 px-2 py-0.5 font-semibold text-foreground transition-colors hover:bg-primary/30"
+              >
+                {tr('eq.undo')}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {eng.stateReadError && (
+        <div role="alert" className="flex shrink-0 items-center gap-3 border-b border-destructive/40 bg-card px-3 py-2 text-xs">
+          <TriangleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{eng.stateReadError}</p>
+          <button onClick={() => window.location.reload()} className="shrink-0 rounded-lg border border-border px-3 py-2 font-medium hover:bg-white/10">
+            {tr('capture.retry')}
+          </button>
+        </div>
+      )}
+
+      <main className="min-h-0 flex-1 overflow-y-auto">
         {/* ================= EQ ================= */}
-        <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
+        <section className={'flex select-none flex-col gap-3 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
             <svg className="h-5 w-5" style={{ color: 'hsl(var(--accent))' }} viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <mask id="umbraCut">
@@ -131,11 +209,21 @@ export default function App() {
               <circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#umbraCut)" />
               <circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeOpacity="0.5" />
             </svg>
-            <span className="text-[15px] font-bold">
+            <h1 className="shrink-0 text-[15px] font-bold">
               Umbra<span className="text-primary">EQ</span>
-            </span>
+            </h1>
             <span className="ml-2 min-w-0 truncate text-[11px] text-muted-foreground" title={tr('eq.preset')}>
-              {tr('eq.preset')}: <span className="font-medium text-foreground/80">{eng.activePreset || tr('eq.presetNone')}</span>
+              {tr('eq.preset')}:{' '}
+              <span className="font-medium text-foreground/80">
+                {/* "Vocal" while the curve still is Vocal; "Based on Vocal" once it has been
+                    shaped away from it. Not "Vocal*" — an asterisk reads as unsaved, and the edit
+                    is saved. Not "Vocal (edited)" — that names a different preset, not a source. */}
+                {eng.provenance.kind === 'none'
+                  ? tr('eq.presetNone')
+                  : eng.provenance.kind === 'exact'
+                    ? eng.provenance.name
+                    : tr('eq.presetBasedOn', { name: eng.provenance.name })}
+              </span>
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               <button
@@ -143,8 +231,9 @@ export default function App() {
                 title={tr('eq.roles')}
                 aria-label={tr('eq.roles')}
                 aria-pressed={eng.showRoles}
+                disabled={!showsGraph(eng.captureState)}
                 className={
-                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40 ' +
                   (eng.showRoles
                     ? 'border-accent/50 bg-accent/20 text-accent'
                     : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
@@ -153,12 +242,28 @@ export default function App() {
                 <Captions className="size-4" />
               </button>
               <button
+                onClick={eng.toggleBypass}
+                title={tr('eq.bypassTitle')}
+                aria-label={tr('eq.bypassTitle')}
+                aria-pressed={eng.bypassed}
+                disabled={!showsGraph(eng.captureState) || !eng.canEdit}
+                className={
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40 ' +
+                  (eng.bypassed
+                    ? 'border-destructive/50 bg-destructive/20 text-destructive'
+                    : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
+                }
+              >
+                <Power className="size-4" />
+              </button>
+              <button
                 onClick={eng.toggleSpectrum}
                 title={tr('eq.spectrum')}
                 aria-label={tr('eq.spectrum')}
                 aria-pressed={eng.spectrum}
+                disabled={!showsGraph(eng.captureState)}
                 className={
-                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] ' +
+                  'inline-flex size-8 items-center justify-center rounded-lg border transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40 ' +
                   (eng.spectrum
                     ? 'border-accent/50 bg-accent/20 text-accent'
                     : 'border-border bg-white/[.04] text-muted-foreground hover:bg-white/[.08] hover:text-foreground')
@@ -169,33 +274,96 @@ export default function App() {
             </div>
           </header>
 
+          <div className="flex min-w-0 items-center justify-between gap-3 px-0.5 text-[12px] text-muted-foreground">
+            <span className="min-w-0 truncate" title={eng.matchedRule ? eng.activeHost : tr('eq.scopeGlobalHint')}>
+              {eng.matchedRule ? tr('eq.scopeSite', { host: eng.activeHost }) : tr('eq.scopeGlobal')}
+            </span>
+            {eng.capturing && <span className="shrink-0 text-[11px]">{tr('eq.outputAllTabs')}</span>}
+          </div>
+
           <div
-            className="flex items-center gap-2 rounded-2xl border border-white/10 p-3"
+            className="flex items-stretch gap-2 rounded-xl border border-white/10 p-3"
             style={{
               background: 'linear-gradient(180deg, rgba(255,255,255,.03), transparent 42%), var(--g-screen)',
               boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
             }}
           >
-            <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
-            <EqGraph
-              bands={eng.bands}
-              sampleRate={eng.sampleRate}
-              spectrumOn={eng.spectrum}
-              visible={view === 'eq'}
-              activeTabId={eng.activeTabId}
-              showRoles={eng.showRoles}
-              onBands={eng.onBandsLive}
-              onCommit={eng.onCommit}
+            {showsGraph(eng.captureState) ? (
+              <>
+                <VerticalVolume gain={eng.gain} onGain={eng.onGainLive} onCommit={eng.onCommit} editable={eng.canEdit} />
+                <EqGraph
+                  bands={eng.bands}
+                  sampleRate={eng.sampleRate}
+                  spectrumOn={eng.spectrum}
+                  visible={view === 'eq'}
+                  activeTabId={eng.activeTabId}
+                  showRoles={eng.showRoles}
+                  onBands={eng.onBandsLive}
+                  onCommit={eng.onCommit}
+                  editable={eng.canEdit}
+                  bypassed={eng.bypassed}
+                  onSelectBand={setSelBand}
+                  selectedBand={selBand}
+                />
+              </>
+            ) : (
+              // No capture: say why instead of rendering a full-size, inert equalizer that reads
+              // as broken. Same height as the graph so the popup doesn't jump between states.
+              // Announcement is handled by the always-mounted live region below — a region that
+              // is inserted together with its text is not reliably read by assistive tech.
+              <div className="flex h-[252px] flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <TriangleAlert className="size-5 opacity-40" aria-hidden="true" />
+                <p className="text-[13px] leading-relaxed text-muted-foreground">{tr(CAPTURE_COPY[eng.captureState])}</p>
+                {eng.captureState === 'error' && eng.lastError && (
+                  // Keep the cause on screen: the toast that carries it expires after 5s.
+                  <p className="max-w-full truncate text-[11px] text-muted-foreground/70" title={eng.lastError}>
+                    {eng.lastError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* The dragged-dot readout, in a fixed place and editable. Kept outside the graph box so
+              the lowest and highest bands — the hardest to hit with a mouse, and so the likeliest
+              to be typed — do not put their fields off the edge of a 400px popup. */}
+          {showsGraph(eng.captureState) && (
+            <BandFields
+              band={selBand !== null ? (eng.bands[selBand] ?? null) : null}
+              index={selBand !== null && eng.bands[selBand] ? selBand : null}
               editable={eng.canEdit}
+              onBand={(patch) => {
+                if (selBand === null) return;
+                const nb = eng.bands.slice();
+                nb[selBand] = { ...nb[selBand], ...patch };
+                eng.onBandsLive(nb);
+              }}
+              onCommit={eng.onCommit}
             />
-          </div>
+          )}
 
-          <div className="flex items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
-            <TriangleAlert className="size-3.5 opacity-70" />
-            {tr('eq.loud')}
-          </div>
+          {/* Always mounted so it is already a live region when its text changes — that is what
+              makes a capture-state change audible to a screen reader. Empty while the graph shows. */}
+          <span role="status" aria-live="polite" className="sr-only">
+            {showsGraph(eng.captureState) ? '' : tr(CAPTURE_COPY[eng.captureState])}
+          </span>
 
-          <div className="flex gap-2">
+          {/* Fixed height. The bypass badge inside is a bordered, padded span, so letting this row
+              size itself made the whole popup six pixels taller the moment Bypass came on and
+              shorter again when it went off. */}
+          {showsGraph(eng.captureState) && (
+            <div className="flex h-5 items-center gap-2 px-0.5 text-[11px] text-muted-foreground">
+              <TriangleAlert className="size-3.5 opacity-70" />
+              {tr('eq.loud')}
+              {eng.bypassed && (
+                <span className="ml-auto shrink-0 rounded border border-destructive/40 px-1.5 py-0.5 font-semibold text-destructive">
+                  {tr('eq.bypassOn')}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div data-testid="eq-actions" className="flex flex-wrap gap-2">
             {eng.globalEditor ? (
               // Full window edits the sound-everywhere profile, not a real tab — so there's
               // nothing to capture/stop here; show what you're editing instead.
@@ -203,7 +371,8 @@ export default function App() {
                 <Globe className="size-4 text-accent" />
                 <span>{tr('eq.globalProfile')}</span>
               </div>
-            ) : (
+            ) : offersCapture(eng.captureState) ? (
+              // Omitted on a browser system page: there is nothing the button could achieve there.
               <Button
                 variant="outline"
                 onClick={eng.toggleCapture}
@@ -215,24 +384,52 @@ export default function App() {
                 }
               >
                 <Power className={eng.capturing ? 'text-destructive' : 'text-accent'} />
-                <span>{eng.capturing ? tr('eq.stop') : tr('eq.eqThisTab')}</span>
+                <span>
+                  {eng.capturing ? tr('eq.stop') : eng.captureState === 'error' ? tr('capture.retry') : tr('eq.eqThisTab')}
+                </span>
                 {eng.activeHost && <span className="max-w-[170px] truncate font-normal opacity-55">· {eng.activeHost}</span>}
               </Button>
+            ) : null}
+            {/* Put the sound back to what it was when the popup opened. Restores, never deletes —
+                which is why it may sit here next to Save while the destructive `Reset profile`
+                stays in More. It survives the auto-commit: an edit that saved itself 200ms ago is
+                still an edit you may want back, and keying on the un-committed window is what made
+                the first attempt blink out on mouse-up. */}
+            {eng.canResetChanges && (
+              <Button
+                variant="outline"
+                title={tr('eq.resetChangesTitle')}
+                className="h-10 shrink-0 rounded-xl backdrop-blur-md"
+                onClick={eng.resetChanges}
+              >
+                <RotateCcw />
+                <span>{tr('eq.resetChanges')}</span>
+              </Button>
             )}
-            <Button
-              variant="outline"
-              title={eng.globalEditor ? tr('eq.resetGlobalTitle') : tr('eq.resetTitle')}
-              className="h-10 rounded-xl backdrop-blur-md"
-              onClick={eng.resetAll}
-            >
-              <RotateCcw />
-              {tr('eq.reset')}
-            </Button>
+            {/* Turn what you are hearing into a rule for this site. Only where there is a site to
+                attach it to, and only while the tab is actually being shaped. */}
+            {!eng.globalEditor && eng.activeHost && showsGraph(eng.captureState) && (
+              <Button
+                variant="outline"
+                title={eng.matchedRule ? tr('eq.updateRuleTitle') : tr('eq.saveForSiteTitle')}
+                className="h-10 rounded-xl backdrop-blur-md"
+                onClick={() => void eng.saveForThisSite()}
+              >
+                <Globe />
+                <span className={eng.canResetChanges ? 'max-w-[92px] truncate' : 'max-w-[150px] truncate'}>
+                  {eng.matchedRule ? tr('eq.updateRule', { host: eng.activeHost }) : tr('eq.saveForSite', { host: eng.activeHost })}
+                </span>
+              </Button>
+            )}
+            {/* No reset button here at all. The destructive one lives in More; the harmless one
+                would need a state that does not exist yet — a drag auto-commits, so "there is an
+                unsaved edit to discard" survives only the ~200ms debounce. It comes back in the
+                Bypass PR, where a preview persists for as long as the user leaves it on. */}
           </div>
         </section>
 
         {/* ================= PRESETS ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('presets')}>
+        <section className={'flex flex-col gap-3 p-3 ' + hide('presets')}>
           <h1 className="text-[15px] font-semibold">{tr('presets.title')}</h1>
           <div className="flex gap-2">
             <input
@@ -240,14 +437,15 @@ export default function App() {
               onChange={(e) => setPresetName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && doSave()}
               placeholder={tr('presets.placeholder')}
-              className="flex-1 rounded-xl border border-border bg-black/25 px-3 py-2 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+              aria-label={tr('presets.placeholder')}
+              className="min-w-0 flex-1 rounded-xl border border-border bg-black/25 px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
             />
             <Button variant="secondary" className="rounded-xl" onClick={doSave}>
               {saveLabel}
             </Button>
           </div>
 
-          {visibleBuiltins.length === 0 && names.length === 0 ? (
+          {visibleBuiltins.length === 0 && names.length === 0 && hiddenBuiltins.length === 0 ? (
             <p className="px-1 text-[12px] text-muted-foreground text-pretty">{tr('presets.none')}</p>
           ) : (
             <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
@@ -256,15 +454,15 @@ export default function App() {
                 <span
                   key={'b:' + n}
                   className={
-                    'inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
+                    'inline-flex max-w-full items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
                     (n === eng.activePreset ? 'border-primary bg-accent/15' : 'border-accent/30 bg-accent/[.08] hover:border-accent/50')
                   }
                 >
-                  <button className="text-foreground" onClick={() => eng.applyPreset(n)}>
+                  <button className="min-w-0 truncate text-foreground preset-apply" title={n} onClick={() => eng.applyPreset(n)}>
                     {n}
                   </button>
                   <button
-                    className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-white/10 hover:text-foreground"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-white/10 hover:text-foreground"
                     title={tr('presets.hideTitle')}
                     onClick={() => hideBuiltin(n)}
                   >
@@ -277,15 +475,15 @@ export default function App() {
                 <span
                   key={n}
                   className={
-                    'inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
+                    'inline-flex max-w-full items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
                     (n === eng.activePreset ? 'border-primary bg-accent/15' : 'border-border bg-white/[.06] hover:border-input')
                   }
                 >
-                  <button className="text-foreground" onClick={() => eng.applyPreset(n)}>
+                  <button className="min-w-0 truncate text-foreground preset-apply" title={n} onClick={() => eng.applyPreset(n)}>
                     {n}
                   </button>
                   <button
-                    className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/70 hover:bg-destructive/20 hover:text-destructive"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 hover:bg-destructive/20 hover:text-destructive"
                     title={tr('presets.deleteTitle', { name: n })}
                     onClick={() => eng.deletePreset(n)}
                   >
@@ -335,10 +533,10 @@ export default function App() {
         </section>
 
         {/* ================= TABS ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('tabs')}>
+        <section className={'flex flex-col gap-3 p-3 ' + hide('tabs')}>
           <h1 className="text-[15px] font-semibold">{tr('tabs.title')}</h1>
           {eng.streams.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground text-pretty">{tr('tabs.none')}</p>
+            <p className="text-[13px] text-muted-foreground text-pretty">{tr('tabs.none')}</p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {eng.streams.map((t) => (
@@ -355,16 +553,16 @@ export default function App() {
                     <Globe className="size-[17px] text-muted-foreground" aria-hidden />
                   )}
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[12.5px] text-foreground" title={t.title}>
+                    <span className="truncate text-[13px] text-foreground" title={t.title}>
                       {t.title || tr('tabs.untitled')}
                     </span>
-                    <span className="truncate text-[10.5px] text-muted-foreground/80">
+                    <span className="truncate text-[11px] text-muted-foreground/80">
                       {t.host || tr('tabs.local')}
                       {t.activePreset ? ' · ' + t.activePreset : ''}
                     </span>
                   </div>
                   <button
-                    className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[10.5px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
+                    className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[11px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
                     onClick={() => eng.stopTab(t.id)}
                   >
                     {tr('tabs.stop')}
@@ -376,11 +574,11 @@ export default function App() {
         </section>
 
         {/* ================= MORE ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('more')}>
+        <section className={'flex flex-col gap-2 p-3 ' + hide('more')}>
           <h1 className="text-[15px] font-semibold">{tr('more.title')}</h1>
 
           {/* Language */}
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] px-3 py-2.5 [box-shadow:var(--shadow-border)]">
             <div className="flex flex-col">
               <span className="text-[13px] font-semibold">{tr('more.language')}</span>
               <span className="text-[11px] text-muted-foreground text-pretty">{tr('more.languageDesc')}</span>
@@ -403,7 +601,7 @@ export default function App() {
           </div>
 
           {/* Theme + custom color */}
-          <div className="flex flex-col gap-3 rounded-xl bg-white/[.05] p-3 [box-shadow:var(--shadow-border)]">
+          <div className="flex flex-col gap-2.5 rounded-xl bg-white/[.05] px-3 py-2.5 [box-shadow:var(--shadow-border)]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="text-[13px] font-semibold">{tr('more.theme')}</span>
@@ -416,6 +614,7 @@ export default function App() {
                     onClick={() => applyTheme(t)}
                     title={t}
                     aria-label={t}
+                    aria-pressed={theme === t}
                     className={'size-6 rounded-full border-2 transition-transform ' + (theme === t ? 'scale-110 border-foreground' : 'border-transparent')}
                     style={{ background: swatch(t) }}
                   />
@@ -444,6 +643,38 @@ export default function App() {
             </div>
           </div>
 
+          {/* Auto Gain. A listening preference, not part of any profile — switching it on rewrites
+              nothing, which is why it sits with the view toggles rather than near Save. */}
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+            <button
+              onClick={eng.toggleAutoGain}
+              role="switch"
+              aria-checked={eng.autoGain}
+              className={
+                'inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold transition-colors [box-shadow:var(--shadow-border)] ' +
+                (eng.autoGain
+                  ? 'border-primary/50 bg-primary/15 text-foreground'
+                  : 'border-border bg-white/[.05] text-muted-foreground hover:text-foreground')
+              }
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Activity className="size-4" />
+                {tr('more.autoGain')}
+              </span>
+              <span
+                className={
+                  'h-4 w-7 shrink-0 rounded-full border transition-colors ' +
+                  (eng.autoGain ? 'border-primary/60 bg-primary/60' : 'border-border bg-white/[.06]')
+                }
+              >
+                <span
+                  className={'block size-3 translate-y-px rounded-full bg-foreground/80 transition-transform ' + (eng.autoGain ? 'translate-x-3.5' : 'translate-x-px')}
+                />
+              </span>
+            </button>
+            <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">{tr('more.autoGainHint')}</p>
+          </div>
+
           {/* Guide + full window */}
           <div className="flex gap-2">
             <button
@@ -462,27 +693,61 @@ export default function App() {
               <Maximize2 className="size-4" /> {tr('more.fullWindow')}
             </a>
           </div>
+
+          {/* The destructive reset lives only here. Two steps rather than a modal — the project has
+              no modal pattern and adding one for a single action isn't worth it — and the notice
+              that follows offers an undo, so a mis-click is recoverable either way. */}
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+            <button
+              onClick={() => {
+                if (!confirmReset) {
+                  setConfirmReset(true);
+                  return;
+                }
+                setConfirmReset(false);
+                eng.resetProfile();
+              }}
+              className={
+                'inline-flex items-center justify-center gap-1.5 rounded-xl border py-2 text-[12px] font-semibold transition-colors [box-shadow:var(--shadow-border)] ' +
+                (confirmReset
+                  ? 'border-destructive/60 bg-destructive/15 text-foreground'
+                  : 'border-border bg-white/[.05] text-muted-foreground hover:text-foreground')
+              }
+            >
+              <RotateCcw className="size-4" />
+              {confirmReset ? tr('more.resetProfileConfirm') : tr('more.resetProfile')}
+            </button>
+            <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">
+              {eng.activeHost && eng.matchedRule ? tr('more.resetProfileRule', { host: eng.activeHost }) : tr('more.resetProfileGlobal')}
+            </p>
+
+            {/* The undo lives here, not only in the toast. Deciding whether you wanted a reset
+                means listening to something, which takes longer than any notice should stay on
+                screen — so it outlives the toast and is cleared by a later save instead of by a
+                timer. See lib/undo.ts. */}
+            {eng.canUndoReset && (
+              <div className="mt-1 flex flex-col gap-1">
+                <button
+                  onClick={eng.undoReset}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/10 py-2 text-[12px] font-semibold text-foreground transition-colors hover:bg-primary/20"
+                >
+                  <Undo2 className="size-4" />
+                  {tr('more.undoReset')}
+                </button>
+                <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">{tr('more.undoResetHint')}</p>
+              </div>
+            )}
+          </div>
         </section>
-      </div>
+      </main>
 
       <BottomNav view={view} onView={setView} />
 
-      {eng.notice && (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="fixed inset-x-3 bottom-[64px] z-50 rounded-xl border border-primary/40 bg-secondary/90 px-3.5 py-2.5 text-[11.5px] text-foreground shadow-lg backdrop-blur-md"
-        >
-          {eng.notice}
-        </div>
-      )}
-
-      {['stale', 'error', 'notResponding'].includes(eng.engineStatus) && (
+      {engineBanner && (
         <div
           role="alert"
           aria-live="assertive"
-          className="fixed inset-x-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/15 px-3.5 py-2.5 text-[11.5px] font-semibold text-destructive shadow-lg backdrop-blur-md"
+          className="fixed inset-x-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/15 px-3.5 py-2.5 text-[12px] font-semibold text-destructive shadow-lg backdrop-blur-md"
         >
           <TriangleAlert className="size-4 shrink-0" />
           {tr('engine.' + eng.engineStatus)}

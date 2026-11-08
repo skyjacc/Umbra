@@ -1,0 +1,210 @@
+import { describe, it, expect } from 'vitest';
+import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } from './reset-changes';
+import type { Baseline } from './edit-state';
+import type { Rule } from './rules';
+import type { Band } from './audio';
+import { flatBands } from './engine-io';
+
+const curve = (gain: number): Band[] => flatBands().map((b) => ({ ...b, gain }));
+const A = curve(2); // what the sound was when this popup opened
+
+const rule = (id: string, over: Partial<Rule> = {}): Rule => ({
+  id,
+  patterns: [id + '.com'],
+  mode: 'curve',
+  curve: { frequencies: [20], gains: [9], qs: [0.7] },
+  gain: 1,
+  preset: '',
+  enabled: true,
+  ...over
+});
+
+const globalBaseline: Baseline = { has: true, target: { kind: 'global' }, global: { bands: A, gain: 1, presetName: '' }, rule: null };
+const RULE_A = rule('r1', { curve: { frequencies: [20], gains: [2], qs: [0.7] }, gain: 1, preset: 'Vocal', enabled: false });
+const ruleBaseline: Baseline = { has: true, target: { kind: 'rule', id: 'r1' }, global: { bands: A, gain: 1, presetName: '' }, rule: RULE_A };
+
+describe('when the button is there at all', () => {
+  it('is absent before the session has changed anything', () => {
+    expect(canResetChanges({ baselineHas: false, dirty: false, committed: false })).toBe(false);
+  });
+
+  it('appears the moment an edit starts, before it is saved', () => {
+    // The old attempt keyed on the ~200ms debounce and so blinked out on mouse-up. This is the
+    // whole reason the control was unusable.
+    expect(canResetChanges({ baselineHas: true, dirty: true, committed: false })).toBe(true);
+  });
+
+  it('STAYS once the edit auto-saves', () => {
+    expect(canResetChanges({ baselineHas: true, dirty: false, committed: true })).toBe(true);
+  });
+
+  it('goes away after a reset, and comes back on the next edit', () => {
+    expect(canResetChanges({ baselineHas: true, dirty: false, committed: false })).toBe(false);
+    expect(canResetChanges({ baselineHas: true, dirty: true, committed: false })).toBe(true);
+  });
+});
+
+describe('what it puts back', () => {
+  it('does nothing without a baseline', () => {
+    expect(planResetChanges({ baseline: { has: false, target: null, global: null, rule: null }, rules: [], committed: true }).action).toBe(
+      'none'
+    );
+  });
+
+  it('restores the global profile the session displaced', () => {
+    const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    expect(plan.global).toEqual({ to: { bands: A, gain: 1, presetName: '' } });
+    expect(plan.rules).toBeNull(); // a global edit is no reason to rewrite the rules array
+  });
+
+  it('clears the profile when the session created it', () => {
+    // Fresh install: there was no stored profile until this edit made one. Putting things back
+    // means removing it, not writing a flat one that never existed.
+    const plan = planResetChanges({ baseline: { ...globalBaseline, global: null }, rules: [], committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    expect(plan.global).toEqual({ to: null });
+  });
+
+  it('restores only the edited rule, and only its sound', () => {
+    const others = [rule('other'), rule('r1', { curve: { frequencies: [20], gains: [9], qs: [0.7] }, preset: '', enabled: false })];
+    const plan = planResetChanges({ baseline: ruleBaseline, rules: others, committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+
+    expect(plan.global).toBeNull(); // a rule edit never touched the global profile
+    expect(plan.rules!.map((r) => r.id)).toEqual(['other', 'r1']);
+    expect(plan.rules![0]).toEqual(others[0]); // other rules untouched
+
+    const back = plan.rules!.find((r) => r.id === 'r1')!;
+    expect(back.curve!.gains[0]).toBe(2); // the sound came back
+    expect(back.preset).toBe('Vocal');
+    expect(back.gain).toBe(1);
+    // Identity and reach are not the sound, and were never part of this edit.
+    expect(back.patterns).toEqual(others[1].patterns);
+    expect(back.enabled).toBe(others[1].enabled);
+  });
+
+  it('does not resurrect a rule that has since been deleted', () => {
+    // Restoring an edit is not a reason to bring back something the user removed on purpose. With
+    // the rule gone there is nothing to write, so the plan asks for no rules write at all rather
+    // than rewriting the array to look the same.
+    const plan = planResetChanges({ baseline: ruleBaseline, rules: [rule('other')], committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    expect(plan.rules).toBeNull();
+    expect(JSON.stringify(plan)).not.toContain('r1');
+  });
+
+  it('restores the buffer but writes nothing when no save has landed yet', () => {
+    // Reset inside the debounce window: cancelling the pending commit is enough, and a write here
+    // would spend a storage.sync quota slot to store what is already stored.
+    const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed: false });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    expect(plan.global).toBeNull();
+    expect(plan.rules).toBeNull();
+    expect(plan.bands).toEqual(A); // the graph and the engine still go back
+  });
+
+  it('always says what the sound should become', () => {
+    for (const committed of [true, false]) {
+      const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed });
+      if (plan.action !== 'restore') throw new Error('unreachable');
+      expect(plan.bands).toEqual(A);
+      expect(plan.gain).toBe(1);
+    }
+  });
+
+  it('puts the provenance back with the profile', () => {
+    // Same rule as the Save-for-site rollback: a profile restored without the preset it came from
+    // reads "Preset: None" for a curve that is still, visibly, Vocal. The baseline is a complete
+    // snapshot, so both paths restore the same three things.
+    const withName: Baseline = { ...globalBaseline, global: { bands: A, gain: 1, presetName: 'Vocal' } };
+    const plan = planResetChanges({ baseline: withName, rules: [], committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    expect(plan.global!.to!.presetName).toBe('Vocal');
+  });
+
+  it('does not alias the baseline it restores from', () => {
+    // Reset twice in one session has to give the same answer both times — see the A/B/A/C/A case.
+    const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed: true });
+    if (plan.action !== 'restore') throw new Error('unreachable');
+    plan.bands[0].gain = 99;
+    expect(globalBaseline.global!.bands[0].gain).toBe(2);
+  });
+});
+
+// Sequencing. The planner above says WHAT to put back; this says in what order, and what may only
+// happen once a write has actually landed. The rule the audit found broken: a success notice, a
+// cleared journal and a spent undo slot are all consequences of a write, not of an intention.
+describe('applying a restore', () => {
+  const spy = (over: Partial<RestoreWriters> = {}) => {
+    const calls: string[] = [];
+    const w: RestoreWriters = {
+      writeGlobal: async () => (calls.push('writeGlobal'), { ok: true }),
+      clearGlobal: async () => (calls.push('clearGlobal'), { ok: true }),
+      writeRules: async () => (calls.push('writeRules'), { ok: true }),
+      ...over
+    };
+    return { w, calls };
+  };
+
+  it('says there is nothing to do without a baseline', async () => {
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: { has: false, target: null, global: null, rule: null }, rules: [], committed: true });
+    expect(await applyRestore(plan, w)).toBe('nothing-to-do');
+    expect(calls).toEqual([]);
+  });
+
+  it('reports that it wrote NOTHING when the edit never reached storage', async () => {
+    // The release blocker. Reset inside the debounce window, or on a rule deleted since the
+    // baseline, writes nothing at all — and the caller must not take that as licence to spend the
+    // undo slot from an earlier Reset profile. Distinguishing the two outcomes is the fix.
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: globalBaseline, rules: [], committed: false });
+    expect(await applyRestore(plan, w)).toBe('restored-without-writing');
+    expect(calls).toEqual([]);
+  });
+
+  it('reports the same when the baseline rule has since been deleted', async () => {
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: ruleBaseline, rules: [rule('other')], committed: true });
+    expect(await applyRestore(plan, w)).toBe('restored-without-writing');
+    expect(calls).toEqual([]);
+  });
+
+  it('writes the global profile and says so', async () => {
+    const { w, calls } = spy();
+    expect(await applyRestore(planResetChanges({ baseline: globalBaseline, rules: [], committed: true }), w)).toBe('restored');
+    expect(calls).toEqual(['writeGlobal']);
+  });
+
+  it('clears the profile when there was none to begin with', async () => {
+    const { w, calls } = spy();
+    const plan = planResetChanges({ baseline: { ...globalBaseline, global: null }, rules: [], committed: true });
+    expect(await applyRestore(plan, w)).toBe('restored');
+    expect(calls).toEqual(['clearGlobal']);
+  });
+
+  it('reports a failed global write instead of claiming success', async () => {
+    // What the caller must not do on this outcome: show "Sound put back", drop the journal, or
+    // spend the undo slot. Storage still holds the edit, so all three would be lies.
+    const { w, calls } = spy({ writeGlobal: async () => (calls.push('writeGlobal'), { ok: false }) });
+    expect(await applyRestore(planResetChanges({ baseline: globalBaseline, rules: [], committed: true }), w)).toBe('write-failed');
+  });
+
+  it('reports a failed rules write instead of claiming success', async () => {
+    const others = [rule('other'), rule('r1')];
+    const { w } = spy({ writeRules: async () => ({ ok: false }) });
+    const plan = planResetChanges({ baseline: ruleBaseline, rules: others, committed: true });
+    expect(await applyRestore(plan, w)).toBe('write-failed');
+  });
+
+  it('does not touch the rules when only the profile moved, and vice versa', async () => {
+    const g = spy();
+    await applyRestore(planResetChanges({ baseline: globalBaseline, rules: [], committed: true }), g.w);
+    expect(g.calls).not.toContain('writeRules');
+
+    const r = spy();
+    await applyRestore(planResetChanges({ baseline: ruleBaseline, rules: [rule('other'), rule('r1')], committed: true }), r.w);
+    expect(r.calls).toEqual(['writeRules']);
+  });
+});

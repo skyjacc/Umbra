@@ -1,5 +1,5 @@
 import { memo, useRef } from 'react';
-import { EQ_H, MASTER_DB_MAX, MASTER_DB_MIN, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
+import { MASTER_DB_MAX, MASTER_DB_MIN, masterGainToDb, dbToMasterGain, clampMasterGain, gainDbText } from '@/lib/audio';
 import { useT } from '../i18n';
 
 const RANGE = MASTER_DB_MAX - MASTER_DB_MIN;
@@ -74,8 +74,8 @@ function VerticalVolumeImpl({
   };
 
   return (
-    <div className="flex w-10 shrink-0 select-none flex-col items-center gap-1" style={{ height: EQ_H }}>
-      <span className="w-full text-center font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+    <div className="flex w-10 shrink-0 select-none flex-col items-center gap-1 self-stretch">
+      <span className="w-full text-center font-mono text-[11px] font-semibold tabular-nums text-muted-foreground">
         {gainDbText(gain)}
       </span>
       <div
@@ -89,6 +89,7 @@ function VerticalVolumeImpl({
         className={'relative flex w-full flex-1 touch-none justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ' + (editable ? 'cursor-ns-resize' : 'cursor-default')}
         role="slider"
         aria-label={tr('vol.master')}
+        aria-orientation="vertical"
         aria-disabled={!editable}
         aria-valuemin={MASTER_DB_MIN}
         aria-valuemax={MASTER_DB_MAX}
@@ -97,7 +98,7 @@ function VerticalVolumeImpl({
       >
         {/* 0 dB marker */}
         <div className="pointer-events-none absolute left-0.5 h-px w-3 bg-white/25" style={{ top: zeroTop }} />
-        <span className="pointer-events-none absolute right-0.5 -translate-y-1/2 text-[8px] leading-none text-muted-foreground/70" style={{ top: zeroTop }}>
+        <span className="pointer-events-none absolute right-0.5 -translate-y-1/2 text-[10px] leading-none text-muted-foreground" style={{ top: zeroTop }}>
           0
         </span>
         {/* track */}
@@ -109,7 +110,7 @@ function VerticalVolumeImpl({
           />
         </div>
       </div>
-      <span className="text-[8px] tracking-[0.18em] text-muted-foreground/60">{tr('vol.vol')}</span>
+      <span className="text-[10px] tracking-[0.18em] text-muted-foreground">{tr('vol.vol')}</span>
     </div>
   );
 }

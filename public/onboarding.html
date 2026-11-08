@@ -10,7 +10,7 @@
     @font-face { font-family: 'GeistUmbra'; src: url('fonts/GeistMono-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
     * { box-sizing: border-box; margin: 0; }
     :root {
-      --bg: #0a0b0f; --ink: #e7e8ee; --dim: #969aa8; --faint: #5d616d;
+      --bg: #0a0b0f; --ink: #e7e8ee; --dim: #969aa8; --faint: #969aa8;
       --acc: #8b93c6; --acc2: #a6adda; --pink: #c48bbf;
       --glass: rgba(255,255,255,.05); --gbrd: rgba(255,255,255,.1); --ghi: rgba(255,255,255,.1);
     }
@@ -182,6 +182,32 @@
       .card { grid-template-columns: 1fr; }
       .point { display: none; }
     }
+
+    /* Original onboarding composition, with readable text and a quiet static preview. */
+    body { background: var(--bg); }
+    .hero h1 { font-weight: 600; }
+    .hero h1 span { background: none; -webkit-text-fill-color: var(--acc2); color: var(--acc2); }
+    .mark { animation: none; filter: none; }
+    .curve { stroke: var(--acc2); }
+    .curveG, .ddmenu, .pin, .cursor, .ring { animation: none !important; }
+    .ddmenu { opacity: 1; transform: none; }
+    .pin { color: var(--acc2); }
+    .cursor, .ring { display: none; }
+    .priv, .ddhdr, .ddrow:not(.umbra) .nm { color: #a1a7b8; }
+    .lang button { min-width: 32px; min-height: 28px; }
+    .pnavItem { color: #a1a7b8; }
+    .flabel { fill-opacity: .9; }
+    .wrap, .hero > *, .card > *, .popup { min-width: 0; }
+    .btn { background: var(--acc2); box-shadow: none; }
+    @media (max-width: 480px) {
+      body { padding: 24px 12px; }
+      .hero h1 { font-size: 32px; }
+      .card { padding: 16px; gap: 20px; }
+      .pbtns { flex-wrap: wrap; }
+      .btnReset { flex: 1; min-width: 80px; }
+      .hero { gap: 24px; }
+      .brand { gap: 8px; }
+    }
   </style>
 </head>
 <body>
@@ -193,7 +219,7 @@
     </svg>
   </div>
 
-  <div class="wrap">
+  <main class="wrap">
     <div class="brand">
       <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
         <mask id="mBrand"><rect width="32" height="32" fill="#fff"/><circle cx="20.5" cy="13.5" r="11" fill="#000"/></mask>
@@ -219,7 +245,7 @@
         <div class="phdr">
           <svg class="plogo" viewBox="0 0 32 32" fill="none"><mask id="mPop"><rect width="32" height="32" fill="#fff"/><circle cx="20.5" cy="13.5" r="11" fill="#000"/></mask><circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#mPop)"/><circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5"/></svg>
           <span class="wm">Umbra<b>EQ</b></span>
-          <span class="pre">Preset: None</span>
+          <span class="pre" data-i18n="previewPreset">Preview: Vocal</span>
           <div class="hicons">
             <span class="hbtn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="5" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></svg></span>
             <span class="hbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></span>
@@ -227,39 +253,36 @@
         </div>
         <div class="pscreen">
           <div class="gpanel">
-            <div class="vol"><span>0</span><div class="voltrack"><div class="volfill"></div><div class="volknob"></div></div><span style="letter-spacing:.12em">VOL</span></div>
+            <div class="vol"><span>0</span><div class="voltrack"><div class="volfill"></div><div class="volknob"></div></div><span data-i18n="volume">Vol</span></div>
             <div class="graph">
               <svg class="gsvg" viewBox="0 0 380 176" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b93c6"/><stop offset="1" stop-color="#c48bbf"/></linearGradient>
                   <linearGradient id="fftg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b93c6" stop-opacity="0.22"/><stop offset="1" stop-color="#8b93c6" stop-opacity="0.03"/></linearGradient>
                 </defs>
-                <path class="fft"/>
-                <text class="zlabel" x="42" y="12" text-anchor="middle">BASS</text>
-                <text class="zlabel" x="160" y="12" text-anchor="middle">MIDS</text>
-                <text class="zlabel" x="286" y="12" text-anchor="middle">TREBLE</text>
-                <text class="zlabel" x="356" y="12" text-anchor="middle">AIR</text>
-                <line x1="8" y1="112" x2="372" y2="112" stroke="#fff" stroke-opacity=".1" stroke-dasharray="1 3"/>
-                <g class="curveG">
-                  <path class="curve" d="M 8 66 C 42 46, 80 46, 120 98 C 162 134, 212 132, 252 126 C 294 120, 322 84, 372 102"/>
-                  <circle class="dot" cx="8" cy="66" r="3.4"/><circle class="dot" cx="46" cy="52" r="3.4"/><circle class="dot" cx="86" cy="60" r="3.4"/><circle class="dot" cx="120" cy="98" r="3.4"/><circle class="dot" cx="162" cy="122" r="3.4"/><circle class="dot" cx="205" cy="129" r="3.4"/><circle class="dot" cx="252" cy="126" r="3.4"/><circle class="dot" cx="290" cy="110" r="3.4"/><circle class="dot" cx="322" cy="84" r="3.4"/><circle class="dot" cx="350" cy="90" r="3.4"/><circle class="dot" cx="372" cy="102" r="3.4"/>
-                </g>
+
+                <text class="zlabel" x="42" y="12" text-anchor="middle" data-i18n="bass">Bass</text>
+                <text class="zlabel" x="160" y="12" text-anchor="middle" data-i18n="mids">Mids</text>
+                <text class="zlabel" x="286" y="12" text-anchor="middle" data-i18n="treble">Treble</text>
+                <text class="zlabel" x="356" y="12" text-anchor="middle" data-i18n="air">Air</text>
+                <line x1="8" y1="88" x2="372" y2="88" stroke="#fff" stroke-opacity=".1" stroke-dasharray="1 3"/>
+                <g class="curveG"><path class="curve" d="M71.17 88.34 L71.45 88.35 L71.72 88.37 L72.00 88.38 L72.29 88.39 L72.57 88.41 L72.85 88.42 L73.13 88.44 L73.42 88.45 L73.71 88.47 L74.00 88.48 L74.29 88.50 L74.58 88.52 L74.87 88.54 L75.16 88.56 L75.46 88.58 L75.75 88.60 L76.05 88.62 L76.35 88.64 L76.65 88.66 L76.95 88.69 L77.25 88.71 L77.55 88.73 L77.86 88.76 L78.17 88.79 L78.47 88.82 L78.78 88.85 L79.09 88.88 L79.41 88.91 L79.72 88.94 L80.03 88.97 L80.35 89.01 L80.67 89.04 L80.99 89.08 L81.31 89.12 L81.63 89.16 L81.95 89.20 L82.27 89.24 L82.60 89.28 L82.93 89.33 L83.26 89.38 L83.59 89.42 L83.92 89.47 L84.25 89.53 L84.59 89.58 L84.92 89.64 L85.26 89.69 L85.60 89.75 L85.94 89.81 L86.28 89.88 L86.62 89.94 L86.97 90.01 L87.31 90.08 L87.66 90.16 L88.01 90.23 L88.36 90.31 L88.72 90.39 L89.07 90.47 L89.42 90.56 L89.78 90.65 L90.14 90.74 L90.50 90.83 L90.86 90.93 L91.23 91.03 L91.59 91.14 L91.96 91.24 L92.33 91.36 L92.70 91.47 L93.07 91.59 L93.44 91.71 L93.82 91.83 L94.19 91.96 L94.57 92.10 L94.95 92.23 L95.33 92.37 L95.71 92.52 L96.10 92.67 L96.49 92.82 L96.87 92.98 L97.26 93.14 L97.66 93.31 L98.05 93.48 L98.44 93.65 L98.84 93.83 L99.24 94.01 L99.64 94.20 L100.04 94.39 L100.44 94.58 L100.85 94.78 L101.26 94.98 L101.67 95.19 L102.08 95.39 L102.49 95.61 L102.90 95.82 L103.32 96.04 L103.74 96.26 L104.16 96.48 L104.58 96.70 L105.00 96.93 L105.43 97.16 L105.86 97.38 L106.29 97.61 L106.72 97.84 L107.15 98.07 L107.59 98.29 L108.02 98.52 L108.46 98.74 L108.90 98.96 L109.34 99.17 L109.79 99.39 L110.24 99.60 L110.68 99.80 L111.13 100.00 L111.59 100.20 L112.04 100.39 L112.50 100.57 L112.96 100.75 L113.42 100.93 L113.88 101.09 L114.34 101.25 L114.81 101.40 L115.28 101.55 L115.75 101.69 L116.22 101.82 L116.70 101.95 L117.17 102.07 L117.65 102.18 L118.13 102.29 L118.62 102.39 L119.10 102.48 L119.59 102.57 L120.08 102.65 L120.57 102.73 L121.06 102.80 L121.56 102.87 L122.06 102.93 L122.56 102.99 L123.06 103.04 L123.57 103.08 L124.07 103.12 L124.58 103.15 L125.09 103.17 L125.61 103.19 L126.12 103.20 L126.64 103.20 L127.16 103.19 L127.68 103.18 L128.21 103.15 L128.74 103.12 L129.27 103.07 L129.80 103.02 L130.33 102.95 L130.87 102.87 L131.41 102.77 L131.95 102.67 L132.49 102.54 L133.04 102.41 L133.59 102.26 L134.14 102.10 L134.69 101.92 L135.25 101.73 L135.80 101.52 L136.37 101.30 L136.93 101.06 L137.49 100.81 L138.06 100.55 L138.63 100.28 L139.21 99.99 L139.78 99.69 L140.36 99.38 L140.94 99.06 L141.52 98.73 L142.11 98.39 L142.70 98.04 L143.29 97.68 L143.88 97.32 L144.48 96.94 L145.08 96.57 L145.68 96.18 L146.28 95.80 L146.89 95.41 L147.50 95.01 L148.11 94.61 L148.72 94.21 L149.34 93.80 L149.96 93.40 L150.58 92.99 L151.21 92.58 L151.84 92.16 L152.47 91.75 L153.10 91.34 L153.74 90.92 L154.38 90.50 L155.02 90.09 L155.66 89.67 L156.31 89.25 L156.96 88.83 L157.62 88.41 L158.27 87.98 L158.93 87.56 L159.59 87.14 L160.26 86.71 L160.93 86.29 L161.60 85.86 L162.27 85.43 L162.95 85.00 L163.63 84.57 L164.31 84.14 L165.00 83.71 L165.68 83.27 L166.38 82.84 L167.07 82.40 L167.77 81.96 L168.47 81.53 L169.17 81.09 L169.88 80.65 L170.59 80.21 L171.30 79.76 L172.02 79.32 L172.74 78.88 L173.46 78.44 L174.19 78.00 L174.92 77.56 L175.65 77.12 L176.38 76.69 L177.12 76.25 L177.86 75.82 L178.61 75.38 L179.36 74.96 L180.11 74.53 L180.86 74.11 L181.62 73.69 L182.38 73.27 L183.15 72.86 L183.92 72.45 L184.69 72.05 L185.46 71.65 L186.24 71.25 L187.03 70.86 L187.81 70.47 L188.60 70.09 L189.39 69.70 L190.19 69.33 L190.99 68.96 L191.79 68.59 L192.60 68.22 L193.40 67.85 L194.22 67.49 L195.03 67.14 L195.86 66.78 L196.68 66.43 L197.51 66.08 L198.34 65.73 L199.17 65.38 L200.01 65.04 L200.85 64.70 L201.70 64.36 L202.55 64.02 L203.40 63.69 L204.26 63.37 L205.12 63.05 L205.99 62.73 L206.85 62.43 L207.73 62.13 L208.60 61.84 L209.48 61.56 L210.37 61.29 L211.25 61.03 L212.15 60.79 L213.04 60.56 L213.94 60.34 L214.84 60.15 L215.75 59.97 L216.66 59.80 L217.58 59.66 L218.50 59.54 L219.42 59.44 L220.35 59.36 L221.28 59.30 L222.21 59.26 L223.15 59.24 L224.10 59.24 L225.05 59.26 L226.00 59.30 L226.95 59.35 L227.91 59.43 L228.88 59.52 L229.85 59.62 L230.82 59.74 L231.80 59.87 L232.78 60.01 L233.77 60.17 L234.76 60.33 L235.75 60.50 L236.75 60.68 L237.75 60.86 L238.76 61.06 L239.77 61.25 L240.79 61.45 L241.81 61.66 L242.84 61.87 L243.87 62.08 L244.90 62.30 L245.94 62.52 L246.99 62.75 L248.03 62.98 L249.09 63.22 L250.14 63.46 L251.21 63.71 L252.27 63.96 L253.34 64.23 L254.42 64.50 L255.50 64.77 L256.59 65.06 L257.68 65.35 L258.77 65.66 L259.87 65.97 L260.98 66.29 L262.09 66.63 L263.20 66.97 L264.32 67.32 L265.45 67.68 L266.58 68.05 L267.71 68.44 L268.85 68.82 L269.99 69.22 L271.14 69.63 L272.30 70.04 L273.46 70.45 L274.62 70.87 L275.79 71.30 L276.96 71.73 L278.14 72.16 L279.33 72.59 L280.52 73.02 L281.71 73.45 L282.92 73.88 L284.12 74.31 L285.33 74.74 L286.55 75.16 L287.77 75.58 L289.00 75.99 L290.23 76.40 L291.47 76.81 L292.71 77.20 L293.96 77.59 L295.22 77.97 L296.48 78.35 L297.74 78.72 L299.01 79.08 L300.29 79.43 L301.57 79.77 L302.86 80.11 L304.15 80.44 L305.45 80.76 L306.76 81.07 L308.07 81.37 L309.38 81.66 L310.70 81.95 L312.03 82.23 L313.37 82.50 L314.71 82.76 L316.05 83.01 L317.40 83.26 L318.76 83.50 L320.12 83.73 L321.49 83.95 L322.87 84.16 L324.25 84.37 L325.63 84.57 L327.03 84.77 L328.43 84.95 L329.83 85.14 L331.24 85.31 L332.66 85.48 L334.09 85.64 L335.52 85.79 L336.95 85.94 L338.40 86.09 L339.85 86.22 L341.30 86.36 L342.76 86.48 L344.23 86.60 L345.71 86.72 L347.19 86.83 L348.68 86.94 L350.17 87.04 L351.67 87.13 L353.18 87.22 L354.69 87.31 L356.21 87.39 L357.74 87.46 L359.28 87.53 L360.82 87.60 L362.36 87.66 L363.92 87.72 L365.48 87.77 L367.05 87.82 L368.62 87.86 L370.20 87.89 L371.79 87.93"/><circle class="dot" cx="71.17" cy="88.00" r="3.4"/><circle class="dot" cx="83.12" cy="88.00" r="3.4"/><circle class="dot" cx="97.34" cy="88.00" r="3.4"/><circle class="dot" cx="114.24" cy="96.00" r="3.4"/><circle class="dot" cx="134.34" cy="100.00" r="3.4"/><circle class="dot" cx="158.24" cy="88.00" r="3.4"/><circle class="dot" cx="186.67" cy="80.00" r="3.4"/><circle class="dot" cx="220.48" cy="68.00" r="3.4"/><circle class="dot" cx="260.68" cy="76.00" r="3.4"/><circle class="dot" cx="308.49" cy="88.00" r="3.4"/><circle class="dot" cx="365.34" cy="88.00" r="3.4"/></g>
                 <text class="flabel" x="8" y="172" text-anchor="middle">20</text><text class="flabel" x="80" y="172" text-anchor="middle">80</text><text class="flabel" x="180" y="172" text-anchor="middle">320</text><text class="flabel" x="250" y="172" text-anchor="middle">1.3k</text><text class="flabel" x="320" y="172" text-anchor="middle">5.1k</text><text class="flabel" x="372" y="172" text-anchor="middle">20k</text>
               </svg>
             </div>
           </div>
-          <div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>Loud audio can harm your hearing, so keep it sensible</span></div>
+          <div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span data-i18n="hearing">Loud audio can harm your hearing, so keep it sensible</span></div>
           <div class="pbtns">
-            <div class="btnMain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg> EQ This Tab</div>
-            <div class="btnReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Reset</div>
+            <div class="btnMain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg><span data-i18n="eqAction">EQ This Tab</span></div>
+            <div class="btnReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span data-i18n="reset">Reset</span></div>
           </div>
         </div>
         <div class="pnav">
-          <div class="pnavItem on"><span class="pill"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>EQ</span></div>
-          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span>Presets</span></div>
-          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg><span>Rules</span></div>
-          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></svg><span>Tabs</span></div>
-          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg><span>More</span></div>
+          <div class="pnavItem on"><span class="pill"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span data-i18n="eq">EQ</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span data-i18n="presets">Presets</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg><span data-i18n="rules">Rules</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></svg><span data-i18n="tabs">Tabs</span></div>
+          <div class="pnavItem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg><span data-i18n="more">More</span></div>
         </div>
       </div>
     </div>
@@ -276,7 +299,7 @@
               <span class="nm">Umbra EQ</span>
               <span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></span>
             </div>
-            <div class="ddrow dim"><span class="dot2"></span><span class="nm">Another extension</span></div>
+            <div class="ddrow dim"><span class="dot2"></span><span class="nm" data-i18n="another">Another extension</span></div>
           </div>
           <div class="ring"></div>
           <div class="cursor"><svg viewBox="0 0 24 24" fill="#fff" stroke="#0a0b0f" stroke-width="1.2" stroke-linejoin="round"><path d="M5 3 L5 19 L9 15 L12 21.5 L14.2 20.5 L11.2 14.2 L16.5 14 Z"/></svg></div>
@@ -300,7 +323,7 @@
       <span class="sp"></span>
       <a href="https://github.com/skyjacc/Umbra/issues" target="_blank" rel="noreferrer" data-i18n="feedback">Questions / feedback →</a>
     </div>
-  </div>
+  </main>
 
   <script src="onboarding.js"></script>
 </body>

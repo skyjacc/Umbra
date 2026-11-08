@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { METER_INIT, stepMeter, meterDb, METER_POLL_MS, type MeterState } from '@/lib/meter';
+import { nudge, stepKind } from '@/lib/band-input';
 import {
   EQ_W,
   EQ_H,
   DB_TOP,
   DB_BOTTOM,
-  AXIS_MAX_FREQ,
   DEFAULT_FREQUENCIES,
   DEFAULT_Q,
   type Band,
@@ -15,8 +16,6 @@ import {
   clampFreq,
   clampGainDb,
   clampQ,
-  clampX,
-  clampY,
   filterType,
   curvePoints
 } from '@/lib/audio';
@@ -33,6 +32,11 @@ interface Props {
   onBands: (b: Band[]) => void; // live, during drag
   onCommit: () => void; // drag end — parent persists + sends canonical state
   editable?: boolean; // dots draggable only when the active tab is captured
+  bypassed?: boolean; // the curve is being shaped but the tab is playing unshaped
+  meterOn?: boolean; // draw the common output peak meter down the right edge
+  /** Which band the editable readout under the graph should show. Survives blur, unlike focus. */
+  onSelectBand?: (i: number) => void;
+  selectedBand?: number | null;
 }
 
 // The rough zone each band sits in (11 fixed bands, low → high), shown as a small text
@@ -51,6 +55,8 @@ const BAND_ZONES: Array<{ key: string; from: number; to: number }> = [
 ];
 
 const G = (v: string) => `var(--g-${v})`;
+// The theme keeps --destructive as bare HSL channels for Tailwind, so an SVG fill has to wrap it.
+const DANGER = 'hsl(var(--destructive))';
 const openPath = (pts: Array<[number, number]>) =>
   'M' + pts.map(([x, y]) => `${x} ${y}`).join(' L');
 const closedPath = (pts: Array<[number, number]>) =>
@@ -64,8 +70,20 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false, meterOn = true, onSelectBand, selectedBand = null }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
+  // SVG coordinates stay fixed; text remains readable when the full-window editor is resized.
+  const [pixelScale, setPixelScale] = useState(1);
+  useEffect(() => {
+    const svg = eqRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setPixelScale(EQ_W / entry.contentRect.width);
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+  const px = (n: number) => n * pixelScale;
   const dragIdx = useRef<number | null>(null);
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
   const [hover, setHover] = useState<number | null>(null);
@@ -77,36 +95,55 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   // FFT lives HERE (not in the top-level engine hook) so polling the spectrum at ~60fps re-renders
   // only this component, not the whole popup + every sibling section. Off by default → usually no loop.
   const [fft, setFft] = useState<number[] | null>(null);
+  // The meter rides the SAME poll as the spectrum rather than opening a second one. With the
+  // spectrum off the engine skips the 2048-bin payload and answers with just the peak, so a popup
+  // showing only the meter costs one number per frame.
+  const [meter, setMeter] = useState<MeterState>(METER_INIT);
   const tabIdRef = useRef(activeTabId);
   tabIdRef.current = activeTabId;
   useEffect(() => {
     // Gate on `visible` too: EqGraph stays mounted (display:none) when another in-app view is open,
     // so without this the rAF poll keeps hitting the engine ~30x/s for a hidden graph — a real
     // battery drain in the long-lived Full-window tab.
-    if (!spectrumOn || !visible) {
+    // Nothing to read from a tab that is not captured, and nothing to draw when neither the
+    // spectrum nor the meter is showing. The meter being on by default is not on its own a reason
+    // to hold a message loop open — that was the regression this restores.
+    if ((!spectrumOn && !meterOn) || !visible || activeTabId == null) {
       setFft(null);
+      setMeter(METER_INIT);
       return;
     }
     if (!io.hasChrome()) {
       setFft(Array.from({ length: 4096 }, (_, i) => -100 + 82 * Math.exp(-((i - 40) ** 2) / 1400) + 40 * Math.exp(-i / 500) * (0.6 + 0.4 * Math.sin(i / 2))));
       return;
     }
+    // ONE loop, at the rate the slower consumer needs. The spectrum draws 2048 bins and wants
+    // every frame; a level bar does not, so with the spectrum off this drops to METER_POLL_MS
+    // instead of holding a 60/s round trip open for a bar that cannot show the difference.
     let alive = true;
     let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const again = () => {
+      if (!alive) return;
+      if (spectrumOn) raf = requestAnimationFrame(tick);
+      else timer = setTimeout(tick, METER_POLL_MS);
+    };
     const tick = () => {
       if (!alive) return;
-      io.toOffscreen('getFFT', { tabId: tabIdRef.current }, (resp: any) => {
+      io.toOffscreen('getFFT', { tabId: tabIdRef.current, wantFft: spectrumOn }, (resp: any) => {
         if (!alive) return;
         if (resp && resp.fft) setFft(resp.fft);
-        raf = requestAnimationFrame(tick);
+        if (meterOn) setMeter((m) => stepMeter(m, { peak: resp?.peak ?? 0, now: performance.now() }));
+        again();
       });
     };
-    raf = requestAnimationFrame(tick);
+    again();
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
     };
-  }, [spectrumOn, visible]);
+  }, [spectrumOn, meterOn, visible, activeTabId]);
 
   // Derived geometry (recomputed when the curve or sample rate changes).
   const { combined, combinedStroke, ghosts, dots } = useMemo(() => {
@@ -125,8 +162,8 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         return p;
       }),
       dots: bands.map((b) => ({
-        x: clampX(freqToX(b.frequency)),
-        y: clampY(dbToY(b.gain)),
+        x: Math.max(10, Math.min(EQ_W - 10, freqToX(b.frequency))),
+        y: Math.max(10, Math.min(EQ_H - 10, dbToY(b.gain))),
         color: b.type === 'peaking' ? G('peak') : G('shelf')
       }))
     };
@@ -135,13 +172,13 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   // Axis ticks (frequency) + dB gridlines.
   const freqTicks = useMemo(() => {
     const t: Array<{ x: number; label: string }> = [];
-    for (let f = 5; f < AXIS_MAX_FREQ; f *= 2) t.push({ x: freqToX(f), label: freqLabel(f) });
+    for (const f of [20, 80, 320, 1280, 5120, 20000]) t.push({ x: freqToX(f), label: freqLabel(f) });
     return t;
   }, []);
   const dbTicks = useMemo(() => {
     const t: Array<{ y: number; label: string }> = [];
     const range = 60;
-    const step = 10;
+    const step = 20;
     for (let db = -range; db <= range; db += step) {
       if (range - Math.abs(db) <= step * 0.5) continue;
       t.push({ y: dbToY(db), label: (db > 0 ? '+' : '') + db });
@@ -188,8 +225,27 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   }, [fft, sampleRate]);
 
   // ---- Drag: filter dots ----
-  function dotDown(i: number, e: React.PointerEvent) {
+  // Typed to the element it is actually attached to, so `currentTarget` is the dot itself rather
+  // than a bare Element — focusing it is the whole point, and a bare Element cannot be focused.
+  function dotDown(i: number, e: React.PointerEvent<SVGCircleElement>) {
     if (!editable) return; // no live capture on the active tab — read-only
+    // Take the focus the pointer press would have given this dot, and take it BEFORE
+    // preventDefault, which is what removes it.
+    //
+    // preventDefault has to stay: it suppresses text selection and the compatibility mouse
+    // events, which is what makes the drag work at all. But focus is a default action of the
+    // press too, and suppressing it left the dot unfocused after a click — so the arrow keys
+    // went to whatever the popup had focused instead (a smoke log shows them landing on the
+    // section, not the dot) and did nothing at all. Keyboard shaping was reachable only by
+    // Tabbing to a dot, never by clicking one.
+    //
+    // Focusing also selects, because onFocus does — so the direct call is a FALLBACK for a dot
+    // that was refused focus, not a second selection. Calling both unconditionally fired
+    // onSelectBand twice per press; harmless today, since it only sets a number, but a callback
+    // that fires twice for one gesture is a trap for whatever is wired to it next.
+    const dot = e.currentTarget;
+    dot.focus();
+    if (document.activeElement !== dot) onSelectBand?.(i);
     e.preventDefault();
     dragIdx.current = i;
     liveRef.current = bands.slice();
@@ -207,11 +263,13 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
     const b = src[i];
     let next: Band;
     if (e.shiftKey) {
-      next = { ...b, q: clampQ(b.q + e.movementY / 10) };
+      if (b.type !== 'peaking') return; // Web Audio shelves do not use Q.
+      const scale = EQ_H / (eqRef.current!.getBoundingClientRect().height || EQ_H);
+      next = { ...b, q: clampQ(b.q + e.movementY * scale / 10) };
     } else {
       const rect = eqRef.current!.getBoundingClientRect();
-      let lx = e.clientX - rect.left;
-      let ly = e.clientY - rect.top;
+      let lx = (e.clientX - rect.left) * EQ_W / (rect.width || EQ_W);
+      let ly = (e.clientY - rect.top) * EQ_H / (rect.height || EQ_H);
       lx = Math.max(0, Math.min(EQ_W - 1, lx));
       const topY = dbToY(DB_TOP);
       const botY = dbToY(DB_BOTTOM);
@@ -238,17 +296,26 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
     onBands(nb);
     onCommit();
   }
-  // Keyboard editing (a11y): Up/Down = gain, Left/Right = frequency (~1/6 octave), Shift+Up/Down =
-  // Q, Enter/Delete = reset. Each press is a discrete commit.
+  // Keyboard editing (a11y): Up/Down = gain, Left/Right = frequency (~1/6 octave), Shift = a
+  // COARSER step of whichever of those two you are moving, Alt = a finer one, Enter/Delete/
+  // Backspace = reset. Each press is a discrete commit.
+  //
+  // This used to say "Shift+Up/Down = Q", which was never what the code did: `stepKind` maps Shift
+  // to 'coarse' and Alt to 'fine', and both arrow branches feed gain or frequency. Q has NO
+  // keyboard binding on a dot — it is Shift+drag (see eqMove) or the Q field under the graph. The
+  // guide is built from these bindings, so the two must not drift again.
+  // Arrows on a DOT shape the band. Arrows inside the numeric fields under the graph do not —
+  // there they have to move the text cursor, which is what anyone typing expects. The two never
+  // meet because this handler lives on the dot and those inputs are outside the SVG entirely.
   function nudgeBand(i: number, e: React.KeyboardEvent) {
     if (!editable) return;
     const b = bands[i];
+    const size = stepKind({ shift: e.shiftKey, alt: e.altKey });
     let next: Band | null = null;
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      const s = e.key === 'ArrowUp' ? 1 : -1;
-      next = e.shiftKey ? { ...b, q: clampQ(b.q + s * 0.1) } : { ...b, gain: clampGainDb(b.gain + s) };
+      next = { ...b, gain: nudge('gain', b.gain, e.key === 'ArrowUp' ? 1 : -1, size) };
     } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      next = { ...b, frequency: clampFreq(b.frequency * Math.pow(2, (e.key === 'ArrowRight' ? 1 : -1) / 6)) };
+      next = { ...b, frequency: nudge('frequency', b.frequency, e.key === 'ArrowRight' ? 1 : -1, size) };
     } else if (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       resetBand(i);
@@ -264,14 +331,22 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   }
 
   const zeroY = dbToY(0); // 0 dB baseline for the graph
-  const active = hover ?? focusIdx; // mouse hover wins; else the keyboard-focused dot drives the readout
+  const active = hover ?? focusIdx ?? selectedBand;
+  const readout = hover ?? focusIdx;
+
+  // Under bypass the flat line is what the tab is actually playing, so it stops being a faint
+  // reference and becomes the truth on screen, while the curve the user is shaping recedes. The
+  // dots stay at full strength: they are still draggable, and dimming them would read as disabled
+  // — which is the very thing this mode used to be.
+  const curveOpacity = bypassed ? 0.3 : 1;
 
   return (
     <svg
         ref={eqRef}
         width={EQ_W}
         height={EQ_H}
-        className="touch-none rounded-lg"
+        viewBox={`0 0 ${EQ_W} ${EQ_H}`}
+        className="eq-graph touch-none rounded-lg"
         style={{ background: 'rgba(255,255,255,.012)' }}
         role="group"
         aria-label={t('eq.graphLabel')}
@@ -297,14 +372,22 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         {freqTicks.map((t, i) => (
           <g key={'f' + i}>
             <line x1={t.x} y1={0} x2={t.x} y2={EQ_H} stroke={G('axis')} strokeOpacity={0.12} />
-            <text x={t.x} y={EQ_H - 15} textAnchor="middle" fontSize={9} fill={G('text')} fillOpacity={0.72}>
+            <text x={Math.min(EQ_W - px(20), t.x)} y={EQ_H - px(15)} textAnchor="middle" fontSize={px(11)} fill={G('text')}>
               {t.label}
             </text>
           </g>
         ))}
-        <line x1={0} y1={zeroY} x2={EQ_W} y2={zeroY} stroke={G('text')} strokeOpacity={0.22} strokeDasharray="1 4" />
+        <line
+          x1={0}
+          y1={zeroY}
+          x2={EQ_W}
+          y2={zeroY}
+          stroke={G('text')}
+          strokeOpacity={bypassed ? 0.75 : 0.22}
+          strokeDasharray={bypassed ? undefined : '1 4'}
+        />
         {dbTicks.map((t, i) => (
-          <text key={'d' + i} x={8} y={t.y} fontSize={9} fill={G('text')} fillOpacity={t.label === '0' ? 0.85 : 0.62} dominantBaseline="middle">
+          <text key={'d' + i} x={px(8)} y={t.y} fontSize={px(11)} fill={G('text')} dominantBaseline="middle">
             {t.label}
           </text>
         ))}
@@ -319,7 +402,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
 
         {/* combined curve — subtle fill first so it sits UNDER the per-band curves and
             never washes them out; the hero stroke sits above the ghosts */}
-        <path d={combined} fill="url(#umbraFill)" stroke="none" pointerEvents="none" />
+        <path d={combined} fill="url(#umbraFill)" stroke="none" pointerEvents="none" opacity={curveOpacity} />
 
         {/* ghost per-band curves — colored by band type, hover-highlighted so it's
             obvious which dot drives which bell */}
@@ -342,14 +425,23 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         })}
 
         {/* combined curve — hero stroke (gradient peak->shelf), above the ghosts */}
-        <path d={combinedStroke} fill="none" stroke="url(#umbraCurve)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" pointerEvents="none" />
+        <path
+          d={combinedStroke}
+          fill="none"
+          stroke="url(#umbraCurve)"
+          strokeWidth={2.25}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          pointerEvents="none"
+          opacity={curveOpacity}
+        />
 
         {/* filter dots — a dark knockout ring separates each dot from the curve and
             neighbours; the hovered dot grows + gets a soft accent halo */}
         {dots.map((d, i) => {
           const on = active === i;
           return (
-            <g key={'dot' + i}>
+            <g key={'dot' + i} data-selected={selectedBand === i ? 'true' : undefined}>
               {on && <circle cx={d.x} cy={d.y} r={11} fill={d.color} fillOpacity={0.18} pointerEvents="none" />}
               <circle
                 cx={d.x}
@@ -359,7 +451,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
                 fillOpacity={editable ? 1 : 0.45}
                 stroke={G('screen')}
                 strokeWidth={2.5}
-                className={editable ? 'cursor-grab' : 'cursor-default'}
+                className={'eq-band ' + (editable ? 'cursor-grab' : 'cursor-default')}
                 tabIndex={editable ? 0 : -1}
                 role="slider"
                 aria-disabled={!editable}
@@ -367,11 +459,14 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
                 aria-valuemin={DB_BOTTOM}
                 aria-valuemax={DB_TOP}
                 aria-valuenow={Math.round(bands[i].gain)}
-                aria-valuetext={`${freqLabel(bands[i].frequency)} Hz, ${bands[i].gain >= 0 ? '+' : ''}${bands[i].gain.toFixed(1)} dB, Q ${bands[i].q.toFixed(2)}`}
+                aria-valuetext={`${freqLabel(bands[i].frequency)} Hz, ${bands[i].gain >= 0 ? '+' : ''}${bands[i].gain.toFixed(1)} dB${bands[i].type === 'peaking' ? `, Q ${bands[i].q.toFixed(2)}` : ''}`}
                 onPointerDown={(e) => dotDown(i, e)}
                 onPointerEnter={() => dragIdx.current == null && setHover(i)}
                 onPointerLeave={() => dragIdx.current == null && setHover(null)}
-                onFocus={() => setFocusIdx(i)}
+                onFocus={() => {
+                  setFocusIdx(i);
+                  onSelectBand?.(i);
+                }}
                 onBlur={() => setFocusIdx(null)}
                 onKeyDown={(e) => nudgeBand(i, e)}
                 onDoubleClick={() => resetBand(i)}
@@ -389,32 +484,62 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
             <text
               key={'zone' + z.key}
               x={(dots[z.from].x + dots[z.to].x) / 2}
-              y={12}
+              y={px(13)}
               textAnchor="middle"
-              fontSize={8.5}
+              fontSize={px(11)}
               fill={G('text')}
-              fillOpacity={0.5}
               pointerEvents="none"
-              style={{ letterSpacing: '.14em', textTransform: 'uppercase' }}
             >
               {t(z.key)}
             </text>
           ))}
 
         {/* readout tooltip for the hovered / dragged band */}
-        {active != null &&
-          bands[active] &&
+        {readout != null &&
+          bands[readout] &&
           (() => {
-            const b = bands[active];
-            const tx = Math.max(60, Math.min(EQ_W - 60, dots[active].x));
-            const ty = Math.max(20, dots[active].y - 16);
-            const label = `${freqLabel(b.frequency)}  ·  ${b.gain >= 0 ? '+' : ''}${b.gain.toFixed(1)} dB  ·  Q ${b.q.toFixed(2)}`;
+            const b = bands[readout];
+            const tx = Math.max(px(100), Math.min(EQ_W - px(100), dots[readout].x));
+            const above = dots[readout].y - px(22);
+            const preferred = above < px(16) ? dots[readout].y + px(22) : above;
+            const ty = Math.max(px(16), Math.min(EQ_H - px(16), preferred));
+            const label = `${freqLabel(b.frequency)}  ·  ${b.gain >= 0 ? '+' : ''}${b.gain.toFixed(1)} dB${b.type === 'peaking' ? `  ·  Q ${b.q.toFixed(2)}` : ''}`;
             return (
               <g pointerEvents="none">
-                <rect x={tx - 59} y={ty - 11} width={118} height={16} rx={5} fill={G('screen')} fillOpacity={0.92} stroke={dots[active].color} strokeOpacity={0.5} />
-                <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <rect x={tx - px(98)} y={ty - px(12)} width={px(196)} height={px(24)} rx={px(5)} fill={G('screen')} fillOpacity={0.96} stroke={dots[readout].color} strokeOpacity={0.5} />
+                <text x={tx} y={ty} textAnchor="middle" fontSize={px(11)} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {label}
                 </text>
+              </g>
+            );
+          })()}
+
+        {/* Common output peak after the shared limiter, scaled over -60…0 dBFS.
+            The spectrum remains specific to the selected tab. */}
+        {meterOn &&
+          (() => {
+            const clipping = meter.clipUntil > 0;
+            const y = (db: number) => EQ_H - 4 - ((Math.max(-60, Math.min(0, db)) + 60) / 60) * (EQ_H - 8);
+            const barX = EQ_W - 7;
+            const top = y(meterDb(meter.level));
+            return (
+              <g pointerEvents="none" aria-hidden="true">
+                <rect x={barX} y={4} width={4} height={EQ_H - 8} rx={2} fill={G('text')} fillOpacity={0.07} />
+                {meter.level > 0 && (
+                  <rect
+                    x={barX}
+                    y={top}
+                    width={4}
+                    height={Math.max(0, EQ_H - 4 - top)}
+                    rx={2}
+                    fill={clipping ? DANGER : G('viz')}
+                    fillOpacity={clipping ? 0.95 : 0.75}
+                  />
+                )}
+                {meter.hold > 0 && (
+                  <rect x={barX - 1} y={y(meterDb(meter.hold))} width={6} height={1.5} rx={0.75} fill={G('grab')} fillOpacity={0.9} />
+                )}
+                {clipping && <circle cx={barX + 2} cy={4} r={2.5} fill={DANGER} />}
               </g>
             );
           })()}

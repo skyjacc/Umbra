@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hostMatchesPattern, parsePatterns, matchRule, type Rule } from './rules';
+import { hostMatchesPattern, parsePatterns, matchRule, patternForHost, normHost, type Rule } from './rules';
 
 describe('hostMatchesPattern', () => {
   it('exact host', () => {
@@ -97,5 +97,65 @@ describe('matchRule', () => {
       { id: '2', patterns: ['music.youtube.'], mode: 'preset', preset: 'B', enabled: true }
     ];
     expect(matchRule('music.youtube.com', overlap)?.id).toBe('1');
+  });
+});
+
+describe('patternForHost', () => {
+  it('uses the host verbatim for the exact scope', () => {
+    expect(patternForHost('music.youtube.com', 'exact')).toBe('music.youtube.com');
+  });
+
+  it('strips a leading www. so www.site and site are one', () => {
+    expect(patternForHost('www.youtube.com', 'exact')).toBe('youtube.com');
+    expect(patternForHost('www.youtube.com', 'anyTld')).toBe('youtube.');
+  });
+
+  it('picks the registrable name for the any-TLD scope', () => {
+    expect(patternForHost('youtube.com', 'anyTld')).toBe('youtube.');
+    expect(patternForHost('music.youtube.com', 'anyTld')).toBe('youtube.');
+  });
+
+  it('picks the registrable name for the any-subdomain scope', () => {
+    expect(patternForHost('music.youtube.com', 'anySub')).toBe('.youtube.');
+  });
+
+  it('steps past a second-level label under a two-letter ccTLD', () => {
+    // Without the guard these would yield "co", and ".co." would match amazon.co.jp and much else.
+    expect(patternForHost('bbc.co.uk', 'anyTld')).toBe('bbc.');
+    expect(patternForHost('www.amazon.co.jp', 'anySub')).toBe('.amazon.');
+  });
+
+  it('does not step past a second-level label under a long TLD', () => {
+    // "co" here is the registrable name, not a suffix component.
+    expect(patternForHost('co.company', 'anyTld')).toBe('co.');
+  });
+
+  it('handles a single-label host', () => {
+    expect(patternForHost('localhost', 'exact')).toBe('localhost');
+    expect(patternForHost('localhost', 'anyTld')).toBe('localhost.');
+  });
+
+  it('returns an empty pattern for an empty host', () => {
+    for (const s of ['exact', 'anyTld', 'anySub'] as const) expect(patternForHost('', s)).toBe('');
+  });
+
+  it('produces exact and any-subdomain patterns that match the host they came from', () => {
+    // The two halves of the pattern language must agree, or a one-click rule would be inert.
+    for (const host of ['youtube.com', 'music.youtube.com', 'bbc.co.uk', 'www.spotify.com']) {
+      for (const s of ['exact', 'anySub'] as const) {
+        const p = patternForHost(host, s);
+        expect(hostMatchesPattern(normHost(host), p), `${host} / ${s} -> ${p}`).toBe(true);
+      }
+    }
+  });
+
+  it('any-TLD deliberately excludes subdomains, so on a subdomain host it does not match', () => {
+    // Documented semantics, not a defect: `youtube.` means "registrable name + any TLD, no
+    // subdomains" (see the pattern table). Picking that scope while on music.youtube.com therefore
+    // yields a rule that does not cover the current page — the any-subdomain scope is the one that
+    // does. Pinned here so the behaviour is a decision rather than a surprise.
+    expect(hostMatchesPattern('youtube.com', patternForHost('youtube.com', 'anyTld'))).toBe(true);
+    expect(hostMatchesPattern('music.youtube.com', patternForHost('music.youtube.com', 'anyTld'))).toBe(false);
+    expect(hostMatchesPattern('music.youtube.com', patternForHost('music.youtube.com', 'anySub'))).toBe(true);
   });
 });

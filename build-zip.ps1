@@ -8,6 +8,23 @@ if (-not (Test-Path (Join-Path $dist 'manifest.json'))) {
 }
 $manifest = Get-Content (Join-Path $dist 'manifest.json') -Raw | ConvertFrom-Json
 $version = $manifest.version
+foreach ($required in @('LICENSE', 'THIRD-PARTY-NOTICES.txt', 'fonts/OFL-Inter.txt', 'fonts/OFL-GeistMono.txt')) {
+  if (-not (Test-Path -LiteralPath (Join-Path $dist $required))) {
+    throw "Missing release license: $required - run 'npm run build' first"
+  }
+}
+$debugFiles = Get-ChildItem -LiteralPath $dist -Recurse -File |
+  Where-Object { $_.Extension -in @('.js', '.html') } |
+  Select-String -Pattern 'UMBRA_DEBUG', 'recorder: umbra' -List
+if ($debugFiles) {
+  throw "Temporary debug recorder is present in dist: $($debugFiles.Path -join ', ')"
+}
+$developmentFiles = Get-ChildItem -LiteralPath $dist -Recurse -File |
+  Where-Object { $_.Extension -in @('.js', '.html', '.json') } |
+  Select-String -Pattern '@vite/client', '/@react-refresh', '(?:https?|wss?)://(?:localhost|127\.0\.0\.1|\[::1\])(?=[:/])' -List
+if ($developmentFiles) {
+  throw "Development server/client reference is present in dist: $($developmentFiles.Path -join ', ')"
+}
 
 $rel = Join-Path $root 'release'
 New-Item -ItemType Directory -Force $rel | Out-Null
