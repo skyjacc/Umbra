@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee"><img src="https://img.shields.io/chrome-web-store/v/plkncppcgglcjdkmcdeajhbfccbnnoee?label=Chrome%20Web%20Store&color=8b93c6&logo=googlechrome&logoColor=white" alt="Chrome Web Store"></a>
-  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee"><img src="https://img.shields.io/chrome-web-store/users/plkncppcgglcjdkmcdeajhbfccbnnoee?label=users&color=8b93c6" alt="Пользователи Chrome Web Store"></a>
+  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=release_2_5_0"><img src="https://img.shields.io/chrome-web-store/v/plkncppcgglcjdkmcdeajhbfccbnnoee?label=Chrome%20Web%20Store&color=8b93c6&logo=googlechrome&logoColor=white" alt="Chrome Web Store"></a>
+  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=release_2_5_0"><img src="https://img.shields.io/chrome-web-store/users/plkncppcgglcjdkmcdeajhbfccbnnoee?label=users&color=8b93c6" alt="Пользователи Chrome Web Store"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/skyjacc/Umbra?color=8b93c6" alt="Лицензия MIT"></a>
   <a href="https://github.com/skyjacc/Umbra/actions/workflows/build.yml"><img src="https://github.com/skyjacc/Umbra/actions/workflows/build.yml/badge.svg" alt="Статус сборки"></a>
   <img src="https://img.shields.io/badge/Manifest-V3-8b93c6" alt="Manifest V3">
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee"><img src="https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%B8%D1%82%D1%8C-8b93c6?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Установить из Chrome Web Store" height="34"></a>
+  <a href="https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=release_2_5_0"><img src="https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%B8%D1%82%D1%8C-8b93c6?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Установить из Chrome Web Store" height="34"></a>
   &nbsp;
   <a href="README.md"><img src="https://img.shields.io/badge/English-README-4b5178?style=for-the-badge" alt="English README" height="34"></a>
 </p>
@@ -89,7 +89,7 @@
 
 ## Установка
 
-**[Установить из Chrome Web Store](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee)** — в один клик, с авто-обновлением.
+**[Установить из Chrome Web Store](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee?utm_source=github&utm_medium=referral&utm_campaign=release_2_5_0)** — в один клик, с авто-обновлением.
 
 На Edge или Opera, либо чтобы запустить свою сборку, загрузи как распакованное (около минуты):
 
