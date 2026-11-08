@@ -19,4 +19,4 @@ More precise audio controls and more reliable saved settings, with Umbra's origi
 - The limiter uses a −1 dBFS sample-peak ceiling and 5 ms lookahead. It is not a true-peak limiter and cannot repair distortion already present in the source.
 - Audio is processed locally and is not saved as recordings or uploaded. Presets and site rules can sync through Chrome. Temporary in-memory diagnostics may include full tab URLs; see the [privacy policy](https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md).
 
-The release package is `umbra-eq-2.5.0.zip`. Publishing this GitHub Release does **not** mean that Chrome Web Store has reviewed, approved, or published 2.5.0. Check the [store listing](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee) for its currently available version.
+The release package is `umbra-eq-2.5.0.zip`. Publishing this GitHub Release does **not** mean that Chrome Web Store has reviewed, approved, or published 2.5.0. Check the [store listing](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee?utm_source=github&utm_medium=referral&utm_campaign=release_2_5_0) for its currently available version.
