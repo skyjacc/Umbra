@@ -7,9 +7,10 @@ stands**. For narrower docs see the [Documentation index](#15-documentation-inde
 - **Type:** Browser extension, Manifest V3 (Chromium: Chrome, Edge, Opera)
 - **Source version:** 2.5.0, release ready (see `CHANGELOG.md` and §11)
 - **License:** MIT (author: skyjacc) — see `LICENSE`
-- **Status as of 2026-11-09:** release ready; Chrome Web Store review is pending submission.
+- **Status as of 2026-11-09 (Europe/Moscow):** 2.5.0 submitted to Chrome Web Store; awaiting review.
   The [public Chrome Web Store listing](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee)
-  was last verified as **2.4.1** on 2026-11-08. Public repository: `skyjacc/Umbra`. A source version, GitHub
+  remains on **2.4.1**. Automatic publication is off; 2.5.0 requires manual publication after approval.
+  Public repository: `skyjacc/Umbra`. A source version, GitHub
   release or uploaded ZIP does not establish store publication. See §13 for remaining checks.
 
 > **Stack:** the popup is a **React + TypeScript** app (Vite + CRXJS, Tailwind +
@@ -286,9 +287,10 @@ State/runtime fixes cover stale capture completions, offscreen recovery, pending
 storage-read failures and conflicting save/reset/undo operations. EN/RU store metadata
 and descriptions are prepared. These are implementation facts, not store-review approval.
 
-**Published:** the Chrome Web Store listing was last verified as **2.4.1** on 2026-11-08.
-The 2.5.0 release is ready; review has not yet been submitted. No 2.5.0 store publication
-is established by this checkout.
+**Published:** the Chrome Web Store listing remains on **2.4.1**. On 2026-11-09
+(Europe/Moscow), the dashboard confirmed submission of **2.5.0** and showed
+**Awaiting review**. Automatic publication was unchecked before submission. This is
+not approval or publication of 2.5.0.
 
 **Real-site validation, 2026-11-09:** the production ZIP with SHA-256
 `1e277e2921368937a27d79664aefbae07cf1046ecf6761fdca79cab4018b374c` was exercised in official
@@ -301,17 +303,20 @@ stopping again returned to off. Subjective listening, DRM and fullscreen were no
 Exact URLs and earlier automated evidence are in
 [`docs/store/validation-2.5.0.md`](docs/store/validation-2.5.0.md).
 
-**Saved privacy draft:** Website content, Web history and Personal communications selected;
-four permission justifications, No remote code and all three certifications saved. Confirm
-the final localized assets and public policy before Submit for Review. Saving the draft,
-GitHub publication, store submission and store approval are separate states.
+**Submitted disclosures and assets:** Website content, Web history and Personal communications
+selected; four permission justifications, No remote code and all three certifications saved.
+Three global English and three localized Russian cards were uploaded in EQ → Rules → Presets
+order; all six were verified after saving and reloading. PR #27 merged as
+`3ccf8f93daa329ccb69d7e27cdd6678e5e971b1a` after the required build passed. GitHub
+publication, store submission and store approval are separate states.
 
 **Auto Gain:** compensation is calculated from the mean of band gains, in amplitude dB,
 and applied before the common limiter without changing the stored master gain. It is an
 estimate, not measured loudness matching; an engaged limiter can reduce its audible effect.
 
 **Pending / optional:**
-1. Confirm the final **EN/RU store descriptions** and matching release assets from
+1. After approval, **publish manually within 30 days**, as warned by the submission UI,
+   then verify the public version and EN/RU listing. See
    [`docs/store/README.md`](docs/store/README.md). Additional languages remain optional;
    current aggregate store metrics do not establish which acquisition source caused growth.
 2. Record a demo of the shipped UI if needed; do not use the withdrawn redesign as a release asset.

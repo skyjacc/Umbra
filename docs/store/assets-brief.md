@@ -12,7 +12,7 @@ All six final cards are JPEG files at 1280 × 800. Use the three matching files 
 | 2 | Rules | [en-rules.jpg](screenshots/en-rules.jpg) | [ru-rules.jpg](screenshots/ru-rules.jpg) |
 | 3 | Presets | [en-presets.jpg](screenshots/en-presets.jpg) | [ru-presets.jpg](screenshots/ru-presets.jpg) |
 
-The English and Russian READMEs reference their corresponding cards. Upload, review and publication status must be recorded separately after checking the developer dashboard; the presence of these files does not establish any of those states.
+The English and Russian READMEs reference their corresponding cards. On 2026-11-09 (Europe/Moscow), all three English cards were uploaded as global screenshots and all three Russian cards as localized screenshots in the order above. All six images were saved and verified after reloading the dashboard. Version 2.5.0 was then submitted and is awaiting review; this does not establish approval or publication.
 
 ## Three screenshots per locale
 
@@ -32,4 +32,4 @@ For a short demonstration video, show one real flow: play an audio sample, start
 
 See [Supplying Images](https://developer.chrome.com/docs/webstore/images), [Creating a great listing](https://developer.chrome.com/docs/webstore/best-listing), and [Localized listings](https://developer.chrome.com/docs/webstore/cws-dashboard-listing).
 
-After saving the listing, verify the three image previews and their order in both languages. Keep a dated record of what was uploaded and distinguish a saved draft from a submitted or published update.
+For future updates, verify the three saved image previews and their order in both languages. Keep a dated record of uploads and distinguish a saved draft from a submitted or published update.

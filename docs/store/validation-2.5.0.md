@@ -1,6 +1,6 @@
 # 2.5.0 release validation
 
-**Status recorded 2026-11-09:** release ready; Chrome Web Store review is pending submission. No submission, approval or store publication is claimed here.
+**Status recorded 2026-11-09 (Europe/Moscow):** 2.5.0 submitted to Chrome Web Store and awaiting review. The public version remains 2.4.1; approval and publication of 2.5.0 are not claimed.
 
 ## Exact package and real-site checks — 2026-11-09
 
@@ -40,14 +40,16 @@ The following results were recorded with Node 24.12.0, a clean `npm ci`, and the
 
 The native-capture smoke used an isolated Chromium profile, two local Web Audio tone pages (440 and 880 Hz), and the DevTools `Extensions.triggerAction` command to invoke the real extension action. Chrome APIs were not mocked. Playback remained available after returning focus to the source tabs. This checks capture/offscreen routing and stop behavior; it is not a subjective listening test or a compatibility certification for third-party streaming services.
 
-## Saved privacy draft
+## Submitted privacy disclosures
 
-The dashboard draft has Website content, Web history and Personal communications selected, all four permission justifications saved, No remote code selected, and all three data-use certifications checked. See [privacy-fields.md](privacy-fields.md) for the rationale and scope. Saving a draft is not submitting it for review.
+The submitted disclosures have Website content, Web history and Personal communications selected, all four permission justifications saved, No remote code selected, and all three data-use certifications checked. See [privacy-fields.md](privacy-fields.md) for the rationale and scope.
 
-## Final submission checks
+## Submission record — 2026-11-09 (Europe/Moscow)
 
-- Confirm the Chrome Web Store draft uses the exact package above, both localized descriptions, the saved privacy selections, and the six final cards in their respective languages.
-- Confirm the public privacy-policy URL shows the updated policy.
-- Record the actual submission status after using Submit for Review. Keep the untested listening, DRM and fullscreen boundaries above explicit.
+- [PR #27](https://github.com/skyjacc/Umbra/pull/27) merged as `3ccf8f93daa329ccb69d7e27cdd6678e5e971b1a`; the required `build` passed in 2m 15s with all CI steps passing.
+- Three new English cards were uploaded as global screenshots and three Russian cards as localized screenshots, each in EQ → Rules → Presets order. All six images were saved and verified after reloading the dashboard.
+- The submission dialog confirmed: “Ваш продукт (расширение) отправлен на проверку”. The item header then showed “Состояние: Ожидает рассмотрения”.
+- Automatic publication was unchecked before Submit. After approval, manual publication is required within the 30-day window shown by the UI.
+- The existing public version remains 2.4.1. Keep the untested listening, DRM and fullscreen boundaries above explicit.
 
-GitHub Actions validates committed revisions independently. Check the required result and exact head on the pull request before merge; earlier results do not cover later changes automatically. A passing build or a GitHub Release does not establish Chrome Web Store approval.
+The CI result above belongs to PR #27, not to later documentation commits. Earlier results do not cover later changes automatically. A passing build, GitHub Release or store submission does not establish Chrome Web Store approval.
