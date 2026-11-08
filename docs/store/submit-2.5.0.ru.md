@@ -207,7 +207,17 @@ https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md
 
 Umbra не требует аккаунта, пароля, оплаты или отдельного backend. Поля учётных данных оставьте пустыми; если форма предлагает вариант «account not required», выберите его. Сам раздел необязателен, но сценарий ниже помогает проверить audio capture. [Официальное назначение раздела](https://developer.chrome.com/docs/webstore/cws-dashboard-test-instructions).
 
-В поле **Additional instructions / Инструкции для тестирования** вставьте:
+### Короткий текст для поля Additional instructions
+
+Фактический лимит поля **Additional instructions / Инструкции для тестирования — 500 символов**, проверено в интерфейсе Chrome Web Store 8 ноября 2026 года. Вставьте следующий блок целиком (464 символа):
+
+```text
+Umbra EQ 2.5.0 needs no account/payment. Chrome 116+. Play public non-DRM audio in a tab, click Umbra's toolbar icon and EQ This Tab. Apply Vocal, move a band and change volume; use Bypass to compare. Save for this site; check Rules. On another site, start audio and capture, then choose Bass Boost. Verify both tabs sound different. Save/reapply a custom preset. Stop the second tab; the first should continue. Stop all. Browser pages/DRM may not support capture.
+```
+
+### Расширенная ручная проверка
+
+Следующий сценарий предназначен для полной ручной проверки перед отправкой. Он превышает лимит поля Additional instructions и в это поле не вставляется.
 
 ```text
 Umbra EQ 2.5.0 does not require an account, password, payment, API key, or developer server. All features can be tested in Chrome 116 or later.
