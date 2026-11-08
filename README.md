@@ -25,9 +25,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-eq.png" alt="Umbra EQ — the 11-band parametric equalizer curve with live spectrum and bass boost on a browser tab" width="410">
-  &nbsp;
-  <img src="docs/screenshot-rules.png" alt="Umbra EQ per-site rules — give each site its own equalizer sound by address pattern" width="410">
+  <a href="docs/store/screenshots/en-eq.jpg"><img src="docs/store/screenshots/en-eq.jpg" alt="Umbra EQ 2.5.0 — equalizer and volume controls in the native Chrome popup" width="820"></a>
+</p>
+<p align="center">
+  <a href="docs/store/screenshots/en-rules.jpg"><img src="docs/store/screenshots/en-rules.jpg" alt="Umbra EQ 2.5.0 — saved sound rules for individual websites" width="820"></a>
+</p>
+<p align="center">
+  <a href="docs/store/screenshots/en-presets.jpg"><img src="docs/store/screenshots/en-presets.jpg" alt="Umbra EQ 2.5.0 — built-in and custom sound presets" width="820"></a>
 </p>
 
 ## Why Umbra EQ

@@ -5,11 +5,11 @@ stands**. For narrower docs see the [Documentation index](#15-documentation-inde
 
 - **Name:** Umbra EQ — Equalizer & Bass Boost
 - **Type:** Browser extension, Manifest V3 (Chromium: Chrome, Edge, Opera)
-- **Source version:** 2.5.0 release candidate (see `CHANGELOG.md` and §11)
+- **Source version:** 2.5.0, release ready (see `CHANGELOG.md` and §11)
 - **License:** MIT (author: skyjacc) — see `LICENSE`
-- **Status as of 2026-11-08:** preparing the 2.5.0 release candidate for publication.
+- **Status as of 2026-11-09:** release ready; Chrome Web Store review is pending submission.
   The [public Chrome Web Store listing](https://chromewebstore.google.com/detail/plkncppcgglcjdkmcdeajhbfccbnnoee)
-  still publishes **2.4.1**. Public repository: `skyjacc/Umbra`. A source version, GitHub
+  was last verified as **2.4.1** on 2026-11-08. Public repository: `skyjacc/Umbra`. A source version, GitHub
   release or uploaded ZIP does not establish store publication. See §13 for remaining checks.
 
 > **Stack:** the popup is a **React + TypeScript** app (Vite + CRXJS, Tailwind +
@@ -286,22 +286,32 @@ State/runtime fixes cover stale capture completions, offscreen recovery, pending
 storage-read failures and conflicting save/reset/undo operations. EN/RU store metadata
 and descriptions are prepared. These are implementation facts, not store-review approval.
 
-**Published:** the Chrome Web Store listing is still **2.4.1**, verified on 2026-11-08.
-No 2.5.0 store publication is established by this checkout.
+**Published:** the Chrome Web Store listing was last verified as **2.4.1** on 2026-11-08.
+The 2.5.0 release is ready; review has not yet been submitted. No 2.5.0 store publication
+is established by this checkout.
 
-**Release preparation:** run the final checks for the exact revision and ZIP, following
-`DEPLOY.md`; record results rather than assuming earlier checks cover later edits.
-Automated editor and native audio tests do not establish real toolbar capture, protected-media
-compatibility or fullscreen behavior on every site. Complete those manual checks, verify
-the packaged EN/RU locales and licenses, and ensure the public privacy policy matches this
-release before store review. GitHub publication and store review are separate steps.
+**Real-site validation, 2026-11-09:** the production ZIP with SHA-256
+`1e277e2921368937a27d79664aefbae07cf1046ecf6761fdca79cab4018b374c` was exercised in official
+Chrome with an isolated profile and the native popup. YouTube Big Buck Bunny playback/live
+FFT, Bypass state, master −50 → 0 dB output response, a saved/reopened `Soft vocals` preset
+(2500 Hz, +4 dB, Q 0.9), a YouTube rule, and simultaneous MDN-loop/Bass Boost capture were
+checked. Stopping MDN left YouTube active. Stopping the final YouTube capture kept EQ off
+after reopening; restarting restored live FFT and the saved 2500 Hz / +4 dB curve, and
+stopping again returned to off. Subjective listening, DRM and fullscreen were not tested.
+Exact URLs and earlier automated evidence are in
+[`docs/store/validation-2.5.0.md`](docs/store/validation-2.5.0.md).
+
+**Saved privacy draft:** Website content, Web history and Personal communications selected;
+four permission justifications, No remote code and all three certifications saved. Confirm
+the final localized assets and public policy before Submit for Review. Saving the draft,
+GitHub publication, store submission and store approval are separate states.
 
 **Auto Gain:** compensation is calculated from the mean of band gains, in amplitude dB,
 and applied before the common limiter without changing the stored master gain. It is an
 estimate, not measured loudness matching; an engaged limiter can reduce its audible effect.
 
 **Pending / optional:**
-1. Apply the prepared **EN/RU store descriptions** and matching release assets from
+1. Confirm the final **EN/RU store descriptions** and matching release assets from
    [`docs/store/README.md`](docs/store/README.md). Additional languages remain optional;
    current aggregate store metrics do not establish which acquisition source caused growth.
 2. Record a demo of the shipped UI if needed; do not use the withdrawn redesign as a release asset.

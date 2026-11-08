@@ -25,9 +25,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-eq.png" alt="Эквалайзер Umbra EQ" width="410">
-  &nbsp;
-  <img src="docs/screenshot-rules.png" alt="Правила для сайтов в Umbra EQ" width="410">
+  <a href="docs/store/screenshots/ru-eq.jpg"><img src="docs/store/screenshots/ru-eq.jpg" alt="Umbra EQ 2.5.0 — эквалайзер и управление громкостью в нативном popup Chrome" width="820"></a>
+</p>
+<p align="center">
+  <a href="docs/store/screenshots/ru-rules.jpg"><img src="docs/store/screenshots/ru-rules.jpg" alt="Umbra EQ 2.5.0 — сохранённые настройки звука для отдельных сайтов" width="820"></a>
+</p>
+<p align="center">
+  <a href="docs/store/screenshots/ru-presets.jpg"><img src="docs/store/screenshots/ru-presets.jpg" alt="Umbra EQ 2.5.0 — встроенные и пользовательские пресеты звука" width="820"></a>
 </p>
 
 ## Зачем нужен Umbra EQ

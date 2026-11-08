@@ -68,7 +68,11 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
       [`docs/store/README.md`](docs/store/README.md).
 - [ ] Contact is the GitHub Issues link (already in `PRIVACY.md`).
 - [ ] Verify "Umbra EQ" is free / untrademarked on each store.
-- [ ] Screenshots at 1280×800 (or 640×400), 1–5 images. Not in the repo — produce them at release time.
+- [ ] Verify the six 1280×800 JPEG cards in `docs/store/screenshots/`: `en-eq.jpg`,
+      `en-rules.jpg`, `en-presets.jpg`, and the corresponding `ru-` files. These compose
+      actual 620×580 native popup captures from the production 2.5.0 ZIP, operated in a
+      separate Chrome instance through CUA. Check the final images and language order
+      against [`docs/store/assets-brief.md`](docs/store/assets-brief.md).
 
 ## Package
 
@@ -93,7 +97,10 @@ This is the Chromium build. Each store has its own submission and review require
       upload the new-version zip. Do not create a second listing for an update.
 - [ ] Use the ready-to-paste English and Russian listing text in
       [`docs/store/README.md`](docs/store/README.md); choose the category in the current form.
-- [ ] Upload screenshots and the 128×128 store icon (`icon128.png`).
+- [ ] For each listing language, upload its three cards from `docs/store/screenshots/`
+      in EQ → Rules → Presets order; verify the saved previews in both EN and RU.
+      Check the 128×128 store icon (`icon128.png`) separately. Record the actual upload
+      and submission state only after checking the dashboard.
 - [ ] Use the permission notes in [`docs/store/README.md`](docs/store/README.md) to complete
       the current form for the permissions in the packaged manifest
       (activeTab / tabCapture / storage / offscreen).

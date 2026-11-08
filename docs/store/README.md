@@ -1,6 +1,6 @@
 # Umbra Chrome Web Store copy
 
-Prepared on 2026-11-08 for the 2.5.0 package. These files are local release materials; they have not been submitted to the store. The public listing was still on 2.4.1 at the time of the audit.
+**Status recorded 2026-11-09: release ready; review pending submission.** The 2.5.0 package has completed the real-site checks in [validation-2.5.0.md](validation-2.5.0.md). The privacy draft is saved with Website content, Web history and Personal communications selected, four permission justifications, No remote code and all three data-use certifications. Chrome Web Store review has not been requested yet. The public listing was last verified as 2.4.1 on 2026-11-08; a local package or GitHub Release does not establish store publication.
 
 ## Text to use
 
@@ -14,7 +14,7 @@ Prepared on 2026-11-08 for the 2.5.0 package. These files are local release mate
 | Screenshot plan and dimensions | [assets-brief.md](assets-brief.md) |
 | Russian step-by-step submission guide | [submit-2.5.0.ru.md](submit-2.5.0.ru.md) |
 | Release notes | [release-notes-2.5.0.md](release-notes-2.5.0.md) |
-| Release-candidate checks and limits | [validation-2.5.0.md](validation-2.5.0.md) |
+| Package hash, release checks and limits | [validation-2.5.0.md](validation-2.5.0.md) |
 
 The manifest uses localized message references and `default_locale: en`. Both `_locales/en` and `_locales/ru` must be present in the ZIP. The English title remains **Equalizer + Bass Boost, per Tab — Umbra EQ**. No rename experiment is bundled with this copy revision. The Russian title is **Эквалайзер и усиление баса — Umbra EQ**.
 
@@ -31,7 +31,7 @@ Audio processing stays on the device. That is different from saying all data alw
 1. Verify the public policy at `https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md` matches the revised local policy. Editing a local file does not update that public URL.
 2. Complete the normal release checks and upload the 2.5.0 ZIP. Keep the existing item ID.
 3. Select English and Russian separately and paste their descriptions. Add screenshots of the shipped UI in the matching language.
-4. Replace the permission explanations and review data-use categories against actual behavior using [privacy-fields.md](privacy-fields.md). A plain-text copy of the old form does not reveal which checkboxes were selected.
+4. Confirm the saved permission explanations and data-use selections against [privacy-fields.md](privacy-fields.md). Its current-state record comes from the dashboard, not the old plain-text form that omitted checkbox states.
 5. Keep the real product status: free while no paid features exist, publicly available, and distributed in the regions the developer intends to support. Country lists alone do not prove that every country is selected. Do not remove countries based on one month's install pattern.
 6. Record the date and what was changed. Compare the same date range and attribution definitions before drawing conclusions from store analytics.
 
