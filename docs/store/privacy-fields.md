@@ -1,6 +1,6 @@
 # Chrome Web Store privacy fields
 
-Prepared 2026-11-08; dashboard status recorded 2026-11-09. The text below is based on the inspected source and production 2.5.0 package; the previously installed store CRX was not independently compared byte-for-byte. The dashboard draft has the four permission justifications saved, No remote code selected, Website content / Web history / Personal communications selected, and all three data-use certifications checked. The release is ready; Chrome Web Store review is pending submission.
+Prepared 2026-11-08; submission recorded 2026-11-09 (Europe/Moscow). The text below is based on the inspected source and production 2.5.0 package; the previously installed store CRX was not independently compared byte-for-byte. The submitted dashboard disclosures have the four permission justifications saved, No remote code selected, Website content / Web history / Personal communications selected, and all three data-use certifications checked. Chrome Web Store shows 2.5.0 awaiting review; this is not approval.
 
 ## Single purpose
 
@@ -36,11 +36,11 @@ Umbra uses a bundled offscreen document to consume tab audio streams and run the
 
 For the inspected production source and bundle: **No remote code**. JavaScript and the audio worklet are bundled locally; no remote executable loader was found. Chrome Sync transfers settings, not executable code. Reassess if future dependencies or code-loading behavior changes.
 
-## Data-use categories — saved draft and rationale
+## Data-use categories — submitted selections and rationale
 
-The selections below were checked in the actual dashboard draft. The earlier pasted form alone did not preserve checkbox states. Google requires disclosure of data handling even when processing or storage stays local, so "the developer receives nothing" is not enough to declare no handled data. [User Data FAQ, especially questions 3 and 14](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq).
+The selections below were checked in the actual dashboard before submission. The earlier pasted form alone did not preserve checkbox states. Google requires disclosure of data handling even when processing or storage stays local, so "the developer receives nothing" is not enough to declare no handled data. [User Data FAQ, especially questions 3 and 14](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq).
 
-| Category | Saved selection and rationale |
+| Category | Submitted selection and rationale |
 |---|---|
 | Website content / Содержимое сайтов | Selected: the extension processes tab audio. The category explicitly includes sounds. No recording or upload is made. |
 | Web history / История веб-поиска | Selected conservatively: tab URLs/titles are accessed, saved hostname rules can sync, and temporary diagnostic entries can contain full URLs. This does not mean the extension reads Chrome's history database. Google has no explicit ruling in the cited documentation for this exact combination of transient metadata and settings. |
@@ -49,7 +49,7 @@ The selections below were checked in the actual dashboard draft. The earlier pas
 
 This is a reasoned mapping to Google's categories, not a guarantee of a particular review outcome. The exact category wording is shown in Google's [privacy-fields documentation](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy) and its [data-use illustration](https://developer.chrome.com/static/docs/webstore/cws-dashboard-privacy/image/screenshot-data-certifi-1955439870c37.png).
 
-All three certifications are checked in the saved dashboard draft: no sale outside permitted cases, no unrelated uses, and no use for creditworthiness/lending. The reviewed code supports these statements. They are publisher declarations, not an SEO technique or evidence of review approval.
+All three certifications are checked in the submitted disclosures: no sale outside permitted cases, no unrelated uses, and no use for creditworthiness/lending. The reviewed code supports these statements. They are publisher declarations, not an SEO technique or evidence of review approval.
 
 ## Privacy-policy URL
 

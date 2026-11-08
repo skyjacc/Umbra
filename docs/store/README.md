@@ -1,6 +1,6 @@
 # Umbra Chrome Web Store copy
 
-**Status recorded 2026-11-09: release ready; review pending submission.** The 2.5.0 package has completed the real-site checks in [validation-2.5.0.md](validation-2.5.0.md). The privacy draft is saved with Website content, Web history and Personal communications selected, four permission justifications, No remote code and all three data-use certifications. Chrome Web Store review has not been requested yet. The public listing was last verified as 2.4.1 on 2026-11-08; a local package or GitHub Release does not establish store publication.
+**Status recorded 2026-11-09 (Europe/Moscow): 2.5.0 submitted; awaiting Chrome Web Store review.** The dashboard confirmed submission; the public version remains 2.4.1. Automatic publication was unchecked, so 2.5.0 must be published manually after approval, within the 30-day window shown by the UI. Three global English and three localized Russian cards were uploaded in EQ → Rules → Presets order, saved and verified after reload. Submitted privacy selections are Website content, Web history and Personal communications, with four permission justifications, No remote code and all three data-use certifications. Package checks and the submission record are in [validation-2.5.0.md](validation-2.5.0.md). Submission is not approval or publication.
 
 ## Text to use
 
