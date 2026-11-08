@@ -112,7 +112,7 @@ export function setRuleIdFactory(fn: () => string) {
 export interface SaveWriters {
   writeRules(rules: Rule[]): Promise<{ ok: boolean }>;
   writeGlobal(bands: Band[], gain: number, presetName: string): Promise<{ ok: boolean }>;
-  clearGlobal(): Promise<void>;
+  clearGlobal(): Promise<{ ok: boolean }>;
   clearJournal(): Promise<void>;
 }
 
@@ -143,7 +143,7 @@ export async function applySavePlan(plan: SavePlan, w: SaveWriters): Promise<Sav
 
   if (plan.globalRollback) {
     const { to } = plan.globalRollback;
-    const ok = to ? (await w.writeGlobal(to.bands, to.gain, to.presetName)).ok : (await w.clearGlobal(), true);
+    const ok = to ? (await w.writeGlobal(to.bands, to.gain, to.presetName)).ok : (await w.clearGlobal()).ok;
     if (!ok) return 'saved-global-not-restored';
   }
 

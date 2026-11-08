@@ -135,7 +135,7 @@ describe('applySavePlan — write ordering', () => {
     const w: SaveWriters = {
       writeRules: async () => (calls.push('writeRules'), { ok: true }),
       writeGlobal: async () => (calls.push('writeGlobal'), { ok: true }),
-      clearGlobal: async () => void calls.push('clearGlobal'),
+      clearGlobal: async () => (calls.push('clearGlobal'), { ok: true }),
       clearJournal: async () => void calls.push('clearJournal'),
       ...over
     };
@@ -184,6 +184,13 @@ describe('applySavePlan — write ordering', () => {
     expect(calls).toEqual(['writeRules', 'clearGlobal', 'clearJournal']);
   });
 
+  it('retains recovery data when clearing the global profile fails', async () => {
+    const { w, calls } = spyWriters({ clearGlobal: async () => (calls.push('clearGlobal'), { ok: false }) });
+    const outcome = await applySavePlan(planSaveForSite({ ...base, baselineGlobal: null }), w);
+    expect(outcome).toBe('saved-global-not-restored');
+    expect(calls).toEqual(['writeRules', 'clearGlobal']);
+  });
+
   it('skips the rollback entirely when none is owed', async () => {
     const { w, calls } = spyWriters();
     await applySavePlan(planSaveForSite({ ...base, owesGlobalRestore: false }), w);
@@ -198,7 +205,7 @@ describe('applySavePlan — write ordering', () => {
     const w: SaveWriters = {
       writeRules: async () => ({ ok: true }),
       writeGlobal: async (...args) => (seen.push(args), { ok: true }),
-      clearGlobal: async () => {},
+      clearGlobal: async () => ({ ok: true }),
       clearJournal: async () => {}
     };
     await applySavePlan(planSaveForSite(base), w);
@@ -263,7 +270,7 @@ describe('the Rules chips share the persistence, not the targeting', () => {
     const w: SaveWriters = {
       writeRules: async () => (calls.push('writeRules'), { ok: false }),
       writeGlobal: async () => (calls.push('writeGlobal'), { ok: true }),
-      clearGlobal: async () => void calls.push('clearGlobal'),
+      clearGlobal: async () => (calls.push('clearGlobal'), { ok: true }),
       clearJournal: async () => void calls.push('clearJournal')
     };
     const outcome = await applySavePlan(planSaveForSite({ ...base, matchedRule: null }), w);

@@ -4,10 +4,10 @@ import { defineManifest } from '@crxjs/vite-plugin';
 // (service worker + Web Audio); only the popup is React.
 export default defineManifest({
   manifest_version: 3,
-  name: 'Equalizer + Bass Boost, per Tab — Umbra EQ',
+  name: '__MSG_extensionName__',
   short_name: 'Umbra EQ',
-  description:
-    'Give any tab its own equalizer. Boost bass, tame harsh audio, and save presets. Everything stays on your computer.',
+  description: '__MSG_extensionDescription__',
+  default_locale: 'en',
   version: '2.5.0',
   homepage_url: 'https://github.com/skyjacc/Umbra',
   minimum_chrome_version: '116',
@@ -34,7 +34,7 @@ export default defineManifest({
   // that grants activeTab, so this needs no extra permission.
   commands: {
     'toggle-eq': {
-      description: 'Turn the equalizer on or off for the current tab'
+      description: '__MSG_toggleEq__'
     }
   },
   background: {

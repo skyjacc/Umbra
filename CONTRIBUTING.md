@@ -18,8 +18,10 @@ See [`PROJECT.md`](PROJECT.md) for the full architecture reference. In short:
 
 ## Run it locally
 
+Use Node 24 LTS, matching CI.
+
 ```bash
-npm install
+npm ci
 npm run build   # or: npm run dev  (HMR)
 ```
 
@@ -31,11 +33,18 @@ up the new build.
 ## Tests
 
 ```bash
-npm test        # Vitest — pure audio/preset logic in src/lib
+npm test        # Vitest — Node unit suites and jsdom component suites
+npx playwright install chromium  # once, and again after a Playwright upgrade
+npm run test:audio  # native Web Audio response + AudioWorklet output checks
+npm run build
+npm run test:ui     # production extension UI in isolated Chromium
 ```
 
-Add cases for behavior changes. The Vitest suites cover `src/lib` only; the audio engine in
-`public/offscreen.js` is vanilla and is verified by loading the unpacked `dist/` in Chrome.
+Add cases for behavior changes. Vitest runs `.test.ts` in Node and `.test.tsx` in jsdom,
+with separate projects in `vitest.config.ts`. The Chromium scripts use a temporary browser
+profile, never your personal profile. `UMBRA_AUDIT_CHROMIUM` can select an installed Chromium
+executable for the native audio check. Real tab playback still needs the production `dist/`
+smoke test described in `DEPLOY.md`.
 
 ## Coding conventions
 

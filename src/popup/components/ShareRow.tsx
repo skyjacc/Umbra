@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Copy, ClipboardPaste, Check } from 'lucide-react';
 import { useT } from '../i18n';
 
@@ -11,6 +11,8 @@ export function ShareRow({ onCopy, onImport }: { onCopy: () => void; onImport: (
   const tr = useT();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
+  const fieldId = useId();
+  const pasteRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="flex flex-col gap-2">
@@ -18,16 +20,17 @@ export function ShareRow({ onCopy, onImport }: { onCopy: () => void; onImport: (
         <button onClick={onCopy} className={btn}>
           <Copy className="size-3.5" /> {tr('share.copyCode')}
         </button>
-        <button onClick={() => setOpen((o) => !o)} className={btn}>
+        <button ref={pasteRef} type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={open ? fieldId : undefined} className={btn}>
           <ClipboardPaste className="size-3.5" /> {tr('share.pasteCode')}
         </button>
       </div>
       {open && (
-        <div className="flex gap-2">
+        <div className="flex gap-2" id={fieldId}>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="UMBRA1:…"
+            aria-label={tr('share.pasteCode')}
             spellCheck={false}
             autoFocus
             className="min-w-0 flex-1 rounded-lg border border-border bg-black/25 px-2.5 py-1.5 font-mono text-[10.5px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
@@ -38,6 +41,7 @@ export function ShareRow({ onCopy, onImport }: { onCopy: () => void; onImport: (
               if (text.trim()) onImport(text);
               setText('');
               setOpen(false);
+              pasteRef.current?.focus();
             }}
             className="inline-flex items-center justify-center rounded-lg border border-primary/50 bg-primary/20 px-3 text-foreground transition-[color,scale] duration-150 active:scale-[0.97]"
           >

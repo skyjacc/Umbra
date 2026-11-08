@@ -23,7 +23,7 @@ import { canResetChanges, planResetChanges, applyRestore, type RestoreWriters } 
 import { AUTO_GAIN_DEFAULT, outputGain } from '@/lib/auto-gain';
 import { refreshFor } from '@/lib/storage-events';
 import { mirrorHost } from '@/lib/mirror-target';
-import { dbg, debugOn } from '@/lib/debug-log';
+import { resolveSound } from '@/lib/sound-profile';
 import { planSaveForSite, applySavePlan, setRuleIdFactory, type SaveWriters } from '@/lib/save-for-site';
 import {
   NO_PREVIEW,
@@ -94,10 +94,26 @@ export function useEngine() {
 
   const [bands, setBands] = useState<Band[]>(io.flatBands);
   const [gain, setGain] = useState(1);
+  const bandsPending = useRef<Band[] | null>(null);
+  const bandsFrame = useRef(0);
+  const gainPending = useRef<number | null>(null);
+  const gainFrame = useRef(0);
   const [activePreset, setActivePreset] = useState('');
   const [sampleRate, setSampleRate] = useState(44100);
   const [presets, setPresets] = useState<Record<string, PresetBands>>({});
   const [rules, setRules] = useState<Rule[]>([]);
+  const [hydrated, setHydrated] = useState(() => !io.hasChrome());
+  const hydratedRef = useRef(!io.hasChrome());
+  const [stateTransaction, setStateTransaction] = useState(false);
+  const stateTransactionRef = useRef(false);
+  const [stateReadError, setStateReadError] = useState<string | null>(null);
+  const stateReadFailed = useRef(false);
+  const pauseStateEditing = useCallback(() => {
+    stateReadFailed.current = true;
+    hydratedRef.current = false;
+    setHydrated(false);
+    setStateReadError(t('note.stateReadFailed'));
+  }, []);
   // Status CODE (not a display string) so the UI can localize it — see i18n `engine.*` + the
   // header/banner in App. Values: starting | initializing | connected | stale | devPreview | error | notResponding.
   const [engineStatus, setEngineStatus] = useState('starting');
@@ -120,7 +136,7 @@ export function useEngine() {
   });
   // Level-match the tab against what it sounded like before the curve was shaped. Off by default,
   // and a RENDERING of the gain rather than a change to it — see lib/auto-gain.ts. Persisted the
-  // same way the other view toggles are; it is a listening preference, not part of any profile.
+  // shared with the worker for command-only capture; it is not part of any profile.
   const [autoGain, setAutoGain] = useState<boolean>(() => {
     try {
       return localStorage.AUTO_GAIN === '1';
@@ -147,9 +163,11 @@ export function useEngine() {
   const globalEditorRef = useRef(globalEditor);
   globalEditorRef.current = globalEditor;
   const bandsRef = useRef(bands);
-  bandsRef.current = bands;
+  // Live values lead the RAF-coalesced render. An unrelated render must not replace the
+  // latest drag with the previous frame before pagehide/commit can persist it.
+  if (!bandsFrame.current) bandsRef.current = bands;
   const gainRef = useRef(gain);
-  gainRef.current = gain;
+  if (!gainFrame.current) gainRef.current = gain;
   const activeRef = useRef(activePreset);
   activeRef.current = activePreset;
   const presetsRef = useRef(presets);
@@ -182,6 +200,8 @@ export function useEngine() {
   // Keying the flush off the timer meant a popup closed mid-drag flushed nothing, and that window
   // is the whole drag rather than the 200ms debounce.
   const dirty = useRef(false);
+  // A completion may settle only the edit it started with, never a newer draft or reset.
+  const editVersion = useRef(0);
   // Write-ahead copy of the edit in progress. The popup is destroyed on any focus loss and cannot
   // be relied on to finish a write on the way out, so the record has to already exist. Throttled in
   // memory — a storage write per pointermove would just move the cost, not remove it.
@@ -193,6 +213,15 @@ export function useEngine() {
   const autoTried = useRef(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const send = useRef(io.makeThrottle(33)).current;
+  const cancelDeferredEdits = useCallback(() => {
+    send.cancel();
+    journalThrottle.cancel();
+    if (bandsFrame.current) cancelAnimationFrame(bandsFrame.current);
+    if (gainFrame.current) cancelAnimationFrame(gainFrame.current);
+    bandsFrame.current = gainFrame.current = 0;
+    bandsPending.current = null;
+    gainPending.current = null;
+  }, [send, journalThrottle]);
   // The offscreen document has NO chrome.storage access, so the ENGINE can't resolve a tab's
   // sound. The POPUP is the source of truth: it holds the global profile, resolves each tab
   // (rule → global → flat), and pushes the bands to the engine (a dumb applier).
@@ -225,27 +254,6 @@ export function useEngine() {
    */
   const committedSinceBaseline = useRef(false);
 
-  /**
-   * Everything the reset / bypass / provenance bugs have turned out to hinge on, in one line of the
-   * log. All of it lives in refs, so a screenshot cannot show it and the React devtools cannot
-   * either — which is how several of these went unnoticed for a whole release.
-   */
-  const dbgState = useCallback((why: string) => {
-    if (!debugOn()) return;
-    dbg('state', {
-      why,
-      host: activeHostRef.current,
-      preview: previewRef.current.has ? previewRef.current.source : 'none',
-      dirty: dirty.current,
-      committed: committedSinceBaseline.current,
-      baseline: baselineRef.current.has ? baselineRef.current.target?.kind : 'none',
-      gain: gainRef.current,
-      b0: bandsRef.current[0]?.gain,
-      preset: activeRef.current,
-      rules: rulesRef.current.length,
-      globalGain: globalRef.current?.gain
-    });
-  }, []);
 
   const refreshResettable = useCallback(
     () =>
@@ -321,27 +329,14 @@ export function useEngine() {
     return provenanceOf({ presetName: activePreset, current: io.bandsToPreset(bands), named });
   }, [activePreset, bands, presets]);
 
-  const resolvedFor = useCallback((host: string): { bands: Band[]; gain: number; presetName: string } => {
-    const mr = host ? matchRule(host, rulesRef.current) : null;
-    if (mr) {
-      if (mr.mode === 'curve' && mr.curve) return { bands: io.presetToBands(mr.curve), gain: mr.gain ?? 1, presetName: mr.preset || '' };
-      if (mr.mode === 'preset' && mr.preset) {
-        // Own-property lookup only: an untrusted imported rule preset named "__proto__"/"toString"/
-        // etc. would otherwise resolve to an inherited member and throw in presetToBands.
-        const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
-        const p = has(presetsRef.current, mr.preset) ? presetsRef.current[mr.preset] : has(BUILTIN_PRESETS, mr.preset) ? BUILTIN_PRESETS[mr.preset] : null;
-        if (p) return { bands: io.presetToBands(p), gain: 1, presetName: mr.preset };
-      }
-    }
-    const g = globalRef.current;
-    if (g) return { bands: g.bands, gain: g.gain, presetName: g.presetName ?? '' };
-    return { bands: io.flatBands(), gain: 1, presetName: '' };
-  }, []);
+  const resolvedFor = useCallback((host: string) =>
+    resolveSound(host, rulesRef.current, presetsRef.current, globalRef.current), []);
 
   // Push every captured tab's resolved sound to the engine, and mirror the active tab's in
   // the graph. Skips while the user is mid-drag (don't clobber a live edit).
   const applyEverywhere = useCallback(
     (tabsList: { id: number; host: string }[]) => {
+      if (!hydratedRef.current) return;
       // The guard is per tab, not global. A preview or a live drag owns the ACTIVE tab only —
       // every other captured tab must still receive its resolved sound, so a rule or preset change
       // keeps propagating while the user is shaping this one.
@@ -377,7 +372,7 @@ export function useEngine() {
   const capturing = activeTabId != null && tabs.some((t) => t.id === activeTabId);
   // Editing needs a live capture on the active tab. In the standalone dev preview
   // (no extension APIs) the graph stays interactive so it can be demoed/screenshotted.
-  const canEdit = capturing || globalEditor || !io.hasChrome();
+  const canEdit = !stateTransaction && ((hydrated && (capturing || globalEditor)) || !io.hasChrome());
   // What the UI should say about capture — see src/lib/capture-state.ts for the priority order.
   // In the standalone dev preview there are no extension APIs, so present the working screen.
   const captureState = io.hasChrome()
@@ -415,6 +410,7 @@ export function useEngine() {
   showNoticeRef.current = showNotice;
 
   const maybeAutoCapture = useCallback((list: TabState[]) => {
+    if (!hydratedRef.current) return;
     if (autoTried.current) return;
     if (activeIdRef.current == null || !gotFirstStatus.current) return;
     autoTried.current = true;
@@ -428,6 +424,15 @@ export function useEngine() {
     (msg: any) => {
       if (msg.build && msg.build !== io.BUILD) {
         setEngineStatus('stale');
+        return;
+      }
+      if (msg.failed) {
+        gotFirstStatus.current = true;
+        tabsRef.current = [];
+        setTabs([]);
+        setLastError(String(msg.error || t('engine.error')));
+        endFlight();
+        setEngineStatus('error');
         return;
       }
       if (msg.initializing) {
@@ -444,6 +449,7 @@ export function useEngine() {
         gain: typeof t.gain === 'number' ? t.gain : 1,
         activePreset: t.activePreset || ''
       }));
+      tabsRef.current = list;
       setTabs(list);
       // A live capture on the active tab settles the question: drop any reason we were showing.
       if (activeIdRef.current != null && list.some((t) => t.id === activeIdRef.current)) {
@@ -455,9 +461,8 @@ export function useEngine() {
       if (msg.presets && Object.keys(msg.presets).length) setPresets(msg.presets);
       setEngineStatus('connected');
 
-      // The engine can't resolve a tab's sound (offscreen has no chrome.storage), so the popup
-      // resolves each captured tab and pushes it. Runs on every status (a no-op while dragging,
-      // and idempotent when nothing changed).
+      // The worker resolves startup. After hydration the popup owns ongoing edits and refreshes;
+      // an early status must never replace the worker's sound with uninitialized flat mirrors.
       applyEverywhere(list);
       maybeAutoCapture(list);
     },
@@ -467,6 +472,7 @@ export function useEngine() {
   // Boot: paint presets + domain preview, learn the active tab, wake the engine.
   useEffect(() => {
     let mounted = true;
+    let storageVersion = 0;
 
     // Load presets + rules together, then re-resolve. Both are read async; a preset-mode rule
     // resolves to null (→ flat) if applyEverywhere runs before its preset finished loading, so set
@@ -474,9 +480,27 @@ export function useEngine() {
     // Boot: load presets + rules, then replay any edit the previous popup didn't finish saving,
     // and only then resolve. The journal is read exactly once, here — it is a recovery record, not
     // a second source of truth, and nothing plays from it directly.
-    Promise.all([io.readInitialState(), io.readRules(), io.readDefaultEq(), io.readJournal()]).then(
-      async ([init, rs, g, journal]) => {
-        if (!mounted) return;
+    // A storage event can complete its refresh before an older boot read returns. Retry the
+    // snapshot in that case, before recovery makes a decision based on obsolete canonical data.
+    const readBoot = async () => {
+      while (mounted) {
+        const version = storageVersion;
+        const snapshot = await Promise.all([io.readInitialState(), io.readRules(), io.readDefaultEqResult(), io.readJournal(), io.readAutoGainPreference()]);
+        if (version === storageVersion) return snapshot;
+      }
+      return null;
+    };
+    readBoot().then(
+      async (snapshot) => {
+        if (!mounted || !snapshot) return;
+        const [init, rs, globalResult, journal, levelMatch] = snapshot;
+        if (io.hasChrome() && (!init.readable || !globalResult.ok || rs === null)) {
+          pauseStateEditing();
+          return;
+        }
+        const g = globalResult.ok ? globalResult.value : null;
+        autoGainRef.current = levelMatch;
+        setAutoGain(levelMatch);
         presetsRef.current = init.presets;
         setPresets(init.presets);
         // Same distinction as the refresh below: `null` is "could not read", not "there are
@@ -511,7 +535,18 @@ export function useEngine() {
           await io.clearJournal(); // superseded, unusable, or aimed at something that is gone
         }
 
-        if (mounted) applyEverywhere(tabsRef.current);
+        if (mounted && !stateReadFailed.current) {
+          hydratedRef.current = true;
+          setHydrated(true);
+          if (!interacting.current) {
+            const r = resolvedFor(activeHostRef.current);
+            setBands(r.bands);
+            setGain(r.gain);
+            setActivePreset(r.presetName);
+          }
+          applyEverywhere(tabsRef.current);
+          maybeAutoCapture(tabsRef.current);
+        }
       }
     );
     if (io.hasChrome()) {
@@ -521,29 +556,24 @@ export function useEngine() {
           // Full window = global-profile editor (own tab isn't capturable → edit the sound
           // that plays everywhere instead). Host '' resolves to the global profile (no rule).
           setGlobalEditor(true);
+          globalEditorRef.current = true;
           setActiveTabId(null);
+          activeIdRef.current = null;
           setActiveHost('');
+          activeHostRef.current = '';
           setCapturable(false);
-          io.readDefaultEq().then((g) => {
-            if (!mounted) return;
-            globalRef.current = g;
-            if (!interacting.current) {
-              const r = resolvedFor('');
-              setBands(r.bands);
-              setGain(r.gain);
-              setActivePreset(r.presetName);
-            }
-          });
+          applyEverywhere(tabsRef.current);
           return;
         }
-        io.getActiveTab().then(async (t) => {
+        io.getActiveTab().then((t) => {
           if (!mounted) return;
           setActiveTabId(t.id);
+          activeIdRef.current = t.id;
           setActiveHost(t.host || '');
+          activeHostRef.current = t.host || '';
           setCapturable(t.capturable !== false);
           // Show what this site will play (its rule / the global profile) before capture.
-          globalRef.current = await io.readDefaultEq();
-          if (mounted && t.host && !interacting.current) {
+          if (hydratedRef.current && t.host && !interacting.current) {
             const r = resolvedFor(t.host);
             setBands(r.bands);
             setGain(r.gain);
@@ -560,10 +590,15 @@ export function useEngine() {
       if (m.type === 'workspaceStatus') handleStatus(m);
       else if (m.type === 'engineError') setEngineStatus('error');
       else if (m.type === 'captureSkipped') {
+        if (m.tabId != null && m.tabId !== activeIdRef.current) return;
         // Only reasons the state machine understands; an unknown one must not be relabelled into
         // a known-looking value.
         if (m.reason === 'stopped' || m.reason === 'uncapturable') setSkipReason(m.reason);
         endFlight();
+      } else if (m.type === 'captureInterrupted' && m.tabId === activeIdRef.current) {
+        setSkipReason('stopped');
+        endFlight();
+        showNotice(t('note.captureNavigation'));
       } else if (m.type === 'captureError') {
         const e = String(m.error || '');
         endFlight();
@@ -575,25 +610,49 @@ export function useEngine() {
         }
       }
     };
+    let syncRefreshVersion = 0;
+    let globalRefreshVersion = 0;
+    let autoGainRefreshVersion = 0;
     const onChanged = (changes: any, area: string) => {
       const want = refreshFor(area, Object.keys(changes || {}));
-      if (want.presets) io.refreshPresets().then((p) => mounted && setPresets(p));
-      if (want.rules)
-        io.readRules().then((rs) => {
-          if (!mounted) return;
-          // NOT `rs ?? []`. That spelling is the bug this replaced: a rejected read emptied the
-          // list, the user saw "no rules", and the next save wrote the empty array over a rule
-          // that was still in storage. A read that failed leaves the list we already have.
-          if (rs === null) showNotice(t('note.rulesUnreadStale'));
-          else setRules(rs);
+      if (want.autoGain || want.presets || want.rules || want.global) ++storageVersion;
+      if (want.autoGain) {
+        const version = ++autoGainRefreshVersion;
+        io.readAutoGainPreference().then((on) => {
+          if (!mounted || version !== autoGainRefreshVersion) return;
+          autoGainRef.current = on;
+          setAutoGain(on);
+          applyEverywhere(tabsRef.current);
         });
+      }
+      if (want.presets || want.rules) {
+        const version = ++syncRefreshVersion;
+        // Resolve both halves together: imported rules may reference presets in the same update.
+        Promise.all([io.refreshPresetsResult(), io.readRules()]).then(([p, rs]) => {
+          if (!mounted || version !== syncRefreshVersion) return;
+          if (!p.ok || rs === null) {
+            pauseStateEditing();
+            return;
+          }
+          presetsRef.current = p.presets;
+          setPresets(p.presets);
+          setRulesMirror(rs);
+          // The per-tab preview guard preserves the active draft and still updates other tabs.
+          applyEverywhere(tabsRef.current);
+        });
+      }
       if (want.global) {
+        const version = ++globalRefreshVersion;
         // The everywhere-sound changed under us — most likely the other window of this extension.
         // Re-read rather than trust the incoming value: this also fires for our OWN writes, and a
         // read is the one answer that is right in both cases.
-        io.readDefaultEq().then((g) => {
-          if (!mounted) return;
-          globalRef.current = g;
+        io.readDefaultEqResult().then((g) => {
+          if (!mounted || version !== globalRefreshVersion) return;
+          if (!g.ok) {
+            pauseStateEditing();
+            return;
+          }
+          globalRef.current = g.value;
           // applyEverywhere will not touch the editing buffer while there is unsaved work — see
           // mayMirrorBuffer — so this cannot pull a curve out from under a live drag.
           applyEverywhere(tabsRef.current);
@@ -661,8 +720,18 @@ export function useEngine() {
   // unruled site edits the global profile. reapplyAll then propagates to every captured tab.
   const commitTarget = useCallback(
     (bands: Band[], gain: number, presetName: string) => {
-    dbgState('commitTarget');
+      if (!hydratedRef.current || stateTransactionRef.current) return;
+      const version = ++editVersion.current;
+      send.cancel();
+      journalThrottle.cancel();
       const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
+      // Closing the popup can flush before the trailing journal callback. Save the actual
+      // commit payload now so a rejected canonical write still has the latest recovery copy.
+      void io.writeJournal(makeJournal(
+        mr ? { kind: 'rule', id: mr.id } : { kind: 'global' },
+        io.bandsToPreset(bands), gain, Date.now(),
+        mr ? (dirty.current ? journalTargetWas.current : ruleFingerprint(mr)) : null
+      ));
       // The edit is about to reach storage; anything after this point is a fresh change.
       dirty.current = false;
       committedSinceBaseline.current = true;
@@ -681,6 +750,7 @@ export function useEngine() {
         // A ruled site writes to storage.sync, which caps writes per minute AND per hour. Dropping
         // this result made a refused write invisible: the UI kept showing the new sound as saved.
         io.writeRulesResult(next).then((res) => {
+          if (version !== editVersion.current) return;
           if (res.ok) void io.clearJournal(); // ONLY on success — a failed write must keep the record
           else {
             dirty.current = true; // still unsaved — a later flush or commit can try again
@@ -690,6 +760,7 @@ export function useEngine() {
       } else {
         globalRef.current = { bands, gain, presetName };
         io.writeDefaultEq(bands, gain, presetName).then((res) => {
+          if (version !== editVersion.current) return;
           if (res.ok) void io.clearJournal();
           else {
             dirty.current = true;
@@ -705,10 +776,10 @@ export function useEngine() {
   // Coalesce the VISUAL band update to one per frame — setBands isn't throttled like the engine
   // message, and each setBands re-runs EqGraph's ~5.8k biquad-eval memo. bandsRef is updated
   // synchronously every move so a commit uses the latest curve regardless of the pending frame.
-  const bandsPending = useRef<Band[] | null>(null);
-  const bandsFrame = useRef(0);
   const onBandsLive = useCallback(
     (nb: Band[]) => {
+      if (!hydratedRef.current || stateTransactionRef.current) return;
+      ++editVersion.current;
       if (!interacting.current) {
         captureBaseline(); // first movement of this drag
         const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
@@ -740,10 +811,10 @@ export function useEngine() {
   );
   // Coalesce the volume drag to one setGain per frame (same rationale as onBandsLive); keep gainRef
   // synchronous so a commit uses the latest value regardless of the pending frame.
-  const gainPending = useRef<number | null>(null);
-  const gainFrame = useRef(0);
   const onGainLive = useCallback(
     (g: number) => {
+      if (!hydratedRef.current || stateTransactionRef.current) return;
+      ++editVersion.current;
       if (!interacting.current) {
         captureBaseline();
         const mr = activeHostRef.current ? matchRule(activeHostRef.current, rulesRef.current) : null;
@@ -764,7 +835,7 @@ export function useEngine() {
       }
       const id = activeIdRef.current;
       if (id == null) return;
-      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: sentGain(g, bandsRef.current), activePreset: activeRef.current }));
+      send(() => io.toOffscreen('modifyGain', { tabId: id, gain: sentGain(g, isBypassed(previewRef.current) ? io.flatBands() : bandsRef.current), activePreset: activeRef.current }));
     },
     [send, captureBaseline, recordJournal]
   );
@@ -795,6 +866,7 @@ export function useEngine() {
     }
     commitTimer.current = setTimeout(() => {
       commitTimer.current = null;
+      if (!persistsNow(previewRef.current)) return;
       // Clear the mid-edit guard only here — one statement before the authoritative write — not
       // synchronously at the top of onCommit. Otherwise a workspaceStatus broadcast arriving in the
       // 200ms debounce window would pass applyEverywhere's guard, resolve the still-stale pre-commit
@@ -884,13 +956,9 @@ export function useEngine() {
     }
     io.toBackground('toggleCapture', { on });
   }, [capturing, beginFlight]);
-  // The active tab's Stop must route through the background so its id lands in the stoppedTabs set
-  // (same as the main "Stop EQing" button); a direct disconnect leaves the tab un-remembered, so the
-  // next popup open auto-captures and re-EQs it. Non-active tabs are never the auto-capture target,
-  // so a direct disconnect is fine for them.
+  // Remember Stop for every tab: another tab can become the popup's next auto-capture target.
   const stopTab = useCallback((id: number) => {
-    if (id === activeIdRef.current) io.toBackground('toggleCapture', { on: false });
-    else io.toOffscreen('disconnectTab', { tabId: id });
+    io.toBackground('stopCapture', { tabId: id });
   }, []);
 
   // On the current site: reset to flat. Unruled → the global profile; ruled → remove the rule.
@@ -914,7 +982,12 @@ export function useEngine() {
   // Turning it OFF is a different thing and deliberately outside these markers: bypass is a draft
   // mode, so leaving it is where the draft becomes a save.
   const enterBypass = useCallback(() => {
-    dbgState('enterBypass');
+    send.cancel();
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+
     setPreview(previewForBypass(io.flatBands()));
     const id = activeIdRef.current;
     // No activePreset in the payload: the engine only overwrites the label when it is defined, so
@@ -933,7 +1006,7 @@ export function useEngine() {
    * the user just built rather than the one it had before they started.
    */
   const leaveBypass = useCallback(() => {
-    dbgState('leaveBypass');
+
     const owed = commitOnUnbypass({ dirty: dirty.current });
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
@@ -953,21 +1026,23 @@ export function useEngine() {
   }, [applyEverywhere, commitTarget, recordJournal, setPreview]);
 
   const toggleAutoGain = useCallback(() => {
-    dbgState('toggleAutoGain');
-    setAutoGain((v) => {
-      const next = !v;
-      autoGainRef.current = next; // applyEverywhere below reads the ref, not the pending state
-      try {
-        localStorage.AUTO_GAIN = next ? '1' : '0';
-      } catch {
-        /* private mode */
+    const previous = autoGainRef.current;
+    const next = !previous;
+    autoGainRef.current = next;
+    setAutoGain(next);
+    applyEverywhere(tabsRef.current);
+    void io.writeAutoGainPreference(next).then((result) => {
+      if (!result.ok) {
+        autoGainRef.current = previous;
+        setAutoGain(previous);
+        applyEverywhere(tabsRef.current);
+        showNoticeRef.current(t('note.rulesSaveFailed'));
       }
-      applyEverywhere(tabsRef.current);
-      return next;
     });
   }, [applyEverywhere]);
 
   const toggleBypass = useCallback(() => {
+    if (!hydratedRef.current || stateTransactionRef.current) return;
     if (isBypassed(previewRef.current)) leaveBypass();
     else enterBypass();
   }, [enterBypass, leaveBypass]);
@@ -978,7 +1053,7 @@ export function useEngine() {
    */
   const restoreWriters = useRef<RestoreWriters>({
     writeGlobal: (bands, gain, presetName) => io.writeDefaultEq(bands, gain, presetName),
-    clearGlobal: async () => (await io.clearDefaultEq(), { ok: true }),
+    clearGlobal: () => io.clearDefaultEq(),
     writeRules: async (rules) => io.writeRulesResult(rules)
   }).current;
 
@@ -992,13 +1067,15 @@ export function useEngine() {
    * auditioning.
    */
   const resetChanges = useCallback(() => {
-    dbgState('resetChanges');
+    if (!hydratedRef.current || stateTransactionRef.current) return;
     const plan = planResetChanges({
       baseline: baselineRef.current,
       rules: rulesRef.current,
       committed: committedSinceBaseline.current
     });
     if (plan.action !== 'restore') return;
+    const version = ++editVersion.current;
+    cancelDeferredEdits();
 
     if (commitTimer.current) {
       clearTimeout(commitTimer.current);
@@ -1011,6 +1088,7 @@ export function useEngine() {
     // gated on the WRITE is everything that claims something happened: the notice, the journal,
     // and the undo slot from an older Reset profile.
     void applyRestore(plan, restoreWriters).then((outcome) => {
+      if (version !== editVersion.current) return;
       if (outcome === 'write-failed') {
         showNoticeRef.current(t('note.rulesSaveFailed'));
         return; // storage still holds the edit: keep the journal and keep the undo armed
@@ -1041,7 +1119,9 @@ export function useEngine() {
   // The destructive one: on a ruled site it DELETES the rule, elsewhere it flattens the profile
   // every tab without a rule plays. Snapshot first so the notice can offer an undo.
   const resetProfile = useCallback(() => {
-    dbgState('resetProfile');
+    if (!hydratedRef.current || stateTransactionRef.current) return;
+    const version = ++editVersion.current;
+    cancelDeferredEdits();
     // No captureBaseline() here. It used to latch one so the clear below had something to discard,
     // which made it a no-op after any real edit and, in a session that had edited nothing,
     // MANUFACTURED a debt describing a profile this session never displaced. A reset is not an
@@ -1092,6 +1172,7 @@ export function useEngine() {
     refreshResettable();
 
     void write.then((res) => {
+      if (version !== editVersion.current) return;
       const outcome = planArm({ ok: res.ok, isCurrent: pendingReset.current === record });
       if (outcome === 'superseded') return; // a newer reset owns the slot; this one is not on screen
       pendingReset.current = null;
@@ -1123,6 +1204,7 @@ export function useEngine() {
    */
   const runUndo = useCallback(
     async (record: ResetUndoRecord) => {
+      if (!hydratedRef.current) return;
       // Is the world still the one that reset produced? This — not any flag of ours — is the
       // guarantee that an undo returns the user to the state immediately before the reset and
       // never to an older state at the cost of a newer one. A flag records that WE think the world
@@ -1157,6 +1239,8 @@ export function useEngine() {
         showNoticeRef.current(t('note.undoSuperseded'));
         return;
       }
+      ++editVersion.current;
+      cancelDeferredEdits();
 
       // A commit armed before this click would land after the restore and overwrite it.
       // resetProfile already cancels its own; the undo has to cancel one too.
@@ -1197,8 +1281,8 @@ export function useEngine() {
 
   // Put back exactly what resetProfile overwrote, if the world has not moved since.
   const undoReset = useCallback(async () => {
-    dbgState('undoReset');
-    if (!undoSlot.armed) return;
+
+    if (!undoSlot.armed || !hydratedRef.current || stateTransactionRef.current) return;
     // `armed` alone does not stop a second click: the slot is not spent until the restore lands,
     // several awaits away. Two buttons carry this action — the toast and the More view — and both
     // can be on screen at once, so two runs would issue two chrome.storage.sync writes for one
@@ -1207,10 +1291,14 @@ export function useEngine() {
     // finds it changed, and reports "superseded" immediately after a successful undo.
     if (undoInFlight.current) return;
     undoInFlight.current = true;
+    stateTransactionRef.current = true;
+    setStateTransaction(true);
     try {
       await runUndo(undoSlot.snapshot);
     } finally {
       undoInFlight.current = false;
+      stateTransactionRef.current = false;
+      setStateTransaction(false);
     }
   }, [runUndo, undoSlot]);
 
@@ -1221,7 +1309,8 @@ export function useEngine() {
   // ordering both live in lib/save-for-site.ts, where they are tested; this is the executor.
   const saveRuleFromCurrent = useCallback(
     async (scope: 'exact' | 'anyTld' | 'anySub', target: 'update-matching' | 'always-create') => {
-    dbgState('saveRuleFromCurrent');
+      if (!hydratedRef.current || stateTransactionRef.current) return;
+
       // First, and before anything else: a queued commit must not land after the rule is written,
       // match it, and rewrite it with a stale curve.
       if (commitTimer.current) {
@@ -1250,6 +1339,12 @@ export function useEngine() {
         showNoticeRef.current(t('note.noSite'));
         return;
       }
+      ++editVersion.current;
+      cancelDeferredEdits();
+      if (dirty.current && persistsNow(previewRef.current)) recordJournal(true);
+      stateTransactionRef.current = true;
+      setStateTransaction(true);
+      try {
 
       const writers: SaveWriters = {
         writeRules: (next) => io.writeRulesResult(next),
@@ -1268,12 +1363,15 @@ export function useEngine() {
       }
 
       setRulesMirror(plan.rules); // applySavePlan already stored it; keep the mirror in step
-      if (plan.globalRollback) globalRef.current = plan.globalRollback.to;
+      if (plan.globalRollback && outcome === 'saved') globalRef.current = plan.globalRollback.to;
       setPreview(NO_PREVIEW);
       dirty.current = false;
-      baselineRef.current = NO_BASELINE;
-      committedSinceBaseline.current = false;
-      refreshResettable(); // an explicit save is the end of the cycle, not something to undo
+      if (outcome === 'saved') {
+        baselineRef.current = NO_BASELINE;
+        committedSinceBaseline.current = false;
+      }
+      // A failed global rollback still owes a restore, with its journal and Reset changes intact.
+      refreshResettable();
       applyEverywhere(tabsRef.current);
       mirrorResolved();
 
@@ -1282,6 +1380,10 @@ export function useEngine() {
           ? t('note.savedForSitePartial', { host: activeHostRef.current })
           : t(plan.created ? 'note.savedForSite' : 'note.ruleUpdated', { host: activeHostRef.current })
       );
+      } finally {
+        stateTransactionRef.current = false;
+        setStateTransaction(false);
+      }
     },
     [applyEverywhere, mirrorResolved, setRulesMirror, sentGain]
   );
@@ -1293,14 +1395,23 @@ export function useEngine() {
 
   // ---- Domain rules (pattern -> preset/curve, first match wins) ----
   const persistRules = useCallback(
-    (incoming: Rule[]) => {
-    dbgState('persistRules');
+    async (incoming: Rule[]) => {
+      if (!hydratedRef.current || stateTransactionRef.current) return false;
       noteUndoEvent('rules-write');
+      const previous = rulesRef.current;
       const next = setRulesMirror(incoming);
-      io.writeRules(next).then((ok) => {
-        if (!ok) showNotice(t('note.rulesSaveFailed'));
-      });
       applyEverywhere(tabsRef.current); // a rule change takes effect live on all captured tabs
+      const ok = await io.writeRules(next);
+      if (!ok) {
+        // A rejected optimistic write must not leave an unsaved rule playing. A newer action
+        // owns its mirror, so only roll back the array this particular write installed.
+        if (rulesRef.current === next) {
+          setRulesMirror(previous);
+          applyEverywhere(tabsRef.current);
+        }
+        showNotice(t('note.rulesSaveFailed'));
+      }
+      return ok;
     },
     [showNotice, applyEverywhere, setRulesMirror]
   );
@@ -1339,7 +1450,7 @@ export function useEngine() {
     [showNotice]
   );
   const copyPresetsCode = useCallback(() => copyCode(io.encodeShare({ presets: presetsRef.current })), [copyCode]);
-  const copyRulesCode = useCallback(() => copyCode(io.encodeShare({ rules: rulesRef.current })), [copyCode]);
+  const copyRulesCode = useCallback(() => copyCode(io.encodeShare(io.rulesSharePayload(rulesRef.current, presetsRef.current))), [copyCode]);
   const importShareCode = useCallback(
     async (code: string) => {
       const data = io.decodeShare(code);
@@ -1359,10 +1470,18 @@ export function useEngine() {
           presetErr = res.error;
         }
       }
+      if (presetErr) {
+        showNotice(t('note.importFailed', { err: presetErr }));
+        return; // rules in this payload may depend on the presets that were not stored
+      }
       const valid = io.sanitizeImportedRules(data.rules);
       if (valid.length) {
+        const saved = await persistRules([...rulesRef.current, ...valid]);
+        if (!saved) {
+          showNotice(`${pCount ? t('note.codeImported', { p: pCount, r: 0 }) + ' ' : ''}${t('note.rulesSaveFailed')}`);
+          return;
+        }
         rCount = valid.length;
-        persistRules([...rulesRef.current, ...valid]);
       }
       if (!pCount && !rCount) {
         showNotice(presetErr ? t('note.importFailed', { err: presetErr }) : t('note.codeInvalid'));
@@ -1375,10 +1494,16 @@ export function useEngine() {
 
   const applyPreset = useCallback(
     async (name: string) => {
-    dbgState('applyPreset');
+      if (stateTransactionRef.current) return;
+      if (!hydratedRef.current) {
+        showNotice(t('note.stateReadFailed'));
+        return;
+      }
+      const version = ++editVersion.current;
       let p = presetsRef.current[name];
       if (!p) {
         const fresh = await io.refreshPresets();
+        if (version !== editVersion.current) return;
         setPresets(fresh);
         p = fresh[name];
       }
@@ -1387,6 +1512,13 @@ export function useEngine() {
         showNotice(t('note.notFound', { name }));
         return;
       }
+      cancelDeferredEdits();
+      if (commitTimer.current) {
+        clearTimeout(commitTimer.current);
+        commitTimer.current = null;
+      }
+      interacting.current = false;
+      setPreview(previewAfterCommit(previewRef.current));
       const nb = io.presetToBands(p);
       captureBaseline(); // writer #3 — commits immediately, with no debounce to hide behind
       setBands(nb);
@@ -1411,6 +1543,7 @@ export function useEngine() {
 
   const savePreset = useCallback(
     async (name: string) => {
+      if (!hydratedRef.current || stateTransactionRef.current) return;
       try {
         await io.savePreset(name, bandsRef.current); // just names the current curve (sync storage)
       } catch {
@@ -1429,7 +1562,8 @@ export function useEngine() {
       try {
         await io.deletePreset(name);
       } catch {
-        /* ignore */
+        showNotice(t('note.deleteFailed'));
+        return;
       }
       if (activeRef.current === name) setActivePreset('');
       setPresets(await io.refreshPresets());
@@ -1485,6 +1619,7 @@ export function useEngine() {
     canEdit,
     captureState,
     lastError,
+    stateReadError,
     spectrum,
     showRoles,
     // actions

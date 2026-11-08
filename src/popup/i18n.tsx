@@ -7,6 +7,16 @@ type Vars = Record<string, string | number>;
 // Flat key -> string per language. {name} placeholders are filled by t(key, vars).
 const DICT: Record<Lang, Record<string, string>> = {
   en: {
+    'note.stateReadFailed': 'Could not read your saved sound. Editing is paused; reopen Umbra to try again.',
+    'note.deleteFailed': 'Could not delete the preset. Try again.',
+    'nav.label': 'Workspace navigation',
+    'eq.scopeGlobal': 'Editing · global sound',
+    'eq.scopeGlobalHint': 'Used on captured tabs without a site rule',
+    'eq.scopeSite': 'Editing · {host}',
+    'eq.outputAllTabs': 'Output · all tabs',
+    'eq.shelfQ': 'Q does not apply to shelf filters',
+    'rules.soundLabel': 'Sound for this rule',
+    'note.captureNavigation': 'EQ stopped after navigation. Open Umbra on this page to start it again.',
     'nav.eq': 'EQ',
     'nav.presets': 'Presets',
     'nav.rules': 'Rules',
@@ -27,7 +37,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'eq.resetChangesTitle': 'Put the sound back to what it was when you opened Umbra',
     'note.changesReset': 'Sound put back',
     'more.autoGain': 'Auto Gain',
-    'more.autoGainHint': 'Keeps the tab at about the level it was before you shaped it, so you can judge the curve and not the loudness. Nothing is saved — your volume and your profiles are untouched.',
+    'more.autoGainHint': 'Matches the approximate level before and after EQ for comparison. Your saved volume and profiles keep their original values.',
     'more.undoReset': 'Undo the last reset',
     'more.undoResetHint': 'Puts back exactly what that reset overwrote. Saving anything else replaces it.',
     'eq.presetBasedOn': 'Based on {name}',
@@ -65,13 +75,13 @@ const DICT: Record<Lang, Record<string, string>> = {
     'eq.stop': 'Stop EQing',
     'eq.reset': 'Reset',
     'eq.resetTitle': 'Reset the current sound to flat',
-    'eq.globalProfile': 'Global profile · plays on every tab',
+    'eq.globalProfile': 'Global sound · unless a site rule applies',
     'eq.resetGlobalTitle': 'Reset the global profile to flat',
 
     'presets.title': 'Presets',
     'presets.placeholder': 'Name a preset…',
     'presets.save': '+ Save',
-    'presets.update': 'Update "{name}"',
+    'presets.update': 'Update',
     'presets.none': 'No presets yet. Shape the EQ, type a name, then Save.',
     'presets.export': 'Export',
     'presets.import': 'Import file',
@@ -109,7 +119,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'howto.keys.p': 'Tab to a point, then shape it. Every press is saved on its own.',
     'howto.keys.coarse': 'bigger step',
     'howto.keys.fine': 'finer step',
-    'howto.keys.q': 'width (Q)',
+    'howto.keys.q': 'width (Q), bell filters only',
     'howto.keys.flat': 'back to flat',
     'howto.fields.h': 'Type the numbers',
     'howto.fields.p': 'Click a point and its three values become fields you can type into.',
@@ -209,6 +219,16 @@ const DICT: Record<Lang, Record<string, string>> = {
     'note.codeInvalid': 'Clipboard has no valid Umbra code.'
   },
   ru: {
+    'note.stateReadFailed': 'Не удалось прочитать сохранённый звук. Редактирование приостановлено — открой Umbra заново.',
+    'note.deleteFailed': 'Не удалось удалить пресет. Попробуй ещё раз.',
+    'nav.label': 'Навигация по разделам',
+    'eq.scopeGlobal': 'Редактируется · общий звук',
+    'eq.scopeGlobalHint': 'Для вкладок с EQ, у которых нет правила сайта',
+    'eq.scopeSite': 'Редактируется · {host}',
+    'eq.outputAllTabs': 'Выход · все вкладки',
+    'eq.shelfQ': 'Q не используется полочными фильтрами',
+    'rules.soundLabel': 'Звук для этого правила',
+    'note.captureNavigation': 'Эквалайзер остановлен после перехода. Открой Umbra на этой странице, чтобы включить его снова.',
     'nav.eq': 'Эквалайзер',
     'nav.presets': 'Пресеты',
     'nav.rules': 'Правила',
@@ -229,7 +249,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'eq.resetChangesTitle': 'Вернуть звук к тому, каким он был при открытии Umbra',
     'note.changesReset': 'Звук возвращён',
     'more.autoGain': 'Авто-громкость',
-    'more.autoGainHint': 'Держит вкладку примерно на той громкости, что была до правки кривой, — чтобы оценивать кривую, а не громкость. Ничего не сохраняется: ни твоя громкость, ни профили не меняются.',
+    'more.autoGainHint': 'Выравнивает громкость до и после EQ для сравнения. Сохранённые настройки громкости и профилей не меняются.',
     'more.undoReset': 'Отменить последний сброс',
     'more.undoResetHint': 'Вернёт ровно то, что сброс затёр. Любое другое сохранение его заменит.',
     'eq.presetBasedOn': 'На основе {name}',
@@ -267,13 +287,13 @@ const DICT: Record<Lang, Record<string, string>> = {
     'eq.stop': 'Выключить',
     'eq.reset': 'Сброс',
     'eq.resetTitle': 'Сбросить текущий звук в ноль',
-    'eq.globalProfile': 'Общий профиль · звучит на всех вкладках',
+    'eq.globalProfile': 'Общий звук · если нет правила сайта',
     'eq.resetGlobalTitle': 'Сбросить общий профиль в ноль',
 
     'presets.title': 'Пресеты',
     'presets.placeholder': 'Название пресета…',
     'presets.save': '+ Сохранить',
-    'presets.update': 'Обновить «{name}»',
+    'presets.update': 'Обновить',
     'presets.none': 'Пресетов пока нет. Настрой звук, впиши название и сохрани.',
     'presets.export': 'Экспорт',
     'presets.import': 'Импорт из файла',
@@ -311,7 +331,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     'howto.keys.p': 'Дойди до точки через Tab и меняй её. Каждое нажатие сохраняется отдельно.',
     'howto.keys.coarse': 'крупный шаг',
     'howto.keys.fine': 'мелкий шаг',
-    'howto.keys.q': 'ширина (Q)',
+    'howto.keys.q': 'ширина (Q), только пиковые полосы',
     'howto.keys.flat': 'вернуть в ноль',
     'howto.fields.h': 'Ввод чисел',
     'howto.fields.p': 'Нажми на точку — три её значения станут полями, в которые можно печатать.',
@@ -452,6 +472,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
   });
   useEffect(() => {
     _lang = lang;
+    document.documentElement.lang = lang;
   }, [lang]);
   const setLang = (l: Lang) => {
     _lang = l;

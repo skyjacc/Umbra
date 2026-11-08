@@ -10,6 +10,8 @@ import {
   gainDbText,
   clampFreq,
   clampMasterGain,
+  masterGainToDb,
+  dbToMasterGain,
   sanitizeFilter,
   DEFAULT_FREQUENCIES
 } from './audio';
@@ -40,7 +42,20 @@ describe('filterType', () => {
 
 describe('gainDbText', () => {
   it('unity', () => expect(gainDbText(1)).toBe('0'));
-  it('boost', () => expect(gainDbText(Math.pow(10, 4 / 10))).toBe('+4'));
+  it('boost', () => expect(gainDbText(Math.pow(10, 4 / 20))).toBe('+4'));
+});
+
+describe('amplitude dB and stored linear volume', () => {
+  it('uses the physical amplitude convention', () => {
+    expect(dbToMasterGain(20)).toBe(10);
+    expect(masterGainToDb(2)).toBeCloseTo(6.020599913, 8);
+    expect(dbToMasterGain(-6)).toBeCloseTo(0.501187234, 8);
+  });
+  it('preserves existing in-range stored linear gains exactly', () => {
+    for (const gain of [0.0031622776601683794, .007, .123456789, .5, 1, 1.23456789, 2, 10]) {
+      expect(clampMasterGain(gain)).toBe(gain);
+    }
+  });
 });
 
 describe('builtin presets', () => {

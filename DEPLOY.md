@@ -4,18 +4,12 @@ The popup is a React + TypeScript app (Vite + CRXJS); the audio engine is vanill
 (service worker + offscreen Web Audio). The loadable/uploadable extension is the
 **`dist/`** folder produced by `npm run build`.
 
-## Before anything else — take the debug recorder out
+## Release gates
 
-Added for the 2.5 smoke run and never meant to ship. It is off unless started and nothing leaves
-the machine on its own, but a published extension should not carry a recorder nobody asked for.
-
-- [ ] Delete `src/lib/debug-log.ts` and `src/lib/debug-log.test.ts`
-- [ ] Remove the `dbg(...)` calls from `src/lib/engine-io.ts` and the `dbgState(...)` calls from
-      `src/popup/useEngine.ts`
-- [ ] Remove the recorder from `src/popup/App.tsx`: the `window.umbra` console API, the `dbgRec`
-      state, the instrumentation effects and the `UMBRA_DEBUG` session-storage handling
-- [ ] Remove this section and the invariant test that points at it
-- [ ] `git grep -n "dbg\\|debug-log"` comes back empty, then rebuild
+Use Node 24 LTS and `npm ci`. CI runs the dependency audit, typecheck, unit/DOM tests, Chromium audio/UI checks and build.
+The build includes the application and production dependency license texts. Packaging rejects
+missing licenses, temporary debug-recorder markers, Vite development clients and local
+development-server URLs in the actual dist files.
 
 ## Version bump (do this first — all in lock-step)
 
@@ -35,19 +29,24 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
 
 - [ ] Update the maintainer's own notes, if you keep any. Nothing in this repository
       depends on them.
-- [ ] Refresh `PROJECT.md` — the **Version:** line in the header block and the release
-      tag `vX.Y.Z` in the **Status** bullet (hand-maintained; outside the six, NOT
-      covered by `src/lib/invariants.test.ts`).
+- [ ] Refresh `PROJECT.md` — the **Version:** and **Status:** lines are hand-maintained.
+      Verify publication separately from the source version.
 - [ ] Post-release: re-add an empty `## [Unreleased]` section to `CHANGELOG.md` above the
       new `## [x.y.z]` heading, so the next cycle's per-PR entries have a home.
 
 ## Pre-submit
 
-- [ ] `npm ci && npm test && npm run build`, then load **`dist/`** unpacked
+- [ ] Run `npm ci`, `npm audit --audit-level=high`, `npm run typecheck`, `npm test`,
+      `npx playwright install chromium`, `npm run test:audio`, `npm run build`, and
+      `npm run test:ui`; then load **`dist/`** unpacked
       (`chrome://extensions` → Developer mode → Load unpacked) and smoke-test a real
       audio tab:
   - [ ] EQ This Tab / Stop, drag dots, Shift-drag (Q), double-click reset, master volume.
-  - [ ] Two tabs at once hold two different curves (per-tab EQ).
+  - [ ] Two tabs at once hold two different curves (per-tab EQ); the output meter follows
+        their combined output while the spectrum follows the selected tab.
+  - [ ] Large boosts and multiple playing tabs stay within the output ceiling; normal
+        playback has no new audible artifacts in the tested material. The 5 ms sample-peak
+        limiter does not guarantee true peaks or repair distortion in the source.
   - [ ] Global sound: shape a curve on an un-ruled site → it plays on every EQ'd tab, and
         switching tabs keeps it (no reset).
   - [ ] Rules: add `youtube.` / `film. kino.`, confirm a matching site plays the rule's
@@ -57,11 +56,16 @@ Bug fixes → patch (`x.y.`**`z`**); user-facing changes → minor (`x.`**`y`**`
   - [ ] Stop a tab, reopen the popup → it stays un-EQ'd.
   - [ ] Presets save/apply/delete, Export/Import file, Copy code / Paste code.
   - [ ] Spectrum toggle, Guide overlay, EN/RU switch, theme + custom color.
-- [ ] Version bumped in all six places (see **Version bump** above; now `2.5.0`).
+- [ ] Version bumped in all six places (see **Version bump** above).
 - [ ] `DEBUG` is `false` in `src/background.js` and `public/offscreen.js` (default).
 - [ ] Toolbar icons are the Umbra crescent (`public/icon{16,32,48,128}.png`) — done.
-- [ ] Privacy policy is reachable at a public URL for the store forms — the repo file
-      `https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md` works (or GitHub Pages).
+- [ ] Open the public privacy-policy URL before submitting for review and verify that its
+      published content matches the release's actual behavior, including local audio and
+      Chrome Sync. A local edit to `PRIVACY.md` does not update the public page:
+      `https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md` (or GitHub Pages).
+- [ ] Verify packaged `_locales/en/messages.json` and `_locales/ru/messages.json` resolve
+      the manifest name and description. Check both language listings against
+      [`docs/store/README.md`](docs/store/README.md).
 - [ ] Contact is the GitHub Issues link (already in `PRIVACY.md`).
 - [ ] Verify "Umbra EQ" is free / untrademarked on each store.
 - [ ] Screenshots at 1280×800 (or 640×400), 1–5 images. Not in the repo — produce them at release time.
@@ -75,30 +79,38 @@ powershell -NoProfile -ExecutionPolicy Bypass -File build-zip.ps1
 ```
 
 The zip is the built `dist/` tree: `manifest.json`, the service worker loader +
-`assets/*` bundle (popup + background), `offscreen.html` / `offscreen.js`,
+`assets/*` bundle (popup + background), `offscreen.html` / `offscreen.js`, `limiter-worklet.js` / `limiter-core.js`,
 `onboarding.html` / `onboarding.js`, `src/popup/index.html`, the four `icon*.png`, and
-the bundled fonts + OFL notices under `fonts/`. No docs, tests, or local notes. The
+the bundled fonts + OFL notices under `fonts/`, `LICENSE`, and generated
+`THIRD-PARTY-NOTICES.txt`. No tests or local notes. The
 production bundle has no remote code and no `eval` (CSP `script-src 'self'`).
 
-The same zip is accepted by Chrome, Edge, and Opera.
+This is the Chromium build. Each store has its own submission and review requirements.
 
 ## Chrome Web Store dashboard
 
-- [ ] Create item → upload the zip.
-- [ ] Paste name, summary, description and category from the maintainer's store copy.
+- [ ] Open the existing Umbra item (`plkncppcgglcjdkmcdeajhbfccbnnoee`) → Package →
+      upload the new-version zip. Do not create a second listing for an update.
+- [ ] Use the ready-to-paste English and Russian listing text in
+      [`docs/store/README.md`](docs/store/README.md); choose the category in the current form.
 - [ ] Upload screenshots and the 128×128 store icon (`icon128.png`).
-- [ ] Paste the per-permission justifications from the same place
+- [ ] Use the permission notes in [`docs/store/README.md`](docs/store/README.md) to complete
+      the current form for the permissions in the packaged manifest
       (activeTab / tabCapture / storage / offscreen).
 - [ ] Set the privacy-policy URL.
-- [ ] Data-use disclosures: no collection, no sale, no transfer, no remote
-      analytics/tracking. (EEA trader status: Non-trader — free, personal.)
+- [ ] Complete current data-use and trader-status declarations from the actual behavior
+      and publisher circumstances. Audio is not recorded or uploaded; saved presets and
+      site rules may use Chrome Sync. Keep the store description and privacy policy consistent.
 - [ ] Submit for review.
 
 ## Microsoft Edge Add-ons (same zip)
 
 - [ ] https://partner.microsoft.com/dashboard/microsoftedge → create extension →
-      upload the **same** zip → reuse the listing assets → mark no data collection →
-      submit for certification.
+      upload the **same** zip → reuse the listing assets.
+- [ ] Complete the current Partner Center Privacy fields for purpose, permissions,
+      remote code, data usage and the public privacy-policy URL from the actual release
+      behavior. Keep the disclosures consistent with the published policy, then submit
+      for certification. See [Microsoft's publishing instructions](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension#step-6-enter-privacy-information).
 
 ## Opera add-ons (same zip)
 
@@ -108,8 +120,8 @@ The same zip is accepted by Chrome, Edge, and Opera.
 ## GitHub release
 
 - [ ] `git tag v<version> && git push origin v<version>` — CI
-      (`.github/workflows/build.yml`) builds the zip and attaches it to the GitHub
-      Release automatically, after verifying the manifest version matches the tag.
+      (`.github/workflows/build.yml`) verifies the manifest version against the tag, builds
+      the zip with a read-only token, and passes it to a separate release job with write access.
 
 ## Firefox
 

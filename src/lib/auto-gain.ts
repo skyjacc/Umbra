@@ -20,10 +20,8 @@
 // mean of their gains is a fair stand-in for the average lift across the spectrum, at a fraction
 // of the cost of evaluating the actual response.
 //
-// WHY IT IS HALVED. The two dB scales in this codebase are not the same one. Band gains are
-// amplitude dB, the Web Audio convention. The master is 10*log10 (see masterGainToDb), which is
-// half as many dB for the same change in level. Compensating one-for-one would overshoot by
-// exactly a factor of two — quiet enough to sound like a bug in the EQ rather than in the maths.
+// Band and master gains use amplitude dB, so compensation uses the same scale. Existing saved
+// linear gains are unchanged; correcting the displayed master scale does not change their sound.
 
 import { clampMasterGain, dbToMasterGain, masterGainToDb, type Band } from './audio';
 
@@ -46,5 +44,5 @@ export function outputGain(input: { userGain: number; bands: Band[]; on: boolean
   if (!input.on) return input.userGain;
   const comp = compensationDb(input.bands);
   if (comp === 0) return input.userGain;
-  return clampMasterGain(dbToMasterGain(masterGainToDb(clampMasterGain(input.userGain)) - comp / 2));
+  return clampMasterGain(dbToMasterGain(masterGainToDb(clampMasterGain(input.userGain)) - comp));
 }

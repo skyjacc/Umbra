@@ -3,8 +3,6 @@ import { Power, RotateCcw, Download, Upload, Maximize2, TriangleAlert, Trash2, A
 import { Button } from '@/components/ui/button';
 import { EqGraph } from './components/EqGraph';
 import { BandFields } from './components/BandFields';
-import { startDebug, stopDebug, clearDebug, dbg, debugOn, debugCount, debugEntries, debugDump, onDebugFlush, type DebugEntry } from '@/lib/debug-log';
-import * as engineIo from '@/lib/engine-io';
 import { VerticalVolume } from './components/VerticalVolume';
 import { RulesView } from './components/RulesView';
 import { GuideOverlay } from './components/GuideOverlay';
@@ -39,208 +37,6 @@ export default function App() {
   // tabbing from a dot into a field must not empty the row you were about to type into.
   const [selBand, setSelBand] = useState<number | null>(null);
 
-  // ---- DEBUG RECORDER — remove before 2.5.0, see DEPLOY.md and lib/debug-log.ts --------------
-  //
-  // Driven from the devtools console, not from a panel in More. The panel cost about a hundred
-  // pixels on a screen whose HEIGHT is itself under test — Chrome sizes a popup to its content, so
-  // the instrument was tall enough to move the measurement it existed to take. It also called
-  // setState on every recorded event, re-rendering App at pointermove rate all through a drag.
-  //
-  //   right-click the toolbar icon -> Inspect popup, then:
-  //     umbra.start()        begin; survives closing the popup AND closing devtools
-  //     umbra.status()       { on, n }
-  //     umbra.stop()         stop; the log stays readable
-  //     copy(umbra.dump())   hand it over, using devtools' own copy()
-  const [dbgRec, setDbgRec] = useState(false);
-
-  // The popup dies on any click outside it, so the log lives in session storage between opens.
-  // Throttled: a write per pointermove would cost more than it records.
-  const flushT = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const persist = (entries: DebugEntry[]) => {
-    if (flushT.current) return;
-    flushT.current = setTimeout(() => {
-      flushT.current = null;
-      try {
-        chrome.storage?.session?.set({ UMBRA_DEBUG: { on: true, entries: entries.slice(-3000) } });
-      } catch {
-        /* no session area */
-      }
-    }, 400);
-  };
-
-  useEffect(() => {
-    try {
-      chrome.storage?.session?.get('UMBRA_DEBUG', (r: any) => {
-        const d = r?.UMBRA_DEBUG;
-        if (!d) return;
-        // Load the buffer either way. A stopped recording keeps its entries, so `umbra.dump()`
-        // still works in a popup opened after the one that stopped it — the old flow wiped them
-        // on stop, which turned "I clicked away before copying" into a lost smoke run.
-        startDebug(Date.now(), d.entries || []);
-        if (!d.on) return void stopDebug();
-        onDebugFlush(persist);
-        setDbgRec(true);
-        dbg('popup:open', { h: window.innerHeight, w: window.innerWidth, view });
-      });
-    } catch {
-      /* no session area */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // What the user actually did, and what the window did in response.
-  useEffect(() => {
-    if (!dbgRec) return;
-    const lbl = (el: EventTarget | null) => {
-      const n = el as HTMLElement | null;
-      const b = (n?.closest?.('button,a,input,[role="slider"],[role="switch"]') || n) as HTMLElement | null;
-      return b?.getAttribute?.('aria-label') || b?.getAttribute?.('title') || b?.textContent?.trim().slice(0, 40) || b?.tagName || '?';
-    };
-    /** Chrome sizes the popup to its content, so anything sticking out past the body widens the
-     *  window. Naming the element that does it is the whole point — guessing from a screenshot
-     *  is what turned a six-pixel question into three wrong answers. */
-    const overflowing = () => {
-      // Measured against the BODY'S OWN left edge, not the viewport. The first version compared
-      // viewport coordinates to the body width, so once the body centred itself inside a wider
-      // window every child looked like it was overflowing — it reported the consequence and hid
-      // the cause.
-      const left = document.body.getBoundingClientRect().left;
-      const limit = left + document.body.clientWidth;
-      let worst: { sel: string; right: number; w: number } | null = null;
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
-        if (!el.offsetParent && el.tagName !== 'BODY') continue;
-        const r = el.getBoundingClientRect();
-        if (r.width === 0 || r.right <= limit + 0.5) continue;
-        if (!worst || r.right > worst.right) {
-          const cls = (el.className || '').toString().split(' ').filter(Boolean).slice(0, 3).join('.');
-          worst = { sel: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (cls ? '.' + cls : ''), right: Math.round(r.right - left), w: Math.round(r.width) };
-        }
-      }
-      return worst;
-    };
-    const size = () =>
-      dbg('window', {
-        h: window.innerHeight,
-        w: window.innerWidth,
-        bodyW: document.body.clientWidth,
-        scrollW: document.documentElement.scrollWidth,
-        scrollH: document.documentElement.scrollHeight,
-        view,
-        notice: eng.notice.text || undefined,
-        overflow: overflowing() || undefined
-      });
-
-    const down = (e: PointerEvent) => dbg('down', { on: lbl(e.target), x: e.clientX, y: e.clientY, btn: e.button });
-    const up = (e: PointerEvent) => dbg('up', { on: lbl(e.target), x: e.clientX, y: e.clientY });
-    // Drags only — a move with no button down is noise, and this is the thing sliders are made of.
-    let lastMove = 0;
-    const move = (e: PointerEvent) => {
-      if (!e.buttons) return;
-      const now = performance.now();
-      if (now - lastMove < 50) return;
-      lastMove = now;
-      dbg('drag', { on: lbl(e.target), x: e.clientX, y: e.clientY });
-    };
-    const key = (e: KeyboardEvent) =>
-      dbg('key', { key: e.key, shift: e.shiftKey || undefined, alt: e.altKey || undefined, meta: e.metaKey || undefined, on: lbl(e.target) });
-    const keyup = (e: KeyboardEvent) => dbg('keyup', { key: e.key, on: lbl(e.target) });
-    const focus = (e: FocusEvent) => dbg('focus', { on: lbl(e.target) });
-    const input = (e: Event) => {
-      const t = e.target as HTMLInputElement;
-      dbg('input', { on: lbl(e.target), value: (t?.value ?? '').toString().slice(0, 24) });
-    };
-    const scroll = (e: Event) => {
-      const t = e.target as HTMLElement;
-      dbg('scroll', { on: t?.className ? String(t.className).slice(0, 30) : 'page', top: Math.round(t?.scrollTop ?? window.scrollY) });
-    };
-    const err = (e: ErrorEvent) => dbg('error', { msg: String(e.message), line: e.lineno });
-    const rej = (e: PromiseRejectionEvent) => dbg('error', { msg: 'rejection: ' + String((e.reason as Error)?.message ?? e.reason) });
-
-    addEventListener('pointerdown', down, true);
-    addEventListener('pointerup', up, true);
-    addEventListener('pointermove', move, true);
-    addEventListener('keydown', key, true);
-    addEventListener('keyup', keyup, true);
-    addEventListener('focusin', focus, true);
-    addEventListener('input', input, true);
-    addEventListener('scroll', scroll, true);
-    addEventListener('resize', size);
-    addEventListener('error', err);
-    addEventListener('unhandledrejection', rej);
-
-    // Chrome does not always fire resize for its own popup sizing, so watch the box as well.
-    let ro: ResizeObserver | null = null;
-    try {
-      ro = new ResizeObserver(() => size());
-      ro.observe(document.body);
-    } catch {
-      /* older engine */
-    }
-    size();
-
-    return () => {
-      removeEventListener('pointerdown', down, true);
-      removeEventListener('pointerup', up, true);
-      removeEventListener('pointermove', move, true);
-      removeEventListener('keydown', key, true);
-      removeEventListener('keyup', keyup, true);
-      removeEventListener('focusin', focus, true);
-      removeEventListener('input', input, true);
-      removeEventListener('scroll', scroll, true);
-      removeEventListener('resize', size);
-      removeEventListener('error', err);
-      removeEventListener('unhandledrejection', rej);
-      ro?.disconnect();
-    };
-  }, [dbgRec, eng.notice.text, view]);
-
-  // Switching view is what changes the popup's size, so record the change itself.
-  useEffect(() => {
-    if (dbgRec) dbg('view', { view, w: window.innerWidth, h: window.innerHeight });
-  }, [view, dbgRec]);
-
-  // The window growing when a notice appears is exactly what this was built to catch.
-  useEffect(() => {
-    if (dbgRec) dbg('notice', { text: eng.notice.text || '(cleared)', undo: eng.notice.undo, h: window.innerHeight });
-  }, [eng.notice.text, eng.notice.undo, dbgRec]);
-
-  // The host is read at dump time, not at registration time, so the API can be installed once.
-  const hostRef = useRef(eng.activeHost);
-  hostRef.current = eng.activeHost;
-
-  useEffect(() => {
-    const api = {
-      start() {
-        clearDebug();
-        startDebug(Date.now());
-        onDebugFlush(persist);
-        setDbgRec(true);
-        dbg('recording:start', { build: engineIo.BUILD, h: window.innerHeight, ua: navigator.userAgent.slice(0, 70) });
-        return 'recording — close devtools and use the popup normally';
-      },
-      stop() {
-        dbg('recording:stop');
-        stopDebug();
-        onDebugFlush(null);
-        setDbgRec(false);
-        // on:false, entries KEPT — see the boot effect. Stopping must not destroy the evidence.
-        try {
-          chrome.storage?.session?.set({ UMBRA_DEBUG: { on: false, entries: debugEntries().slice(-3000) } });
-        } catch {
-          /* no session area */
-        }
-        return `stopped — ${debugCount()} entries, hand over with copy(umbra.dump())`;
-      },
-      status: () => ({ on: debugOn(), n: debugCount(), build: engineIo.BUILD }),
-      dump: () => debugDump({ build: engineIo.BUILD, host: hostRef.current, at: new Date().toISOString() })
-    };
-    (window as unknown as { umbra?: typeof api }).umbra = api;
-    console.info('[umbra] recorder: umbra.start() / umbra.status() / umbra.stop() / copy(umbra.dump())');
-    return () => {
-      delete (window as unknown as { umbra?: typeof api }).umbra;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const [presetName, setPresetName] = useState('');
   const [theme, setTheme] = useState<ThemeId>('eclipse');
   const [hue, setHueState] = useState(270);
@@ -249,7 +45,8 @@ export default function App() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [hiddenBuiltins, setHiddenBuiltins] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.HIDDEN_BUILTINS || '[]');
+      const saved: unknown = JSON.parse(localStorage.HIDDEN_BUILTINS || '[]');
+      return Array.isArray(saved) ? saved.filter((name): name is string => typeof name === 'string') : [];
     } catch {
       return [];
     }
@@ -317,7 +114,7 @@ export default function App() {
       /* ignore */
     }
   };
-  const saveLabel = presetName && eng.presets[presetName] ? tr('presets.update', { name: presetName }) : tr('presets.save');
+  const saveLabel = presetName && eng.presets[presetName] ? tr('presets.update') : tr('presets.save');
   const fsHref = hasChrome() ? chrome.runtime.getURL('src/popup/index.html') : '#';
 
   const doSave = () => {
@@ -351,7 +148,7 @@ export default function App() {
   // h-full, not min-h alone: the shell fills the fixed popup box rather than deciding how big
   // it is. See index.css — the popup's geometry is a contract and content may not change it.
   return (
-    <div className="relative flex h-full min-h-[500px] flex-col">
+    <div data-layout={eng.globalEditor ? 'window' : 'popup'} className="relative flex h-full min-h-[500px] flex-col">
       {/* The notice FLOATS. It used to be a permanently mounted 36px row at the top of the flex
           column, which solved the right problem the wrong way: Chrome sizes a popup to its content,
           so a notice that appears in the flow resizes the window under the pointer, and holding the
@@ -369,12 +166,12 @@ export default function App() {
         aria-live="polite"
         aria-atomic="true"
         className={
-          'pointer-events-none absolute inset-x-0 z-50 flex justify-center px-3 transition-[top] duration-200 ' +
+          'pointer-events-none absolute inset-x-0 z-50 flex justify-center px-3 ' +
           (engineBanner ? 'top-16' : 'top-2')
         }
       >
         {eng.notice.text && (
-          <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-white/[.12] bg-white/[.07] px-3 py-1.5 text-[11.5px] text-foreground shadow-[0_8px_24px_-8px_rgba(0,0,0,.7)] backdrop-blur-xl [box-shadow:var(--shadow-border)]">
+          <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-foreground shadow-lg">
             <span className="min-w-0 truncate">{eng.notice.text}</span>
             {/* Only the notice that ARMED an undo offers one. The button used to be gated on the
                 slot alone, so any later unrelated notice inherited a live Undo. */}
@@ -390,9 +187,19 @@ export default function App() {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {eng.stateReadError && (
+        <div role="alert" className="flex shrink-0 items-center gap-3 border-b border-destructive/40 bg-card px-3 py-2 text-xs">
+          <TriangleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{eng.stateReadError}</p>
+          <button onClick={() => window.location.reload()} className="shrink-0 rounded-lg border border-border px-3 py-2 font-medium hover:bg-white/10">
+            {tr('capture.retry')}
+          </button>
+        </div>
+      )}
+
+      <main className="min-h-0 flex-1 overflow-y-auto">
         {/* ================= EQ ================= */}
-        <section className={'flex select-none flex-col gap-2.5 p-3 ' + hide('eq')}>
+        <section className={'flex select-none flex-col gap-3 p-3 ' + hide('eq')}>
           <header className="flex items-center gap-2">
             <svg className="h-5 w-5" style={{ color: 'hsl(var(--accent))' }} viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <mask id="umbraCut">
@@ -402,9 +209,9 @@ export default function App() {
               <circle cx="16" cy="16" r="12" fill="currentColor" mask="url(#umbraCut)" />
               <circle cx="20.5" cy="13.5" r="11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeOpacity="0.5" />
             </svg>
-            <span className="text-[15px] font-bold">
+            <h1 className="shrink-0 text-[15px] font-bold">
               Umbra<span className="text-primary">EQ</span>
-            </span>
+            </h1>
             <span className="ml-2 min-w-0 truncate text-[11px] text-muted-foreground" title={tr('eq.preset')}>
               {tr('eq.preset')}:{' '}
               <span className="font-medium text-foreground/80">
@@ -467,8 +274,15 @@ export default function App() {
             </div>
           </header>
 
+          <div className="flex min-w-0 items-center justify-between gap-3 px-0.5 text-[12px] text-muted-foreground">
+            <span className="min-w-0 truncate" title={eng.matchedRule ? eng.activeHost : tr('eq.scopeGlobalHint')}>
+              {eng.matchedRule ? tr('eq.scopeSite', { host: eng.activeHost }) : tr('eq.scopeGlobal')}
+            </span>
+            {eng.capturing && <span className="shrink-0 text-[11px]">{tr('eq.outputAllTabs')}</span>}
+          </div>
+
           <div
-            className="flex items-center gap-2 rounded-2xl border border-white/10 p-3"
+            className="flex items-stretch gap-2 rounded-xl border border-white/10 p-3"
             style={{
               background: 'linear-gradient(180deg, rgba(255,255,255,.03), transparent 42%), var(--g-screen)',
               boxShadow: 'inset 0 2px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06)'
@@ -489,6 +303,7 @@ export default function App() {
                   editable={eng.canEdit}
                   bypassed={eng.bypassed}
                   onSelectBand={setSelBand}
+                  selectedBand={selBand}
                 />
               </>
             ) : (
@@ -498,7 +313,7 @@ export default function App() {
               // is inserted together with its text is not reliably read by assistive tech.
               <div className="flex h-[252px] flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                 <TriangleAlert className="size-5 opacity-40" aria-hidden="true" />
-                <p className="text-[12.5px] leading-relaxed text-muted-foreground">{tr(CAPTURE_COPY[eng.captureState])}</p>
+                <p className="text-[13px] leading-relaxed text-muted-foreground">{tr(CAPTURE_COPY[eng.captureState])}</p>
                 {eng.captureState === 'error' && eng.lastError && (
                   // Keep the cause on screen: the toast that carries it expires after 5s.
                   <p className="max-w-full truncate text-[11px] text-muted-foreground/70" title={eng.lastError}>
@@ -537,7 +352,7 @@ export default function App() {
               size itself made the whole popup six pixels taller the moment Bypass came on and
               shorter again when it went off. */}
           {showsGraph(eng.captureState) && (
-            <div className="flex h-5 items-center gap-2 px-0.5 text-[10.5px] text-muted-foreground">
+            <div className="flex h-5 items-center gap-2 px-0.5 text-[11px] text-muted-foreground">
               <TriangleAlert className="size-3.5 opacity-70" />
               {tr('eq.loud')}
               {eng.bypassed && (
@@ -548,7 +363,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div data-testid="eq-actions" className="flex flex-wrap gap-2">
             {eng.globalEditor ? (
               // Full window edits the sound-everywhere profile, not a real tab — so there's
               // nothing to capture/stop here; show what you're editing instead.
@@ -614,7 +429,7 @@ export default function App() {
         </section>
 
         {/* ================= PRESETS ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('presets')}>
+        <section className={'flex flex-col gap-3 p-3 ' + hide('presets')}>
           <h1 className="text-[15px] font-semibold">{tr('presets.title')}</h1>
           <div className="flex gap-2">
             <input
@@ -622,14 +437,15 @@ export default function App() {
               onChange={(e) => setPresetName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && doSave()}
               placeholder={tr('presets.placeholder')}
-              className="flex-1 rounded-xl border border-border bg-black/25 px-3 py-2 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+              aria-label={tr('presets.placeholder')}
+              className="min-w-0 flex-1 rounded-xl border border-border bg-black/25 px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
             />
             <Button variant="secondary" className="rounded-xl" onClick={doSave}>
               {saveLabel}
             </Button>
           </div>
 
-          {visibleBuiltins.length === 0 && names.length === 0 ? (
+          {visibleBuiltins.length === 0 && names.length === 0 && hiddenBuiltins.length === 0 ? (
             <p className="px-1 text-[12px] text-muted-foreground text-pretty">{tr('presets.none')}</p>
           ) : (
             <div className="flex max-h-[168px] flex-wrap gap-2 overflow-y-auto">
@@ -638,15 +454,15 @@ export default function App() {
                 <span
                   key={'b:' + n}
                   className={
-                    'inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
+                    'inline-flex max-w-full items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
                     (n === eng.activePreset ? 'border-primary bg-accent/15' : 'border-accent/30 bg-accent/[.08] hover:border-accent/50')
                   }
                 >
-                  <button className="text-foreground" onClick={() => eng.applyPreset(n)}>
+                  <button className="min-w-0 truncate text-foreground preset-apply" title={n} onClick={() => eng.applyPreset(n)}>
                     {n}
                   </button>
                   <button
-                    className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-white/10 hover:text-foreground"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-white/10 hover:text-foreground"
                     title={tr('presets.hideTitle')}
                     onClick={() => hideBuiltin(n)}
                   >
@@ -659,15 +475,15 @@ export default function App() {
                 <span
                   key={n}
                   className={
-                    'inline-flex items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
+                    'inline-flex max-w-full items-center gap-2 rounded-full border py-1.5 pl-3 pr-1.5 text-[12px] font-semibold transition-colors ' +
                     (n === eng.activePreset ? 'border-primary bg-accent/15' : 'border-border bg-white/[.06] hover:border-input')
                   }
                 >
-                  <button className="text-foreground" onClick={() => eng.applyPreset(n)}>
+                  <button className="min-w-0 truncate text-foreground preset-apply" title={n} onClick={() => eng.applyPreset(n)}>
                     {n}
                   </button>
                   <button
-                    className="flex size-[18px] items-center justify-center rounded-full text-muted-foreground/70 hover:bg-destructive/20 hover:text-destructive"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 hover:bg-destructive/20 hover:text-destructive"
                     title={tr('presets.deleteTitle', { name: n })}
                     onClick={() => eng.deletePreset(n)}
                   >
@@ -717,10 +533,10 @@ export default function App() {
         </section>
 
         {/* ================= TABS ================= */}
-        <section className={'flex flex-col gap-2.5 p-3 ' + hide('tabs')}>
+        <section className={'flex flex-col gap-3 p-3 ' + hide('tabs')}>
           <h1 className="text-[15px] font-semibold">{tr('tabs.title')}</h1>
           {eng.streams.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground text-pretty">{tr('tabs.none')}</p>
+            <p className="text-[13px] text-muted-foreground text-pretty">{tr('tabs.none')}</p>
           ) : (
             <div className="flex flex-col gap-1.5">
               {eng.streams.map((t) => (
@@ -737,16 +553,16 @@ export default function App() {
                     <Globe className="size-[17px] text-muted-foreground" aria-hidden />
                   )}
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[12.5px] text-foreground" title={t.title}>
+                    <span className="truncate text-[13px] text-foreground" title={t.title}>
                       {t.title || tr('tabs.untitled')}
                     </span>
-                    <span className="truncate text-[10.5px] text-muted-foreground/80">
+                    <span className="truncate text-[11px] text-muted-foreground/80">
                       {t.host || tr('tabs.local')}
                       {t.activePreset ? ' · ' + t.activePreset : ''}
                     </span>
                   </div>
                   <button
-                    className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[10.5px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
+                    className="rounded-lg border border-destructive/35 bg-destructive/10 px-2.5 py-1 text-[11px] font-semibold text-destructive transition-[color,background-color,scale] duration-150 active:scale-[0.96] hover:bg-destructive/20"
                     onClick={() => eng.stopTab(t.id)}
                   >
                     {tr('tabs.stop')}
@@ -798,6 +614,7 @@ export default function App() {
                     onClick={() => applyTheme(t)}
                     title={t}
                     aria-label={t}
+                    aria-pressed={theme === t}
                     className={'size-6 rounded-full border-2 transition-transform ' + (theme === t ? 'scale-110 border-foreground' : 'border-transparent')}
                     style={{ background: swatch(t) }}
                   />
@@ -855,7 +672,7 @@ export default function App() {
                 />
               </span>
             </button>
-            <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">{tr('more.autoGainHint')}</p>
+            <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">{tr('more.autoGainHint')}</p>
           </div>
 
           {/* Guide + full window */}
@@ -900,7 +717,7 @@ export default function App() {
               <RotateCcw className="size-4" />
               {confirmReset ? tr('more.resetProfileConfirm') : tr('more.resetProfile')}
             </button>
-            <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">
+            <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">
               {eng.activeHost && eng.matchedRule ? tr('more.resetProfileRule', { host: eng.activeHost }) : tr('more.resetProfileGlobal')}
             </p>
 
@@ -917,12 +734,12 @@ export default function App() {
                   <Undo2 className="size-4" />
                   {tr('more.undoReset')}
                 </button>
-                <p className="px-0.5 text-[10.5px] leading-snug text-muted-foreground">{tr('more.undoResetHint')}</p>
+                <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">{tr('more.undoResetHint')}</p>
               </div>
             )}
           </div>
         </section>
-      </div>
+      </main>
 
       <BottomNav view={view} onView={setView} />
 
@@ -930,7 +747,7 @@ export default function App() {
         <div
           role="alert"
           aria-live="assertive"
-          className="fixed inset-x-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/15 px-3.5 py-2.5 text-[11.5px] font-semibold text-destructive shadow-lg backdrop-blur-md"
+          className="fixed inset-x-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/15 px-3.5 py-2.5 text-[12px] font-semibold text-destructive shadow-lg backdrop-blur-md"
         >
           <TriangleAlert className="size-4 shrink-0" />
           {tr('engine.' + eng.engineStatus)}

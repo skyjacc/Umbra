@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Per-tab parametric equalizer, bass boost & volume booster for Chrome, Edge & Opera</b><br>
-  11 bands &middot; one global sound &middot; site rules &middot; 100% local
+  11 bands &middot; one global sound &middot; site rules &middot; local audio
 </p>
 
 <p align="center">
@@ -32,14 +32,14 @@
 
 ## Why Umbra EQ
 
-Thin bass on laptop speakers, one video mixed too quiet, another too harsh — and most EQ extensions go silent on the streaming sites you actually use. Umbra fixes the sound of the tab you're listening to, live, and keeps it 100% on your computer. Set one sound for every tab, or give specific sites their own with rules.
+Thin bass on laptop speakers, one video mixed too quiet, another too harsh — Umbra lets you adjust the sound of a captured browser tab while it plays. Audio is processed on your computer. Set one sound for captured tabs, or give specific sites their own with rules.
 
 ## What it does
 
 - **11-band parametric EQ** — drag the curve to boost or cut any frequency, live. Or type the
-  numbers: every band's frequency, gain and Q can be entered by hand.
+  numbers: enter frequency and gain for each band, and width (Q) for peaking bands.
 - **Per-site profiles** — keep your everyday sound everywhere, then give individual sites their
-  own. YouTube can have one curve and Spotify another while the global profile stays untouched.
+  own. A music tab can have one curve and a video tab another while the global profile stays untouched.
   Rules match by address pattern, first match wins, and each tab keeps its own filter chain.
 - **Save for this site** — turn the sound you are hearing into a rule for the site you are on,
   without changing how everything else sounds.
@@ -49,21 +49,26 @@ Thin bass on laptop speakers, one video mixed too quiet, another too harsh — a
   Nothing is saved until you leave Bypass.
 - **Presets you can build on** — Bass Boost / Vocal / Movie / Warm, plus your own. Nudge a band and
   the header keeps saying *Based on Vocal*, so a tweaked preset never becomes an anonymous curve.
-- **Auto Gain** *(off by default)* — level-matches the tab so you judge the curve and not the
-  loudness.
-- **Peak meter** — shows the signal after the EQ and your volume, so clipping is visible instead of
-  guessed.
-- **Works on Netflix, Spotify** and other sites where EQ extensions go silent.
-- **Bass boost, volume past 100%, output limiter** — big boosts stay clean.
+- **Auto Gain** *(off by default)* — estimates level compensation from the EQ settings without
+  changing your saved volume. It does not measure the track’s loudness or automatically normalize different videos.
+- **Output peak meter** — shows the combined stereo output of all captured tabs after the limiter.
+  The spectrum still shows the selected tab.
+- **Browser-tab audio capture** — processes the audio Chrome makes available from a tab.
+  Protected media and browser-internal pages may not support capture.
+- **Bass boost, volume past 100%, output limiter** — master volume spans −50 to +20 dB. A shared
+  5 ms lookahead limiter limits output sample peaks to −1 dBFS; it is not a true-peak limiter
+  and cannot repair distortion already present in a recording.
 - **Live spectrum, band guide, full-window editor.**
 - **Keyboard and screen-reader friendly**, RU/EN, four themes and a custom accent colour. No
-  account, no network, no analytics.
+  Umbra account or analytics. Saved presets and rules can use Chrome Sync.
+
+> The original interface is retained with targeted fixes: [current design and screenshots](docs/DESIGN.md).
 
 ## How to use
 
 1. Play audio in a tab, click the Umbra EQ icon, press **EQ This Tab**.
-2. Drag a dot on the curve: left/right is frequency, up/down is boost or cut. The strip on the left
-   is master volume.
+2. Drag a dot on the curve: left/right is frequency, up/down is boost or cut. The fader on the left
+   controls master volume.
 3. Prefer the keyboard? Focus a dot and use the arrows — **Shift** for a bigger step, **Alt** for a
    finer one. Or Tab into the row under the graph and type the frequency, gain and Q directly.
 4. Press **Save for {site}** to keep this sound for the site you are on, **⟲** to put it back, or
@@ -93,10 +98,10 @@ On Edge or Opera, or to run your own build, load it unpacked (about a minute):
 
 1. Download the latest `umbra-eq-<version>.zip` from [Releases](https://github.com/skyjacc/Umbra/releases/latest) and unzip it (or build from source below).
 2. Open `chrome://extensions` (or `edge://`, `opera://`) and turn on **Developer mode**.
-3. **Load unpacked** → pick the unzipped `dist` folder. Chrome 116+.
+3. **Load unpacked** → pick the extracted folder containing `manifest.json`. If you built from source, select `dist/`. Chrome 116+.
 
 > [!NOTE]
-> Icon does nothing? Make sure you picked the **`dist`** folder (build output), not the repo root, on Chrome 116+ — the audio engine needs the offscreen-document API.
+> Icon does nothing? Select the folder containing **`manifest.json`**: the extracted release folder, or **`dist/`** after a source build, on Chrome 116+ — the audio engine needs the offscreen-document API.
 
 ## Browser support
 
@@ -112,13 +117,13 @@ On Edge or Opera, or to run your own build, load it unpacked (about a minute):
 <details>
 <summary><b>For developers</b></summary>
 
-The popup is React + TypeScript, bundled with Vite and [CRXJS](https://crxjs.dev). The audio engine (service worker + offscreen Web Audio document) stays vanilla. Needs Node 20+; no API keys, env vars, or services to set up.
+The popup is React + TypeScript, bundled with Vite and [CRXJS](https://crxjs.dev). The audio engine (service worker + offscreen Web Audio document) stays vanilla. Use Node 24 LTS; no API keys, env vars, or services to set up.
 
 ```bash
-npm install
+npm ci
 npm run build      # → dist/  (loadable, CSP-clean MV3 extension)
 npm run dev        # HMR dev build
-npm test           # 419 Vitest tests
+npm test           # Vitest unit and DOM tests
 npm run typecheck  # tsc, also in CI
 ```
 
@@ -130,7 +135,7 @@ powershell -ExecutionPolicy Bypass -File build-zip.ps1
 # → release/umbra-eq-<version>.zip
 ```
 
-The same zip is accepted by the Chrome Web Store, Edge Add-ons, and Opera.
+This zip contains the Chromium build. Each store has its own submission and review requirements.
 
 > Dev loop: `npm run build` → **Reload** on the extension card → Ctrl+R the popup.
 > After `vite dev`, delete `node_modules/.vite` and `dist` before a real build, or `dist/` stays a dev-mode stub.
@@ -139,31 +144,33 @@ The same zip is accepted by the Chrome Web Store, Edge Add-ons, and Opera.
 
 ## How it works
 
-Manifest V3. The **popup** (React + TypeScript) is the source of truth: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **engine is vanilla** — the service worker owns the offscreen document and mints tab-capture ids; the offscreen document holds 11 biquad filters per tab behind a brick-wall limiter, glided click-free. Pure audio/preset/rule math lives in `src/lib` (unit-tested); strict CSP, no remote code, no `eval`.
+Manifest V3. The **popup** (React + TypeScript) is the source of truth: it resolves each tab (rule → global profile → flat) and pushes the bands to the engine. The **engine is vanilla** — the service worker owns the offscreen document and mints tab-capture ids; the offscreen document holds 11 biquad filters per tab with smoothly changing parameters, then mixes the tabs through one AudioWorklet output limiter. The service worker resolves saved settings when a capture starts without the popup. Pure audio/preset/rule math lives in `src/lib` (unit-tested); strict CSP, no remote code, no `eval`.
 
 Working on Umbra? [`CONTRIBUTING.md`](CONTRIBUTING.md) is the place to start — setup, the dev loop, and what the tests expect. [`PROJECT.md`](PROJECT.md) is the architecture reference and [`DEPLOY.md`](DEPLOY.md) the release checklist.
 
+Ready-to-paste English and Russian store text is maintained in [`docs/store/README.md`](docs/store/README.md).
+
 ## How Umbra EQ compares
 
-Most browser equalizers are a fixed set of graphic-EQ sliders that inject a content script into the page — which is why they fall silent on Spotify, YouTube Music, and other players that isolate their audio. Umbra is different on three axes:
+Umbra combines three practical features:
 
-- **True parametric, not fixed sliders.** Each of the 11 bands is a full biquad filter you move in frequency, gain, and width (Q) — finer control than a locked graphic equalizer.
-- **Per-tab, and it keeps working.** A `tabCapture`-based audio engine gives every tab its own filter chain, so a music tab and a video tab can sound different at once — and it still processes sound on the streaming sites where content-script EQs go quiet.
-- **100% local and open-source.** No account, no ads, no analytics, no network calls; MIT-licensed and auditable. Many free equalizer / volume-booster extensions are ad-supported or permission-hungry.
+- **Parametric control.** Move the frequency and gain of each of the 11 biquad filters, and adjust the width (Q) of peaking bands.
+- **Per-tab settings.** A `tabCapture`-based audio engine gives each captured tab its own filter chain, so a music tab and a video tab can sound different at once. Capture availability depends on the browser and the media source.
+- **Local audio and open source.** No Umbra account, ads, analytics or direct network calls; MIT-licensed and auditable. Saved presets and rules can use Chrome Sync; audio is processed locally.
 
 ## FAQ
 
-**Does it work as a YouTube or Spotify equalizer?** Yes — Umbra EQ shapes the tab's own audio, so it works as a YouTube equalizer, a Spotify equalizer, and on most web players, streams, and podcasts. Sites that hand their audio to a separate process are the occasional exception.
+**Can I use it as a YouTube or Spotify equalizer?** Umbra processes browser-tab audio when Chrome allows capture. Compatibility can vary by player, browser version and protected content, so support is not guaranteed for every site or stream. Play audio in a normal web tab and select **EQ This Tab** to check your source.
 
-**Is it a bass booster and volume booster too?** Yes. The low bands act as a one-click bass boost; the master control is a volume booster that pushes a tab past 100%, with a brick-wall limiter so loud audio stays clean instead of clipping.
+**Is it a bass booster and volume booster too?** Yes. The low bands act as a one-click bass boost; the master control is a volume booster that pushes a tab past 100%, with an output limiter to reduce output peaks.
 
-**What is a parametric equalizer?** Unlike a graphic equalizer with fixed sliders, a parametric EQ lets you move each band in frequency, gain, and width — so you can target the exact part of the sound you want to boost or cut.
+**What is a parametric equalizer?** A parametric EQ lets you choose a band's frequency and gain, and adjust the width of peaking filters — so you can target the part of the sound you want to boost or cut. Umbra's shelf filters do not use Q.
 
-**Is it really free, with no ads or tracking?** Yes. Umbra EQ is free, MIT-licensed, 100% local, and makes no network calls of its own — no ads, no accounts, no analytics.
+**Is it really free, with no ads or tracking?** Yes. Umbra EQ is free, MIT-licensed, processes audio locally, and makes no network calls of its own — no ads, no accounts, no analytics.
 
-**Why does Chrome say the tab is being shared?** Umbra reads the tab's audio through Chrome's tab-capture API — the same mechanism screen sharing uses, so Chrome shows its sharing indicator. **Audio only**: the stream is requested with no video constraint at all, so no video frames, screenshots, or page content are ever read. Chrome's `tabCapture` permission covers audio and video together — holding it is not the same as using it for video. The indicator is enforced by the browser and can't be switched off by an extension, which is the point — you always know when a tab is being captured. It disappears when you press Stop.
+**Why does Chrome say the tab is being shared?** Umbra reads the tab's audio through Chrome's tab-capture API — the same mechanism screen sharing uses, so Chrome shows its sharing indicator. **Audio only**: the stream is requested without video. Umbra does not capture video frames or screenshots, or read the page's DOM text or HTML. Chrome's `tabCapture` permission covers audio and video together — holding it is not the same as using it for video. The indicator is enforced by the browser and can't be switched off by an extension, which is the point — you always know when a tab is being captured. It disappears when you press Stop.
 
-**Fullscreen stopped working while the equalizer is on. Why?** Chrome doesn't put the window into real fullscreen while a tab is being captured — the video fills the page but the browser stays windowed. That's Chrome's behaviour for every extension that processes tab audio, not something Umbra can change. Two ways around it: **go fullscreen first, then turn the equalizer on** — it stays real fullscreen; or assign a keyboard shortcut at `chrome://extensions/shortcuts` and use it to turn Umbra on without leaving fullscreen. Turning the equalizer off afterwards doesn't restore fullscreen — you have to exit and re-enter it.
+**Fullscreen stopped working while the equalizer is on. Why?** Chrome can restrict fullscreen while tab capture is active. Behavior depends on the browser and player. Try entering fullscreen before enabling Umbra, or stop capture and re-enter fullscreen. A shortcut at `chrome://extensions/shortcuts` lets you toggle Umbra without opening the popup.
 
 **Which browsers does it support?** Chrome 116+, Microsoft Edge, and Opera (the same package). A Firefox port is planned.
 
@@ -171,18 +178,18 @@ Most browser equalizers are a fixed set of graphic-EQ sliders that inject a cont
 
 ## Privacy
 
-100% local — the extension makes no network requests of its own, has no analytics, and audio is never recorded or sent. Settings stay on your device; saved presets and rules live in `chrome.storage.sync`, so Chrome replicates them across your own signed-in profiles. Details in [`PRIVACY.md`](PRIVACY.md).
+Audio stays on your device: Umbra never records or uploads it and has no analytics or server. The global EQ and UI settings stay local. Saved presets and site rules use `chrome.storage.sync`; if browser sync is enabled, Chrome synchronizes those settings through your Google account. Details in [`PRIVACY.md`](PRIVACY.md).
 
 ## Stack
 
 | Layer | Technology |
 | ----- | ---------- |
 | Shell | Manifest V3 — service worker + offscreen document |
-| Audio | Web Audio API — 11 biquad filters per tab + brick-wall limiter |
+| Audio | Web Audio API — 11 biquad filters per tab + output limiter |
 | Popup | React 18, TypeScript |
 | Build | Vite + CRXJS |
 | UI | Tailwind CSS, shadcn/ui, lucide icons |
-| Tests | Vitest (419) |
+| Tests | Vitest unit/DOM suites + Chromium audio and UI checks |
 | CI/CD | GitHub Actions — builds the `dist/` zip on push, PR & `v*` tags |
 
 ## Stars

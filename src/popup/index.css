@@ -39,7 +39,7 @@
   --g-shelf: oklch(0.69 0.043 202.09);
   --g-viz: oklch(0.47 0.051 277.01);
   --g-grab: oklch(0.952 0.008 271.33);
-  --g-text: oklch(0.581 0.022 273.02);
+  --g-text: oklch(0.74 0.018 273.02);
 }
 
 /* Four muted themes (no neon). Eclipse = the :root defaults above. */
@@ -82,72 +82,40 @@ html {
   /* Full-width dark ground so the "Full window" tab isn't the 620px app stuck in a corner. */
   background: hsl(var(--background));
 }
-/* THE POPUP'S SIZE IS A CONTRACT, NOT A RESULT.
- *
- * Chrome sizes a popup to its document, so by default every piece of content is free to move the
- * window: a notice appearing added a row, the bypass badge added six pixels, and More made the
- * document wider than the body and dragged the window out to Chrome's 800px maximum — measured,
- * scrollW 800 against bodyW 620. Each of those was fixed on its own and the next one arrived.
- *
- * So the rule is not "put the size back when something changes it". It is that nothing inside can
- * change it at all: the window is 620 x 547 whatever the content does, and anything that does not
- * fit scrolls or clips INSIDE that box. A view that outgrows it scrolls; an element that reaches
- * past the side is clipped, which shows the layout bug instead of hiding it behind a wider window.
- *
- * 547 is the EQ view's natural height — the screen people actually use — so the main view fits
- * exactly and the settings views scroll. Scoped by viewport height so the full-window page, where
- * growing to fit IS the point, keeps its own behaviour. */
-@media (max-height: 699px) {
-  html,
-  body {
-    width: 620px;
-    min-width: 620px;
-    max-width: 620px;
-    overflow-x: hidden;
-  }
-}
-body {
+/* Popup geometry is independent of notices and the selected view. The full-window
+   editor is identified by app state, never by viewport height. */
+html:not(:has([data-layout='window'])),
+body:not(:has([data-layout='window'])) {
   width: 620px;
-  /* Centered in a wide tab; a no-op in the content-sized popup (viewport == 620). */
-  margin: 0 auto;
+  max-width: 620px;
+  height: 580px;
+  overflow-x: hidden;
 }
 body {
-  background:
-    radial-gradient(135% 90% at 50% -12%, oklch(0.236 0.017 276.14) 0, transparent 52%),
-    radial-gradient(120% 90% at 0% 108%, oklch(0.205 0.014 276.24) 0, transparent 50%),
-    hsl(var(--background));
+  margin: 0;
+  background: hsl(var(--background));
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-/* "Full window" (opened in a real tab, not the popup): center the fixed-width panel as
-   a framed card on the dark ground, so it reads as an intentional window rather than the
-   popup dropped into a void. The popup (< 700px tall — Chrome caps popups at 600) is
-   unaffected. `safe center` keeps the top reachable if a long view outgrows the viewport. */
-@media (min-height: 700px) {
-  html {
-    min-height: 100vh;
-    display: flex;
-    align-items: flex-start; /* top-anchored → card doesn't jump when a view changes height */
-    justify-content: center;
-    padding: 48px 0;
-    box-sizing: border-box;
-  }
-  body {
-    margin: 0;
-    border-radius: 18px;
-    overflow: hidden;
-    box-shadow:
-      0 24px 70px -20px rgba(0, 0, 0, 0.7),
-      0 0 0 1px rgba(255, 255, 255, 0.07);
-  }
-  /* The bottom nav uses backdrop-filter, which Chrome does NOT clip to the card's rounded
-     corners (a square pokes out). Round its own bottom corners so the card reads clean. */
-  #root nav {
-    border-bottom-left-radius: 18px;
-    border-bottom-right-radius: 18px;
-  }
+#root { height: 100%; }
+.eq-graph { width: 100%; height: auto; align-self: flex-start; }
+html:has([data-layout='window']) {
+  min-height: 100vh;
+  padding: 40px 24px;
+}
+body:has([data-layout='window']) {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 16px;
+  overflow: hidden;
+}
+[data-layout='window'] > main > section { padding: 24px; }
+[data-layout='window'] nav { margin-top: 12px; }
+@media (max-width: 640px) {
+  html:has([data-layout='window']) { padding: 12px; }
+  [data-layout='window'] > main > section { padding: 12px; }
 }
 
 /* Custom-color hue slider thumb (range input can't be themed with utilities). */
@@ -169,4 +137,21 @@ body {
   background: #fff;
   border: 2px solid rgba(0, 0, 0, 0.4);
   cursor: pointer;
+}
+
+/* Preserve the original compact interface; make keyboard focus explicit. */
+:where(button, a, input, [role='slider'], [role='option']):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+button, a, input { -webkit-tap-highlight-color: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
 }

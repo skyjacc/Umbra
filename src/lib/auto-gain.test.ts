@@ -52,17 +52,16 @@ describe('what the engine is told to play', () => {
     expect(outputGain({ userGain: 0.7, bands: FLAT, on: true })).toBeCloseTo(0.7, 12);
   });
 
-  it('halves the figure, because the two dB scales here are different', () => {
-    // Band gains are amplitude dB; the master is 10*log10, i.e. half as many dB for the same
-    // change in level. Compensating one-for-one would overshoot by a factor of two.
+  it('compensates six amplitude dB with the matching linear gain', () => {
     const out = outputGain({ userGain: 1, bands: all(6), on: true });
-    expect(masterGainToDb(out)).toBeCloseTo(-3, 6);
+    expect(masterGainToDb(out)).toBeCloseTo(-6, 6);
+    expect(out).toBeCloseTo(Math.pow(10, -6 / 20), 12);
   });
 
   it('rides on top of the volume the user set, rather than replacing it', () => {
     const user = 2;
     const out = outputGain({ userGain: user, bands: all(6), on: true });
-    expect(masterGainToDb(out)).toBeCloseTo(masterGainToDb(user) - 3, 6);
+    expect(masterGainToDb(out)).toBeCloseTo(masterGainToDb(user) - 6, 6);
   });
 
   it('stays inside the master range whatever the curve does', () => {

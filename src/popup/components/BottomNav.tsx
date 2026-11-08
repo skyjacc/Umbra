@@ -21,8 +21,15 @@ function BottomNavImpl({ view, onView }: { view: ViewId; onView: (v: ViewId) => 
 
   // Position the indicator BEFORE paint so it starts under the active tab (not sliding in from x=0).
   useLayoutEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>(`[data-tab="${view}"]`);
-    if (el) setPill({ cx: el.offsetLeft + el.offsetWidth / 2 });
+    const update = () => {
+      const el = ref.current?.querySelector<HTMLElement>(`[data-tab="${view}"]`);
+      if (el) setPill({ cx: el.offsetLeft + el.offsetWidth / 2 });
+    };
+    update();
+    if (!ref.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(ref.current);
+    return () => observer.disconnect();
   }, [view]);
   // Enable the slide only after the first paint, so switching tabs animates but mount doesn't.
   useEffect(() => {
@@ -31,7 +38,8 @@ function BottomNavImpl({ view, onView }: { view: ViewId; onView: (v: ViewId) => 
   }, []);
 
   return (
-    <nav ref={ref} className="relative flex shrink-0 border-t border-white/10 backdrop-blur-md" style={{ background: 'rgba(255,255,255,.04)' }}>
+    <nav ref={ref} aria-label={tr('nav.label')} className="relative flex shrink-0 overflow-hidden border-t border-white/10 backdrop-blur-md" style={{ background: 'rgba(255,255,255,.04)' }}>
+      {/* A resize can leave the old indicator position for a frame; contain it inside the bar. */}
       <span
         aria-hidden
         className={
@@ -44,16 +52,17 @@ function BottomNavImpl({ view, onView }: { view: ViewId; onView: (v: ViewId) => 
         const on = view === tab.id;
         return (
           <button
+            type="button"
             key={tab.id}
             data-tab={tab.id}
             onClick={() => onView(tab.id)}
             aria-current={on ? 'page' : undefined}
             className={
-              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold transition-[color,scale] duration-150 ease-out active:scale-[0.96] ' +
+              'flex flex-1 flex-col items-center gap-1 py-2 text-[11px] font-semibold transition-[color,scale] duration-150 ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ' +
               (on ? 'text-accent' : 'text-muted-foreground hover:text-foreground')
             }
           >
-            <tab.Icon className="size-5" />
+            <tab.Icon className="size-5" aria-hidden="true" />
             {tr('nav.' + tab.id)}
           </button>
         );

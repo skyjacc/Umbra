@@ -6,6 +6,23 @@
 
 const DICT = {
   en: {
+    pageTitle: "Get started with Umbra EQ",
+    eq: "EQ",
+    presets: "Presets",
+    rules: "Rules",
+    tabs: "Tabs",
+    more: "More",
+    eqAction: "EQ This Tab",
+    reset: "Reset",
+    hearing: "Loud audio can harm your hearing, so keep it sensible",
+    another: "Another extension",
+    volume: "Vol",
+    bass: "Bass",
+    mids: "Mids",
+    treble: "Treble",
+    air: "Air",
+    previewPreset: "Preview: Vocal",
+
     heroTitle: "Shape any <span>tab's sound</span>",
     tag: 'An equalizer for every tab. Boost the bass, tame harsh highs, or make a quiet video louder — all on your computer.',
     toolbarTip: 'Your toolbar is up here',
@@ -15,11 +32,28 @@ const DICT = {
     step1: 'Click the <b>puzzle icon</b> at the top-right of Chrome.',
     step2: 'Find <b>Umbra EQ</b> in the list and click its pin.',
     step3: 'On any tab with sound, click Umbra and press <b>EQ This Tab</b>.',
-    priv: '<b>Everything happens on your computer.</b> Umbra never records your audio or sends it anywhere, and there is no account to sign up for.',
+    priv: '<b>Audio stays on your computer.</b> Umbra never records or uploads it. Saved presets and site rules may use Chrome Sync when browser sync is enabled.',
     gotit: 'Got it',
     feedback: 'Questions / feedback →'
   },
   ru: {
+    pageTitle: "Знакомство с Umbra EQ",
+    eq: "Эквалайзер",
+    presets: "Пресеты",
+    rules: "Правила",
+    tabs: "Вкладки",
+    more: "Ещё",
+    eqAction: "Включить на вкладке",
+    reset: "Вернуть",
+    hearing: "Громкий звук вредит слуху — не переусердствуй",
+    another: "Другое расширение",
+    volume: "Гром.",
+    bass: "Бас",
+    mids: "Середина",
+    treble: "Верхи",
+    air: "Воздух",
+    previewPreset: "Пример: Vocal",
+
     heroTitle: 'Свой звук <span>у каждой вкладки</span>',
     tag: 'Больше баса, чище верхи, громче тихое видео — правишь вживую, всё остаётся на компьютере.',
     toolbarTip: 'Твоя панель — здесь, сверху',
@@ -29,7 +63,7 @@ const DICT = {
     step1: 'Нажми <b>иконку-пазл</b> справа вверху в Chrome.',
     step2: 'Найди <b>Umbra EQ</b> в списке и нажми на закрепление (пин).',
     step3: 'На любой вкладке со звуком нажми Umbra и <b>«Включить на вкладке»</b>.',
-    priv: '<b>Всё происходит на твоём компьютере.</b> Umbra не записывает звук и никуда его не отправляет, и никакой аккаунт не нужен.',
+    priv: '<b>Звук остаётся на устройстве.</b> Umbra не записывает и не отправляет его. Сохранённые пресеты и правила сайтов могут использовать Chrome Sync, если включена синхронизация браузера.',
     gotit: 'Понятно',
     feedback: 'Вопросы / отзывы →'
   }
@@ -46,6 +80,7 @@ let lang = detectLang();
 function apply() {
   const d = DICT[lang] || DICT.en;
   document.documentElement.lang = lang;
+  document.title = d.pageTitle;
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const k = el.getAttribute('data-i18n');
     if (d[k] != null) el.textContent = d[k];
@@ -56,6 +91,7 @@ function apply() {
   });
   document.querySelectorAll('[data-lang]').forEach((b) => {
     b.classList.toggle('on', b.getAttribute('data-lang') === lang);
+    b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === lang));
   });
 }
 

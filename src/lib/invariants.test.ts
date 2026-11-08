@@ -149,7 +149,7 @@ describe('cross-file invariants', () => {
 
     // Both call sites in the popup compare against null. `?? []` or `|| []` here is the bug.
     const boot = useEngineSrc.match(/Promise\.all\(\[io\.readInitialState\(\)[\s\S]*?globalRef\.current = g;/)?.[0];
-    const refresh = useEngineSrc.match(/if \(want\.rules\)[\s\S]*?if \(want\.global\)/)?.[0];
+    const refresh = useEngineSrc.match(/if \(want\.presets \|\| want\.rules\)[\s\S]*?if \(want\.global\)/)?.[0];
     for (const [name, site] of [
       ['the boot read', boot],
       ['the storage-change read', refresh]
@@ -284,7 +284,7 @@ describe('cross-file invariants', () => {
     expect(appSrc, 'the restoring one belongs next to Save').toContain('eng.resetChanges');
     expect(appSrc, 'and is gated on its own state, never on a notice or its timer').toContain('eng.canResetChanges &&');
 
-    const row = appSrc.match(/<div className="flex gap-2">[\s\S]*?\n          <\/div>/)?.[0] ?? '';
+    const row = appSrc.match(/data-testid="eq-actions"[\s\S]*?\{\/\* ================= PRESETS/)?.[0] ?? '';
     expect(row, 'main action row not found').toBeTruthy();
     expect(row, 'the destructive reset must stay in More').not.toContain('eng.resetProfile');
   });
@@ -348,12 +348,13 @@ describe('cross-file invariants', () => {
   });
 
   it('the peak meter reads the signal and changes nothing', () => {
-    // The contract for 2.5: measure after the equalizer and the master, show it, touch nothing.
-    // Limiting is a separate audio feature with its own settings and its own place in the
-    // played-versus-stored model, and its absence here is a decision, not a gap.
+    // Reading the post-limiter meter must never modify audio settings or add a limiter per poll.
     const fft = offscreenSrc.match(/function handleFFT\([\s\S]*?\n}/)?.[0] ?? '';
     expect(fft, 'handleFFT not found').toBeTruthy();
-    expect(fft, 'the peak must be measured on the post-master tap').toContain('getFloatTimeDomainData');
+    expect(fft, 'the peak must be measured on the common output').toContain('readOutputPeak()');
+    const peak = offscreenSrc.match(/function readOutputPeak\([\s\S]*?\n}/)?.[0] ?? '';
+    expect(peak).toContain('getFloatTimeDomainData');
+    expect(offscreenSrc).toContain('outputLimiter.connect(splitter)');
     for (const node of ['createDynamicsCompressor', 'createWaveShaper', 'createGain(']) {
       expect(fft, `the meter must not add ${node} to the chain`).not.toContain(node);
     }
@@ -618,29 +619,19 @@ describe('cross-file invariants', () => {
     expect(code, 'and must act on the global profile').toContain('want.global');
   });
 
-  it('the debug recorder is marked for removal and reaches the store nowhere', () => {
-    // Temporary instrumentation for the 2.5 smoke run. Harmless but not something to ship: a
-    // recorder nobody asked for does not belong in a published extension, however inert.
-    expect(appSrc, 'the UI must carry its own removal note').toContain('remove before 2.5.0');
-    expect(deploySrc, 'and DEPLOY.md must stop the release without it').toContain('debug recorder');
-  });
-
   it('the popup keeps a fixed width, and nothing in the column can be squashed out of reach', () => {
     // Width was the measured problem: More made the document wider than the 620px body and Chrome
     // stretched the window to its 800px maximum, so switching tabs moved the window. Clipping the
     // horizontal overflow fixes it and shows a layout bug instead of hiding it behind a wider
     // window.
-    const popup = cssSrc.match(/@media \(max-height: 699px\)[\s\S]*?\n\}/)?.[0] ?? '';
-    expect(popup, 'the popup-only sizing block not found').toBeTruthy();
+    expect(cssSrc).toContain("body:not(:has([data-layout='window']))");
+    expect(cssSrc).toContain("body:has([data-layout='window'])");
     for (const rule of ['width: 620px', 'max-width: 620px', 'overflow-x: hidden']) {
-      expect(popup, `the popup box must pin ${rule}`).toContain(rule);
+      expect(cssSrc, `the popup box must pin ${rule}`).toContain(rule);
     }
-    expect(popup, 'must not apply to the full-window page').toContain('max-height: 699px');
+    // A short browser window is still an editor, not a toolbar popup.
+    expect(cssSrc).not.toContain('max-height: 699px');
 
-    // Locking the HEIGHT as well is not here, and the reason is worth keeping: it made views
-    // taller than the box unreachable, because in a flex column every child shrinks unless told
-    // not to and the nav was not. That is the real defect and it is fixed below; a fixed height on
-    // top of it is a separate decision that has to be re-argued, not smuggled back in.
     expect(navSrc, 'the nav must not be squeezed by a tall view').toContain('shrink-0');
     expect(appSrc, 'the content area is what absorbs a tall view').toContain('min-h-0 flex-1 overflow-y-auto');
   });

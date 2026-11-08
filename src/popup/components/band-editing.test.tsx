@@ -2,9 +2,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { BandFields } from './BandFields';
 import { EqGraph } from './EqGraph';
-import { DEFAULT_FREQUENCIES, DEFAULT_Q, filterType, type Band } from '@/lib/audio';
+import { GuideOverlay } from './GuideOverlay';
+import { Select } from './Select';
+import { VerticalVolume } from './VerticalVolume';
+import { DEFAULT_FREQUENCIES, DEFAULT_Q, EQ_W, EQ_H, xToFreq, yToDb, filterType, type Band } from '@/lib/audio';
 
-// The only DOM test in the project, and the two bugs it exists for are the reason it is here.
+// These controls are tested through DOM interactions, including the two original editing bugs.
 //
 // Both lived in wiring that no pure function can reach: a pointer press that never selected a
 // band, and a focus-and-leave that rewrote that band and spent the Reset-profile undo slot. Both
@@ -17,6 +20,82 @@ import { DEFAULT_FREQUENCIES, DEFAULT_Q, filterType, type Band } from '@/lib/aud
 // assert what reaches the callbacks the popup persists from.
 
 afterEach(cleanup);
+
+describe('Restored controls — keyboard, gain and modal isolation', () => {
+  it('reports amplitude gain in dB and sends Home/End to the volume rails', () => {
+    const onGain = vi.fn();
+    const onCommit = vi.fn();
+    render(<VerticalVolume gain={2} onGain={onGain} onCommit={onCommit} />);
+    const slider = screen.getByRole('slider');
+    expect(slider.getAttribute('aria-valuetext')).toBe('+6 dB');
+    expect(slider.getAttribute('aria-orientation')).toBe('vertical');
+    fireEvent.keyDown(slider, { key: 'Home' });
+    expect(onGain).toHaveBeenLastCalledWith(10 ** (-50 / 20));
+    fireEvent.keyDown(slider, { key: 'End' });
+    expect(onGain).toHaveBeenLastCalledWith(10);
+    expect(onCommit).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a disabled fader read-only from the keyboard', () => {
+    const onGain = vi.fn();
+    render(<VerticalVolume gain={1} editable={false} onGain={onGain} onCommit={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowUp' });
+    expect(onGain).not.toHaveBeenCalled();
+  });
+
+  it('opens the list on an arrow, navigates options and returns focus after selection or Escape', () => {
+    const onChange = vi.fn();
+    render(<Select value="b" ariaLabel="Sound" options={[
+      { value: 'a', label: 'Flat' }, { value: 'b', label: 'Vocal' }, { value: 'c', label: 'A long user preset name' }
+    ]} onChange={onChange} />);
+    const trigger = screen.getByRole('button', { name: 'Sound: Vocal' });
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    const options = screen.getAllByRole('option');
+    expect(document.activeElement).toBe(options[1]);
+    expect(trigger.getAttribute('aria-controls')).toBe(screen.getByRole('listbox').id);
+    fireEvent.keyDown(options[1], { key: 'End' });
+    expect(document.activeElement).toBe(options[2]);
+    fireEvent.click(options[2]);
+    expect(onChange).toHaveBeenCalledWith('c');
+    expect(document.activeElement).toBe(trigger);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('isolates the guide, traps focus and restores the previous inert state before returning focus', () => {
+    const onClose = vi.fn();
+    const content = (open: boolean) => <>
+      <button>Open guide</button>
+      <div data-testid="already-inert">Already unavailable</div>
+      <GuideOverlay open={open} onClose={onClose} />
+    </>;
+    const { rerender } = render(content(false));
+    const trigger = screen.getByRole('button', { name: 'Open guide' });
+    const previous = screen.getByTestId('already-inert');
+    previous.setAttribute('inert', '');
+    trigger.focus();
+    rerender(content(true));
+    const dialog = screen.getByRole('dialog');
+    const close = dialog.querySelector('button')!;
+    const scrollArea = dialog.querySelector<HTMLElement>('[tabindex="0"]')!;
+    expect(document.activeElement).toBe(close);
+    expect(trigger.hasAttribute('inert')).toBe(true);
+    expect(dialog.hasAttribute('inert')).toBe(false);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(scrollArea);
+    fireEvent.keyDown(scrollArea, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+    rerender(content(false));
+    expect(trigger.hasAttribute('inert')).toBe(false);
+    expect(previous.hasAttribute('inert')).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+  });
+});
 
 const band = (over: Partial<Band> = {}, i = 3): Band => ({
   frequency: DEFAULT_FREQUENCIES[i],
@@ -266,5 +345,93 @@ describe('EqGraph — selecting a band with the pointer', () => {
     expect(onBands).toHaveBeenCalledOnce();
     expect(onBands.mock.calls[0][0][4].gain).toBeGreaterThan(0);
     expect(onCommit).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the selected marker visible when focus moves into the inspector', () => {
+    render(<EqGraph bands={bands()} sampleRate={48000} selectedBand={4} onBands={vi.fn()} onCommit={vi.fn()} />);
+    const dots = screen.getAllByRole('slider');
+    const point = (i: number) => dots[i];
+    fireEvent.focus(dots[4]);
+    fireEvent.blur(dots[4]);
+    expect(point(4).getAttribute('r')).toBe('7.5');
+    expect(point(3).getAttribute('r')).toBe('6.5');
+
+    // Hover temporarily previews another band without losing the stored selection.
+    fireEvent.pointerEnter(dots[3]);
+    expect(point(3).getAttribute('r')).toBe('7.5');
+    fireEvent.pointerLeave(dots[3]);
+    expect(point(4).getAttribute('r')).toBe('7.5');
+    expect(point(3).getAttribute('r')).toBe('6.5');
+  });
+});
+
+
+describe('Responsive graph editing and shelf filters', () => {
+  it.each([0.7, 1, 1.7])('maps a pointer at scale %s back to the plotted coordinates', (scale) => {
+    const onBands = vi.fn();
+    render(<EqGraph bands={bands()} sampleRate={48000} onBands={onBands} onCommit={vi.fn()} />);
+    const graph = screen.getByRole('group');
+    vi.spyOn(graph, 'getBoundingClientRect').mockReturnValue({ left: 30, top: 40, width: EQ_W * scale, height: EQ_H * scale } as DOMRect);
+    fireEvent.pointerDown(screen.getAllByRole('slider')[4]);
+    fireEvent.pointerMove(graph, { clientX: 30 + 250 * scale, clientY: 40 + 110 * scale });
+    const edited = onBands.mock.calls.at(-1)?.[0][4];
+    expect(edited.frequency).toBeCloseTo(xToFreq(250));
+    expect(edited.gain).toBeCloseTo(yToDb(110));
+  });
+
+  it('keeps both gain limits visible and reachable in the full viewport', () => {
+    const values = bands();
+    values[0].gain = 30;
+    values[10].gain = -30;
+    const onBands = vi.fn();
+    render(<EqGraph bands={values} sampleRate={48000} onBands={onBands} onCommit={vi.fn()} />);
+    const graph = screen.getByRole('group');
+    const dots = screen.getAllByRole('slider');
+    const [, top, , height] = graph.getAttribute('viewBox')!.split(' ').map(Number);
+    for (const dot of [dots[0], dots[10]]) {
+      expect(Number(dot.getAttribute('cy')) - Number(dot.getAttribute('r'))).toBeGreaterThan(top);
+      expect(Number(dot.getAttribute('cy')) + Number(dot.getAttribute('r'))).toBeLessThan(top + height);
+    }
+    vi.spyOn(graph, 'getBoundingClientRect').mockReturnValue({ left: 30, top: 40, width: EQ_W, height } as DOMRect);
+    fireEvent.pointerDown(dots[4]);
+    fireEvent.pointerMove(graph, { clientX: 280, clientY: 40 });
+    expect(onBands.mock.calls.at(-1)?.[0][4].gain).toBe(30);
+    fireEvent.pointerMove(graph, { clientX: 280, clientY: 40 + height });
+    expect(onBands.mock.calls.at(-1)?.[0][4].gain).toBe(-30);
+  });
+
+  it.each([0.7, 1.7])('keeps Shift-drag Q movement independent of viewport scale %s', (scale) => {
+    const onBands = vi.fn();
+    render(<EqGraph bands={bands()} sampleRate={48000} onBands={onBands} onCommit={vi.fn()} />);
+    const graph = screen.getByRole('group');
+    vi.spyOn(graph, 'getBoundingClientRect').mockReturnValue({ left: 30, top: 40, width: EQ_W * scale, height: EQ_H * scale } as DOMRect);
+    fireEvent.pointerDown(screen.getAllByRole('slider')[4]);
+    const movement = new MouseEvent('pointermove', { bubbles: true, shiftKey: true });
+    Object.defineProperty(movement, 'movementY', { value: 10 * scale });
+    fireEvent(graph, movement);
+    expect(onBands.mock.calls.at(-1)?.[0][4].q).toBeCloseTo(DEFAULT_Q + 1);
+  });
+
+  it('disables Q for a shelf without blocking its frequency and gain', () => {
+    const onBand = vi.fn();
+    render(<BandFields band={band({ type: 'lowshelf' })} index={0} editable onBand={onBand} onCommit={vi.fn()} />);
+    const [freq, gain, q] = screen.getAllByRole('textbox') as HTMLInputElement[];
+    expect(q.disabled).toBe(true);
+    expect(q.value).toBe('—');
+    expect(freq.disabled).toBe(false);
+    expect(gain.disabled).toBe(false);
+    fireEvent.blur(q, { target: { value: '2.5' } });
+    expect(onBand).not.toHaveBeenCalled();
+  });
+
+  it('ignores Shift-drag on a shelf instead of storing an inaudible Q change', () => {
+    const values = bands(); values[0].type = 'lowshelf';
+    const onBands = vi.fn();
+    render(<EqGraph bands={values} sampleRate={48000} onBands={onBands} onCommit={vi.fn()} />);
+    const dot = screen.getAllByRole('slider')[0];
+    expect(dot.getAttribute('aria-valuetext')).not.toContain('Q');
+    fireEvent.pointerDown(dot);
+    fireEvent.pointerMove(screen.getByRole('group'), { shiftKey: true, movementY: 10 });
+    expect(onBands).not.toHaveBeenCalled();
   });
 });

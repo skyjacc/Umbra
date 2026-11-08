@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { refreshFor, NOTHING } from './storage-events';
-import { RULES_KEY, DEFAULT_EQ_KEY, JOURNAL_KEY, PRESET_PREFIX } from './engine-io';
+import { RULES_KEY, DEFAULT_EQ_KEY, JOURNAL_KEY, PRESET_PREFIX, AUTO_GAIN_KEY } from './engine-io';
 
 describe('what a storage change should make the popup re-read', () => {
   it('refreshes the rules when RULES changes', () => {
-    expect(refreshFor('sync', [RULES_KEY])).toEqual({ presets: false, rules: true, global: false });
+    expect(refreshFor('sync', [RULES_KEY])).toEqual({ ...NOTHING, rules: true });
   });
 
   it('refreshes the global profile when DEFAULT_EQ changes', () => {
@@ -12,11 +12,11 @@ describe('what a storage change should make the popup re-read', () => {
     // return early for every area but `sync` — so the long-lived Full-window editor never learned
     // that the popup had changed the everywhere-sound, and its next edit wrote an hour-old curve
     // back over it.
-    expect(refreshFor('local', [DEFAULT_EQ_KEY])).toEqual({ presets: false, rules: false, global: true });
+    expect(refreshFor('local', [DEFAULT_EQ_KEY])).toEqual({ ...NOTHING, global: true });
   });
 
   it('refreshes the presets when any preset key changes', () => {
-    expect(refreshFor('sync', [PRESET_PREFIX + 'Vocal'])).toEqual({ presets: true, rules: false, global: false });
+    expect(refreshFor('sync', [PRESET_PREFIX + 'Vocal'])).toEqual({ ...NOTHING, presets: true });
   });
 
   it('does nothing for an unrelated local key', () => {
@@ -35,7 +35,12 @@ describe('what a storage change should make the popup re-read', () => {
   });
 
   it('handles several keys landing in one event', () => {
-    expect(refreshFor('sync', [RULES_KEY, PRESET_PREFIX + 'Vocal'])).toEqual({ presets: true, rules: true, global: false });
+    expect(refreshFor('sync', [RULES_KEY, PRESET_PREFIX + 'Vocal'])).toEqual({ ...NOTHING, presets: true, rules: true });
+  });
+
+  it('refreshes the listening preference only from local storage', () => {
+    expect(refreshFor('local', [AUTO_GAIN_KEY])).toEqual({ ...NOTHING, autoGain: true });
+    expect(refreshFor('sync', [AUTO_GAIN_KEY])).toEqual(NOTHING);
   });
 
   it('ignores the session area entirely', () => {

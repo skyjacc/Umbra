@@ -2,21 +2,20 @@
 // popup <-> service-worker <-> offscreen protocol, unchanged since the pre-React popup.
 import {
   NUM_FILTERS,
-  DEFAULT_FREQUENCIES,
-  DEFAULT_Q,
   clampMasterGain,
   sanitizeFilter,
-  filterType,
   type Band
 } from './audio';
 import { coerceBands, normalizePresets, presetBandsEqual, UNSAFE_KEYS, type PresetBands } from './presets';
 import { parsePatterns, newRuleId, type Rule } from './rules';
 import { quantizeRules } from './quantize';
-import { dbg } from './debug-log';
+export { flatBands, presetToBands } from './sound-profile';
+import { flatBands } from './sound-profile';
 
 export const BUILD = '2.5.0';
 export const PRESET_PREFIX = 'PRESETS.';
 export const RULES_KEY = 'RULES'; // sync: ordered domain-rules array
+export const AUTO_GAIN_KEY = 'AUTO_GAIN'; // local: shared with the service worker
 
 export const hasChrome = () => typeof chrome !== 'undefined' && !!chrome.runtime;
 
@@ -89,14 +88,19 @@ function parseDefaultEq(v: any): StoredGlobal | null {
 }
 
 export async function readDefaultEq(): Promise<StoredGlobal | null> {
-  if (!hasChrome() || !chrome.storage) return null;
+  const result = await readDefaultEqResult();
+  return result.ok ? result.value : null;
+}
+
+/** Recovery must distinguish an absent profile from a failed read. */
+export async function readDefaultEqResult(): Promise<{ ok: true; value: StoredGlobal | null } | { ok: false; error: string }> {
+  if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {
     const r: any = await chrome.storage.local.get(DEFAULT_EQ_KEY);
-    return parseDefaultEq(r[DEFAULT_EQ_KEY]);
-  } catch {
-    /* ignore */
+    return { ok: true, value: parseDefaultEq(r[DEFAULT_EQ_KEY]) };
+  } catch (e) {
+    return { ok: false, error: (e as Error)?.message || String(e) };
   }
-  return null;
 }
 
 /**
@@ -131,6 +135,29 @@ export type PersistResult = { ok: true } | { ok: false; error: string };
 
 const persistFailed = (e: unknown): PersistResult => ({ ok: false, error: (e as Error)?.message || String(e) });
 
+/** Migrate the former popup-only preference the first time the popup is opened. */
+export async function readAutoGainPreference(): Promise<boolean> {
+  let legacy = false;
+  try { legacy = localStorage.AUTO_GAIN === '1'; } catch {}
+  if (!hasChrome() || !chrome.storage) return legacy;
+  try {
+    const stored = await chrome.storage.local.get(AUTO_GAIN_KEY);
+    if (typeof stored[AUTO_GAIN_KEY] === 'boolean') return stored[AUTO_GAIN_KEY];
+    await chrome.storage.local.set({ [AUTO_GAIN_KEY]: legacy });
+  } catch {}
+  return legacy;
+}
+
+export async function writeAutoGainPreference(on: boolean): Promise<PersistResult> {
+  try {
+    if (hasChrome() && chrome.storage) await chrome.storage.local.set({ [AUTO_GAIN_KEY]: on });
+    try { localStorage.AUTO_GAIN = on ? '1' : '0'; } catch {}
+    return { ok: true };
+  } catch (e) {
+    return persistFailed(e);
+  }
+}
+
 export async function writeDefaultEq(bands: Band[], gain: number, presetName = ''): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   const filters = bands.map((b) => ({ f: b.frequency, g: b.gain, q: b.q }));
@@ -138,7 +165,7 @@ export async function writeDefaultEq(bands: Band[], gain: number, presetName = '
     await chrome.storage.local.set({
       [DEFAULT_EQ_KEY]: { v: 1, filters, gain: clampMasterGain(gain), preset: presetName, updatedAt: Date.now() }
     });
-    dbg('write:global', { gain: clampMasterGain(gain), preset: presetName, b0: filters[0]?.g });
+
     return { ok: true };
   } catch (e) {
     return persistFailed(e);
@@ -149,13 +176,14 @@ export async function writeDefaultEq(bands: Band[], gain: number, presetName = '
  * Remove the stored global profile entirely. Not the same as writing a flat one: on a fresh install
  * there was no profile at all, and putting things "back" has to restore that absence.
  */
-export async function clearDefaultEq(): Promise<void> {
-  if (!hasChrome() || !chrome.storage) return;
+export async function clearDefaultEq(): Promise<PersistResult> {
+  if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {
-    dbg('write:global-cleared');
+
     await chrome.storage.local.remove(DEFAULT_EQ_KEY);
-  } catch {
-    /* ignore */
+    return { ok: true };
+  } catch (e) {
+    return persistFailed(e);
   }
 }
 
@@ -163,7 +191,7 @@ export async function writeJournal(journal: unknown): Promise<PersistResult> {
   if (!hasChrome() || !chrome.storage) return { ok: false, error: 'no storage' };
   try {
     await chrome.storage.local.set({ [JOURNAL_KEY]: journal });
-    dbg('write:journal');
+
     return { ok: true };
   } catch (e) {
     return persistFailed(e);
@@ -188,7 +216,7 @@ export async function readJournal(): Promise<unknown> {
 export async function clearJournal(): Promise<void> {
   if (!hasChrome() || !chrome.storage) return;
   try {
-    dbg('write:journal-cleared');
+
     await chrome.storage.local.remove(JOURNAL_KEY);
   } catch {
     /* ignore */
@@ -201,16 +229,6 @@ export async function clearJournal(): Promise<void> {
 export function toOffscreen(type: string, extra: Record<string, unknown> = {}, cb?: (r: any) => void) {
   if (!hasChrome()) return;
   const msg = { target: 'offscreen', type, ...extra } as any;
-  dbg('send:' + type, {
-    tabId: msg.tabId,
-    gain: msg.gain,
-    preset: msg.activePreset,
-    b0: msg.eqFilters?.[0]?.gain,
-    // Without this a getFFT every 17ms is unreadable: at frame rate with the spectrum on it is
-    // correct, and with the spectrum off it is the regression. The last log could not tell them
-    // apart, which made the whole question unanswerable.
-    wantFft: msg.wantFft
-  });
   if (cb) {
     chrome.runtime.sendMessage(msg, (resp: any) => {
       void chrome.runtime.lastError;
@@ -238,7 +256,7 @@ export function toBackground(type: string, extra: Record<string, unknown> = {}, 
 export function makeThrottle(intervalMs: number) {
   let last = 0;
   let trailing: ReturnType<typeof setTimeout> | null = null;
-  return (fn: () => void) => {
+  const run = (fn: () => void) => {
     const now = performance.now();
     if (trailing) clearTimeout(trailing);
     if (now - last >= intervalMs) {
@@ -246,26 +264,26 @@ export function makeThrottle(intervalMs: number) {
       fn();
     } else {
       trailing = setTimeout(() => {
+        trailing = null;
         last = performance.now();
         fn();
       }, intervalMs - (now - last));
     }
   };
+  run.cancel = () => {
+    if (trailing) clearTimeout(trailing);
+    trailing = null;
+  };
+  return run;
 }
 
-export const flatBands = (): Band[] =>
-  Array.from({ length: NUM_FILTERS }, (_, i) => ({
-    frequency: DEFAULT_FREQUENCIES[i],
-    gain: 0,
-    q: DEFAULT_Q,
-    type: filterType(i)
-  }));
 
 export interface InitialState {
   bands: Band[];
   gain: number;
   presets: Record<string, PresetBands>;
   activePreset: string;
+  readable: boolean;
 }
 
 // Read saved presets (sync) so the popup can paint them immediately. The active
@@ -273,7 +291,7 @@ export interface InitialState {
 export async function readInitialState(): Promise<InitialState> {
   const presets: Record<string, PresetBands> = {};
   const base = { bands: flatBands(), gain: 1, activePreset: '' };
-  if (!hasChrome() || !chrome.storage) return { ...base, presets };
+  if (!hasChrome() || !chrome.storage) return { ...base, presets, readable: false };
   try {
     const all: any = await chrome.storage.sync.get(null);
     for (const k in all) {
@@ -283,15 +301,20 @@ export async function readInitialState(): Promise<InitialState> {
       presets[name] = coerceBands(all[k]) ?? all[k]; // sanitize legacy/foreign shapes for first paint
     }
   } catch {
-    /* no presets */
+    return { ...base, presets, readable: false };
   }
-  return { ...base, presets };
+  return { ...base, presets, readable: true };
 }
 
 // Read presets from sync storage, self-healing legacy/out-of-range values.
 export async function refreshPresets(): Promise<Record<string, PresetBands>> {
+  const result = await refreshPresetsResult();
+  return result.ok ? result.presets : {};
+}
+
+export async function refreshPresetsResult(): Promise<{ ok: true; presets: Record<string, PresetBands> } | { ok: false }> {
   const presets: Record<string, PresetBands> = {};
-  if (!hasChrome() || !chrome.storage) return presets;
+  if (!hasChrome() || !chrome.storage) return { ok: false };
   try {
     const all: any = await chrome.storage.sync.get(null);
     const heal: Record<string, PresetBands> = {};
@@ -316,9 +339,9 @@ export async function refreshPresets(): Promise<Record<string, PresetBands>> {
       }
     }
   } catch {
-    /* ignore */
+    return { ok: false };
   }
-  return presets;
+  return { ok: true, presets };
 }
 
 export async function savePreset(name: string, bands: Band[]) {
@@ -386,7 +409,7 @@ export async function writeRulesResult(rules: Rule[]): Promise<PersistResult> {
     // dragged rule is 702 of them unrounded, so the array stops fitting at eleven saved sites.
     // See quantize.ts for why the write is the only place this is allowed to happen.
     await chrome.storage.sync.set({ [RULES_KEY]: quantizeRules(rules) });
-    dbg('write:rules', { n: rules.length, ids: rules.map((r) => r.id).join(',') });
+
     return { ok: true };
   } catch (e) {
     return persistFailed(e); // typically the sync write quota
@@ -430,6 +453,18 @@ const SHARE_PREFIX = 'UMBRA1:';
 export interface SharePayload {
   presets?: Record<string, PresetBands>;
   rules?: Rule[];
+}
+
+/** Include user-defined dependencies, including overrides of built-in preset names. */
+export function rulesSharePayload(rules: Rule[], presets: Record<string, PresetBands>): SharePayload {
+  const referenced: Record<string, PresetBands> = Object.create(null);
+  for (const rule of rules) {
+    const name = rule.mode === 'preset' ? rule.preset : '';
+    if (!name || UNSAFE_KEYS.includes(name) || !Object.prototype.hasOwnProperty.call(presets, name)) continue;
+    const bands = coerceBands(presets[name]);
+    if (bands) referenced[name] = bands;
+  }
+  return Object.keys(referenced).length ? { rules, presets: referenced } : { rules };
 }
 function b64encode(str: string): string {
   const bytes = new TextEncoder().encode(str);
@@ -479,19 +514,4 @@ export async function importPresetsText(text: string): Promise<{ count: number; 
 
 export function bandsToPreset(bands: Band[]): PresetBands {
   return { frequencies: bands.map((b) => b.frequency), gains: bands.map((b) => b.gain), qs: bands.map((b) => b.q) };
-}
-
-export function presetToBands(p: PresetBands): Band[] {
-  // Defensive: readInitialState/refreshPresets deliberately keep a raw, un-coercible preset shape
-  // (legacy or tampered chrome.storage.sync) whose frequencies/gains/qs may not be arrays. Indexing
-  // those throws and — via resolvedFor/applyEverywhere — makes the engine look dead for every
-  // captured tab. Coerce first; fall back to a flat curve so a corrupt preset degrades to a no-op.
-  const c = coerceBands(p) ?? {
-    frequencies: DEFAULT_FREQUENCIES,
-    gains: Array(NUM_FILTERS).fill(0),
-    qs: Array(NUM_FILTERS).fill(DEFAULT_Q)
-  };
-  return Array.from({ length: NUM_FILTERS }, (_, i) =>
-    sanitizeFilter({ frequency: c.frequencies[i], gain: c.gains[i], q: c.qs[i] }, i)
-  );
 }

@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "Equalizer + Bass Boost, per Tab — Umbra EQ",
+    "description": "Extension title in Chrome and the Chrome Web Store. Keep the Umbra EQ brand unchanged."
+  },
+  "extensionDescription": {
+    "message": "11-band equalizer, bass boost and volume control for each tab. Save presets and site profiles. Audio stays on your device.",
+    "description": "Store summary and extension description; maximum 132 characters."
+  },
+  "toggleEq": {
+    "message": "Turn the equalizer on or off for the current tab",
+    "description": "Description shown on Chrome's extension keyboard-shortcuts page."
+  }
+}

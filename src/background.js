@@ -1,3 +1,6 @@
+import { resolveStoredSound } from './lib/sound-profile';
+import { outputGain } from './lib/auto-gain';
+
 // Service worker: owns the offscreen document lifecycle and tab capture.
 // All audio processing lives in offscreen.js (service workers have no Web Audio API).
 
@@ -70,7 +73,7 @@ function pingOffscreen(timeoutMs) {
       chrome.runtime.sendMessage({ target: 'offscreen', type: 'getStatus' }, (resp) => {
         void chrome.runtime.lastError; // ignore "no receiver"
         clearTimeout(to);
-        finish(!!(resp && resp.type === 'workspaceStatus'));
+        finish(!!(resp && resp.type === 'workspaceStatus' && !resp.failed));
       });
     } catch (e) {
       clearTimeout(to);
@@ -79,32 +82,32 @@ function pingOffscreen(timeoutMs) {
   });
 }
 
-async function ensureOffscreenDocument() {
-  if (await hasOffscreenDocument()) {
-    // A context exists — but is it alive? Ping it; recreate if it's a zombie. A second, longer
-    // ping avoids tearing down a HEALTHY-but-still-initializing document (setupAudioNodes can take
-    // up to ~5s on slow audio-device init) and destroying every live capture with it.
-    if ((await pingOffscreen(700)) || (await pingOffscreen(4000))) {
-      dlog('offscreen alive');
-      return;
-    }
-    dlog('offscreen exists but did not answer — recreating');
-    try {
-      await chrome.offscreen.closeDocument();
-    } catch (e) {
-      dlog('closeDocument failed:', e && e.message);
-    }
-  }
-  // createDocument throws if called twice concurrently, so share one promise
+function ensureOffscreenDocument() {
+  // Share the entire probe/close/create transaction. Sharing only createDocument lets a slower
+  // recovery caller close the replacement document that a faster caller has already created.
   if (!creatingOffscreen) {
-    dlog('creating offscreen document…');
-    creatingOffscreen = chrome.offscreen
-      .createDocument({
+    creatingOffscreen = (async () => {
+      if (await hasOffscreenDocument()) {
+        // Give healthy, initializing audio devices a second, longer chance to answer.
+        if ((await pingOffscreen(700)) || (await pingOffscreen(4000))) {
+          dlog('offscreen alive');
+          return;
+        }
+        dlog('offscreen exists but did not answer — recreating');
+        try {
+          await chrome.offscreen.closeDocument();
+        } catch (e) {
+          dlog('closeDocument failed:', e && e.message);
+        }
+      }
+      dlog('creating offscreen document…');
+      await chrome.offscreen.createDocument({
         url: OFFSCREEN_PATH,
         reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
         justification: 'Process and play back captured tab audio with Web Audio API'
-      })
-      .then(() => dlog('offscreen document created'))
+      });
+      dlog('offscreen document created');
+    })()
       .catch((e) => {
         dlog('offscreen createDocument FAILED:', e && e.message);
         throw e;
@@ -113,7 +116,7 @@ async function ensureOffscreenDocument() {
         creatingOffscreen = null;
       });
   }
-  await creatingOffscreen;
+  return creatingOffscreen;
 }
 
 function isCapturableUrl(url) {
@@ -133,27 +136,34 @@ function isCapturableUrl(url) {
 // Tell the popup WHY no capture happened. Both early returns below used to write only to the
 // debug log, so the popup rendered a dead, unexplained equalizer. Broadcast (not sendResponse):
 // the toggleCapture route is fire-and-forget and has no response channel.
-function reportSkip(reason) {
-  chrome.runtime.sendMessage({ type: 'captureSkipped', reason }).catch(() => {});
+function reportSkip(reason, tabId) {
+  chrome.runtime.sendMessage({ type: 'captureSkipped', reason, tabId }).catch(() => {});
 }
 
 async function startCaptureOnActiveTab(auto) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return startCaptureTab(tab, auto);
+}
+
+async function startCaptureTab(tab, auto) {
   dlog('startCapture: tab', tab && tab.id, 'url', tab && tab.url, auto ? '(auto)' : '(manual)');
   if (!tab || !isCapturableUrl(tab.url)) {
     dlog('tab not capturable, aborting');
-    reportSkip('uncapturable');
+    reportSkip('uncapturable', tab?.id);
     return;
   }
+  const epoch = invalidateCapture(tab.id);
   await stoppedReady; // a cold service worker must hydrate the Stopped set before deciding
   if (auto && stoppedTabs.has(tab.id)) {
     dlog('auto-capture skipped — user stopped this tab', tab.id);
-    reportSkip('stopped');
+    reportSkip('stopped', tab.id);
     return;
   }
   if (stoppedTabs.delete(tab.id)) persistStopped(); // manual EQ (or a fresh auto) re-arms it
 
   await ensureOffscreenDocument();
+  const settings = await settingsForUrl(tab.url);
+  if ((captureEpoch.get(tab.id) || 0) !== epoch) return;
 
   // MV3: capture() is unavailable in service workers. Mint a stream id here,
   // consume it in the offscreen document via getUserMedia.
@@ -161,6 +171,7 @@ async function startCaptureOnActiveTab(auto) {
   try {
     streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
   } catch (e) {
+    if ((captureEpoch.get(tab.id) || 0) !== epoch) return;
     // Most common cause: Chrome requires a user gesture / extension invocation
     // for this tab. Surface it to the popup instead of failing silently.
     const msg = (e && e.message) || String(e);
@@ -168,12 +179,13 @@ async function startCaptureOnActiveTab(auto) {
     chrome.runtime.sendMessage({ type: 'captureError', error: msg }).catch(() => {});
     return;
   }
-  dlog('got streamId', streamId, '→ offscreen');
+  if ((captureEpoch.get(tab.id) || 0) !== epoch) return;
   chrome.runtime
     .sendMessage({
       target: 'offscreen',
       type: 'startCapture',
       streamId,
+      settings,
       // url carries the hostname the offscreen engine keys per-domain memory on.
       tab: { id: tab.id, title: tab.title || '', favIconUrl: tab.favIconUrl || '', url: tab.url || '' }
     })
@@ -194,27 +206,47 @@ async function getActiveTab() {
   return { id: tab.id, host, title: tab.title || '', favIconUrl: tab.favIconUrl || '', capturable: isCapturableUrl(tab.url) };
 }
 
+// Invalidate pending startup work before any await. Stop is always addressed to a stable tab id.
+const captureEpoch = new Map();
+const invalidateCapture = (tabId) => {
+  const next = (captureEpoch.get(tabId) || 0) + 1;
+  captureEpoch.set(tabId, next);
+  return next;
+};
+
+async function settingsForUrl(url) {
+  const [sync, local] = await Promise.all([chrome.storage.sync.get(null), chrome.storage.local.get(['DEFAULT_EQ', 'AUTO_GAIN'])]);
+  const host = new URL(url).hostname.replace(/^www\./, '');
+  const sound = resolveStoredSound(host, sync, local);
+  return { eqFilters: sound.bands, gain: outputGain({ userGain: sound.gain, bands: sound.bands, on: local.AUTO_GAIN === true }), activePreset: sound.presetName };
+}
+
+async function stopCaptureTab(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  invalidateCapture(tabId);
+  await stoppedReady;
+  stoppedTabs.add(tabId);
+  persistStopped();
+  reportSkip('stopped', tabId);
+  if (!(await hasOffscreenDocument())) return;
+  // A later manual Start clears this intent before its own async startup. An old lookup must
+  // not deliver Stop after that Start. A skipped auto-capture keeps the Stop intent intact.
+  if (!stoppedTabs.has(tabId)) return;
+  await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId }).catch(() => {});
+}
+
 async function stopCaptureOnActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) return;
-  await stoppedReady; // hydrate first, or persistStopped() would truncate the saved Set to just this id
-  stoppedTabs.add(tab.id); // remember: don't auto-re-capture until the user manually EQs again
-  persistStopped();
-  // Say so, or the popup sees "no capture, no reason" and reports the generic idle state right
-  // after the user pressed Stop.
-  reportSkip('stopped');
-  if (!(await hasOffscreenDocument())) return;
-  chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId: tab.id }).catch(() => {});
+  if (tab) await stopCaptureTab(tab.id);
 }
 
 // Is the active tab currently in the engine's capture list? Asked rather than tracked: the
 // offscreen document owns that truth, and a service worker can be evicted between two questions.
-async function isActiveTabCaptured() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !(await hasOffscreenDocument())) return false;
+async function isTabCaptured(tabId) {
+  if (!(await hasOffscreenDocument())) return false;
   try {
     const status = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'getStatus' });
-    return !!(status && (status.tabs || []).some((t) => t.id === tab.id));
+    return !!(status && (status.tabs || []).some((t) => t.id === tabId));
   } catch (e) {
     return false; // engine asleep or not answering — treat as "not capturing" and try to start
   }
@@ -233,23 +265,54 @@ async function isActiveTabCaptured() {
 chrome.commands.onCommand.addListener((command) => {
   if (command !== 'toggle-eq') return;
   (async () => {
-    if (await isActiveTabCaptured()) await stopCaptureOnActiveTab();
-    else await startCaptureOnActiveTab(false);
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return;
+    if (await isTabCaptured(tab.id)) await stopCaptureTab(tab.id);
+    else await startCaptureTab(tab, false);
   })().catch((e) => dlog('toggle-eq failed:', e && e.message));
 });
 
-// A navigation is a fresh page — forget the stopped flag so auto-capture works there again. Gated
-// on stoppedReady so a delete can't run against the un-hydrated Set and be resurrected by hydration.
-chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (!info.url) return;
-  stoppedReady.then(() => {
+// Same-origin URL changes retain capture. A hidden/unknown destination or a different origin
+// cannot inherit the old site's sound: activeTab may already have been revoked, so stop safely.
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status !== 'loading' && typeof info.url !== 'string') return;
+  const epoch = invalidateCapture(tabId);
+  (async () => {
+    await stoppedReady;
     if (stoppedTabs.delete(tabId)) persistStopped();
+    if (!(await hasOffscreenDocument())) return;
+    const status = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'getStatus' });
+    if ((captureEpoch.get(tabId) || 0) !== epoch) return;
+    const current = status?.tabs?.find((entry) => entry.id === tabId);
+    // tab.url can still describe the old committed document during loading; only the changed
+    // URL or pending destination can establish where this navigation is going.
+    const url = info.url || tab?.pendingUrl;
+    let sameOrigin = false;
+    try { sameOrigin = !!current?.url && !!url && new URL(current.url).origin === new URL(url).origin && isCapturableUrl(url); } catch {}
+    if (!sameOrigin) {
+      await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId }).catch(() => {});
+      if (current) chrome.runtime.sendMessage({ type: 'captureInterrupted', tabId, reason: 'navigation' }).catch(() => {});
+      return;
+    }
+    const settings = await settingsForUrl(url);
+    if ((captureEpoch.get(tabId) || 0) !== epoch) return;
+    await chrome.runtime.sendMessage({
+      target: 'offscreen', type: 'applySettings', tabId, ...settings,
+      tab: { id: tabId, url, title: tab?.title || current.title || '', favIconUrl: tab?.favIconUrl || current.favIconUrl || '' }
+    }).catch(() => {});
+  })().catch((e) => {
+    // Failure to refresh must not leave a stale site's profile running.
+    if ((captureEpoch.get(tabId) || 0) !== epoch) return;
+    chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId }).catch(() => {});
+    dlog('navigation refresh failed:', e && e.message);
   });
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
+  invalidateCapture(tabId);
   stoppedReady.then(() => {
     if (stoppedTabs.delete(tabId)) persistStopped();
   });
+  chrome.runtime.sendMessage({ target: 'offscreen', type: 'stopCapture', tabId }).catch(() => {});
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -263,9 +326,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           )
           .catch(() => sendResponse({ build: BUILD, log: LOG.slice(), state: {} }));
         return true;
+      case 'stopCapture':
+        stopCaptureTab(message.tabId).catch((e) => dlog('stopCapture failed:', e && e.message));
+        break;
       case 'toggleCapture':
         (message.on ? startCaptureOnActiveTab(message.auto) : stopCaptureOnActiveTab()).catch((e) => {
           dlog('toggleCapture failed:', e && e.message);
+          chrome.runtime.sendMessage({ type: 'captureError', error: e?.message || String(e) }).catch(() => {});
         });
         break;
       case 'ensureOffscreen':

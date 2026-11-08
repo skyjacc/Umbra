@@ -1,0 +1,30 @@
+Umbra EQ gives each browser tab its own sound. Use its 11-band parametric equalizer and volume booster to adjust music, videos, streams and podcasts while they play. Add bass, soften harsh treble or shape the frequencies that make speech easier to hear.
+
+CONTROL THE SOUND
+• Move each band's frequency and gain on the graph, or enter exact values. Adjust width (Q) for bell filters.
+• Start with Bass Boost, Vocal, Movie or Warm, then save your own presets.
+• Adjust the volume of a captured tab, including boosting quiet audio above its original level.
+• Watch a live spectrum while adjusting the curve. An output limiter reduces excessive signal peaks.
+
+KEEP YOUR SETTINGS
+• Use one global sound, with saved rules for individual websites.
+• Give a music tab and a video tab different settings at the same time.
+• Import and export presets, or share them with a copy-and-paste code.
+• Use keyboard controls, a larger editor window, four themes and English or Russian interface text.
+
+GET STARTED
+1. Play audio in a normal web tab.
+2. Open Umbra EQ and select EQ This Tab.
+3. Choose a preset or adjust the graph and volume.
+4. Add a site rule if you want to reuse that sound on the website.
+
+AUDIO AND PRIVACY
+Audio is processed on your device. Umbra does not save audio recordings or send your audio to its developer. No account, ads or usage analytics are built into the extension.
+
+The extension reads tab information, including the address and title, to apply site rules and identify captured tabs. Global settings stay local; saved presets and site rules can sync through your Google account when Chrome Sync is enabled. Details: https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md
+
+BEFORE YOU INSTALL
+Umbra processes browser-tab audio, not system-wide sound or microphone input. It requires Chrome 116 or later. Chrome displays a sharing indicator during capture and can restrict fullscreen while capture is active. Protected media and browser-internal pages may not support capture. Boosting audio cannot repair distortion already present in a recording. This version does not automatically equalize loudness between videos or isolate voices from background music.
+
+Free and open source. Source code: https://github.com/skyjacc/Umbra
+Help and bug reports: https://github.com/skyjacc/Umbra/issues

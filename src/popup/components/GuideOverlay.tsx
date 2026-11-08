@@ -299,6 +299,12 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
     const focusables = () =>
       Array.from(root?.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])') ?? []);
     focusables()[0]?.focus();
+    // aria-modal describes the dialog; inert also removes the background from focus and the
+    // accessibility tree. Preserve any pre-existing inert state when the guide closes.
+    const background = Array.from(root?.parentElement?.children ?? [])
+      .filter((element) => element !== root)
+      .map((element) => ({ element, inert: element.getAttribute('inert') }));
+    background.forEach(({ element }) => element.setAttribute('inert', ''));
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onCloseRef.current();
@@ -324,6 +330,10 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
+      background.forEach(({ element, inert }) => {
+        if (inert === null) element.removeAttribute('inert');
+        else element.setAttribute('inert', inert);
+      });
       prevFocus.current?.focus?.();
     };
   }, [open]);
@@ -339,8 +349,9 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
       className="fixed inset-0 z-[60] flex select-none flex-col bg-background/95 backdrop-blur-sm"
     >
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-2.5">
-        <span className="text-[14px] font-bold">{tr('howto.title')}</span>
+        <h2 className="text-[14px] font-semibold">{tr('howto.title')}</h2>
         <button
+          type="button"
           onClick={onClose}
           aria-label={tr('guide.close')}
           className="flex size-8 items-center justify-center rounded-lg border border-border bg-white/[.05] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -349,7 +360,7 @@ export function GuideOverlay({ open, onClose }: { open: boolean; onClose: () => 
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" tabIndex={0}>
         <div className="mx-auto flex w-full max-w-[520px] flex-col gap-2.5">
           <Panel title={tr('howto.graph.h')} lines={[tr('howto.graph.p'), tr('howto.graph.q')]}>
             <GraphArt dragLabel={tr('howto.graph.h')} gainLabel={tr('howto.axis.gain')} freqLabel={tr('howto.axis.freq')} />

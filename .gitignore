@@ -25,6 +25,10 @@ test/*.png
 
 # Design exploration mockups (kept on disk for reference, not shipped)
 mockups/
+docs/redesign/
+
+# Local audit evidence, backups, downloaded references and private analytics
+.audit/
 
 # OS cruft
 Thumbs.db

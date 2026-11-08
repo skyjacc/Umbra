@@ -14,15 +14,16 @@
 // has no behavioural test, and "does an unrelated key wake anything up" is exactly the kind of
 // thing that quietly stops being true.
 
-import { RULES_KEY, DEFAULT_EQ_KEY, PRESET_PREFIX } from './engine-io';
+import { RULES_KEY, DEFAULT_EQ_KEY, PRESET_PREFIX, AUTO_GAIN_KEY } from './engine-io';
 
 export interface StorageRefresh {
   presets: boolean;
   rules: boolean;
   global: boolean;
+  autoGain: boolean;
 }
 
-export const NOTHING: StorageRefresh = { presets: false, rules: false, global: false };
+export const NOTHING: StorageRefresh = { presets: false, rules: false, global: false, autoGain: false };
 
 /**
  * Area-aware on purpose. A `DEFAULT_EQ` arriving in sync is not ours and neither is a `RULES` in
@@ -33,13 +34,14 @@ export function refreshFor(area: string, keys: string[]): StorageRefresh {
     return {
       presets: keys.some((k) => k.startsWith(PRESET_PREFIX)),
       rules: keys.includes(RULES_KEY),
-      global: false
+      global: false,
+      autoGain: false
     };
   }
   if (area === 'local') {
     // Deliberately not the journal: it is this session's own write-ahead scratch, and reacting to
     // it would have the popup chase its own tail during a drag.
-    return { presets: false, rules: false, global: keys.includes(DEFAULT_EQ_KEY) };
+    return { presets: false, rules: false, global: keys.includes(DEFAULT_EQ_KEY), autoGain: keys.includes(AUTO_GAIN_KEY) };
   }
   return NOTHING;
 }

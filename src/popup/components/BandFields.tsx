@@ -52,13 +52,14 @@ export function BandFields({
 
   if (!band || index === null) {
     return (
-      <div className="flex h-[26px] items-center px-0.5 text-[10.5px] text-muted-foreground/70">{t('eq.bandNone')}</div>
+      <div data-testid="band-fields" className="flex h-[26px] items-center px-0.5 text-[11px] text-muted-foreground">{t('eq.bandNone')}</div>
     );
   }
 
   const value = (k: BandField) => (draft?.key === k ? draft.text : formatField(k, band[k === 'q' ? 'q' : k]));
 
   const commit = (k: BandField, text: string) => {
+    if (!editable || (k === 'q' && band.type !== 'peaking')) return;
     const n = parseField(k, text);
     setDraft(null);
     if (n === null) return; // unreadable: leave the band alone and let the field snap back
@@ -71,14 +72,15 @@ export function BandFields({
   };
 
   return (
-    <div className="flex h-[26px] items-center gap-1.5 px-0.5 text-[10.5px] text-muted-foreground">
+    <div data-testid="band-fields" className="flex h-[26px] items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground">
       <span className="shrink-0 font-semibold text-foreground/70">{t('eq.bandN', { n: String(index + 1) })}</span>
       {FIELDS.map(({ key, unit, width }) => (
         <span key={key} className="inline-flex items-center gap-1">
           {key === 'q' && <span className="opacity-70">Q</span>}
           <input
-            value={value(key)}
-            disabled={!editable}
+            value={key === 'q' && band.type !== 'peaking' ? '—' : value(key)}
+            disabled={!editable || (key === 'q' && band.type !== 'peaking')}
+            title={key === 'q' && band.type !== 'peaking' ? t('eq.shelfQ') : undefined}
             inputMode="decimal"
             aria-label={t('eq.band' + (key === 'frequency' ? 'Freq' : key === 'gain' ? 'Gain' : 'Q'))}
             onChange={(e) => setDraft({ key, text: e.target.value, from: draft?.key === key ? draft.from : value(key) })}

@@ -6,7 +6,6 @@ import {
   EQ_H,
   DB_TOP,
   DB_BOTTOM,
-  AXIS_MAX_FREQ,
   DEFAULT_FREQUENCIES,
   DEFAULT_Q,
   type Band,
@@ -17,8 +16,6 @@ import {
   clampFreq,
   clampGainDb,
   clampQ,
-  clampX,
-  clampY,
   filterType,
   curvePoints
 } from '@/lib/audio';
@@ -36,9 +33,10 @@ interface Props {
   onCommit: () => void; // drag end — parent persists + sends canonical state
   editable?: boolean; // dots draggable only when the active tab is captured
   bypassed?: boolean; // the curve is being shaped but the tab is playing unshaped
-  meterOn?: boolean; // draw the post-EQ peak meter down the right edge
+  meterOn?: boolean; // draw the common output peak meter down the right edge
   /** Which band the editable readout under the graph should show. Survives blur, unlike focus. */
   onSelectBand?: (i: number) => void;
+  selectedBand?: number | null;
 }
 
 // The rough zone each band sits in (11 fixed bands, low → high), shown as a small text
@@ -72,8 +70,20 @@ function freqLabel(f: number) {
   return String(Math.round(f));
 }
 
-export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false, meterOn = true, onSelectBand }: Props) {
+export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true, activeTabId = null, showRoles = false, onBands, onCommit, editable = true, bypassed = false, meterOn = true, onSelectBand, selectedBand = null }: Props) {
   const eqRef = useRef<SVGSVGElement>(null);
+  // SVG coordinates stay fixed; text remains readable when the full-window editor is resized.
+  const [pixelScale, setPixelScale] = useState(1);
+  useEffect(() => {
+    const svg = eqRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setPixelScale(EQ_W / entry.contentRect.width);
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+  const px = (n: number) => n * pixelScale;
   const dragIdx = useRef<number | null>(null);
   const liveRef = useRef<Band[] | null>(null); // drag buffer — the frame-current bands (the prop is rAF-coalesced)
   const [hover, setHover] = useState<number | null>(null);
@@ -152,8 +162,8 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         return p;
       }),
       dots: bands.map((b) => ({
-        x: clampX(freqToX(b.frequency)),
-        y: clampY(dbToY(b.gain)),
+        x: Math.max(10, Math.min(EQ_W - 10, freqToX(b.frequency))),
+        y: Math.max(10, Math.min(EQ_H - 10, dbToY(b.gain))),
         color: b.type === 'peaking' ? G('peak') : G('shelf')
       }))
     };
@@ -162,13 +172,13 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   // Axis ticks (frequency) + dB gridlines.
   const freqTicks = useMemo(() => {
     const t: Array<{ x: number; label: string }> = [];
-    for (let f = 5; f < AXIS_MAX_FREQ; f *= 2) t.push({ x: freqToX(f), label: freqLabel(f) });
+    for (const f of [20, 80, 320, 1280, 5120, 20000]) t.push({ x: freqToX(f), label: freqLabel(f) });
     return t;
   }, []);
   const dbTicks = useMemo(() => {
     const t: Array<{ y: number; label: string }> = [];
     const range = 60;
-    const step = 10;
+    const step = 20;
     for (let db = -range; db <= range; db += step) {
       if (range - Math.abs(db) <= step * 0.5) continue;
       t.push({ y: dbToY(db), label: (db > 0 ? '+' : '') + db });
@@ -253,11 +263,13 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
     const b = src[i];
     let next: Band;
     if (e.shiftKey) {
-      next = { ...b, q: clampQ(b.q + e.movementY / 10) };
+      if (b.type !== 'peaking') return; // Web Audio shelves do not use Q.
+      const scale = EQ_H / (eqRef.current!.getBoundingClientRect().height || EQ_H);
+      next = { ...b, q: clampQ(b.q + e.movementY * scale / 10) };
     } else {
       const rect = eqRef.current!.getBoundingClientRect();
-      let lx = e.clientX - rect.left;
-      let ly = e.clientY - rect.top;
+      let lx = (e.clientX - rect.left) * EQ_W / (rect.width || EQ_W);
+      let ly = (e.clientY - rect.top) * EQ_H / (rect.height || EQ_H);
       lx = Math.max(0, Math.min(EQ_W - 1, lx));
       const topY = dbToY(DB_TOP);
       const botY = dbToY(DB_BOTTOM);
@@ -319,7 +331,8 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
   }
 
   const zeroY = dbToY(0); // 0 dB baseline for the graph
-  const active = hover ?? focusIdx; // mouse hover wins; else the keyboard-focused dot drives the readout
+  const active = hover ?? focusIdx ?? selectedBand;
+  const readout = hover ?? focusIdx;
 
   // Under bypass the flat line is what the tab is actually playing, so it stops being a faint
   // reference and becomes the truth on screen, while the curve the user is shaping recedes. The
@@ -332,7 +345,8 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         ref={eqRef}
         width={EQ_W}
         height={EQ_H}
-        className="touch-none rounded-lg"
+        viewBox={`0 0 ${EQ_W} ${EQ_H}`}
+        className="eq-graph touch-none rounded-lg"
         style={{ background: 'rgba(255,255,255,.012)' }}
         role="group"
         aria-label={t('eq.graphLabel')}
@@ -358,7 +372,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         {freqTicks.map((t, i) => (
           <g key={'f' + i}>
             <line x1={t.x} y1={0} x2={t.x} y2={EQ_H} stroke={G('axis')} strokeOpacity={0.12} />
-            <text x={t.x} y={EQ_H - 15} textAnchor="middle" fontSize={9} fill={G('text')} fillOpacity={0.72}>
+            <text x={Math.min(EQ_W - px(20), t.x)} y={EQ_H - px(15)} textAnchor="middle" fontSize={px(11)} fill={G('text')}>
               {t.label}
             </text>
           </g>
@@ -373,7 +387,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
           strokeDasharray={bypassed ? undefined : '1 4'}
         />
         {dbTicks.map((t, i) => (
-          <text key={'d' + i} x={8} y={t.y} fontSize={9} fill={G('text')} fillOpacity={t.label === '0' ? 0.85 : 0.62} dominantBaseline="middle">
+          <text key={'d' + i} x={px(8)} y={t.y} fontSize={px(11)} fill={G('text')} dominantBaseline="middle">
             {t.label}
           </text>
         ))}
@@ -427,7 +441,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
         {dots.map((d, i) => {
           const on = active === i;
           return (
-            <g key={'dot' + i}>
+            <g key={'dot' + i} data-selected={selectedBand === i ? 'true' : undefined}>
               {on && <circle cx={d.x} cy={d.y} r={11} fill={d.color} fillOpacity={0.18} pointerEvents="none" />}
               <circle
                 cx={d.x}
@@ -437,7 +451,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
                 fillOpacity={editable ? 1 : 0.45}
                 stroke={G('screen')}
                 strokeWidth={2.5}
-                className={editable ? 'cursor-grab' : 'cursor-default'}
+                className={'eq-band ' + (editable ? 'cursor-grab' : 'cursor-default')}
                 tabIndex={editable ? 0 : -1}
                 role="slider"
                 aria-disabled={!editable}
@@ -445,7 +459,7 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
                 aria-valuemin={DB_BOTTOM}
                 aria-valuemax={DB_TOP}
                 aria-valuenow={Math.round(bands[i].gain)}
-                aria-valuetext={`${freqLabel(bands[i].frequency)} Hz, ${bands[i].gain >= 0 ? '+' : ''}${bands[i].gain.toFixed(1)} dB, Q ${bands[i].q.toFixed(2)}`}
+                aria-valuetext={`${freqLabel(bands[i].frequency)} Hz, ${bands[i].gain >= 0 ? '+' : ''}${bands[i].gain.toFixed(1)} dB${bands[i].type === 'peaking' ? `, Q ${bands[i].q.toFixed(2)}` : ''}`}
                 onPointerDown={(e) => dotDown(i, e)}
                 onPointerEnter={() => dragIdx.current == null && setHover(i)}
                 onPointerLeave={() => dragIdx.current == null && setHover(null)}
@@ -470,40 +484,38 @@ export function EqGraph({ bands, sampleRate, spectrumOn = false, visible = true,
             <text
               key={'zone' + z.key}
               x={(dots[z.from].x + dots[z.to].x) / 2}
-              y={12}
+              y={px(13)}
               textAnchor="middle"
-              fontSize={8.5}
+              fontSize={px(11)}
               fill={G('text')}
-              fillOpacity={0.5}
               pointerEvents="none"
-              style={{ letterSpacing: '.14em', textTransform: 'uppercase' }}
             >
               {t(z.key)}
             </text>
           ))}
 
         {/* readout tooltip for the hovered / dragged band */}
-        {active != null &&
-          bands[active] &&
+        {readout != null &&
+          bands[readout] &&
           (() => {
-            const b = bands[active];
-            const tx = Math.max(60, Math.min(EQ_W - 60, dots[active].x));
-            const ty = Math.max(20, dots[active].y - 16);
-            const label = `${freqLabel(b.frequency)}  ·  ${b.gain >= 0 ? '+' : ''}${b.gain.toFixed(1)} dB  ·  Q ${b.q.toFixed(2)}`;
+            const b = bands[readout];
+            const tx = Math.max(px(100), Math.min(EQ_W - px(100), dots[readout].x));
+            const above = dots[readout].y - px(22);
+            const preferred = above < px(16) ? dots[readout].y + px(22) : above;
+            const ty = Math.max(px(16), Math.min(EQ_H - px(16), preferred));
+            const label = `${freqLabel(b.frequency)}  ·  ${b.gain >= 0 ? '+' : ''}${b.gain.toFixed(1)} dB${b.type === 'peaking' ? `  ·  Q ${b.q.toFixed(2)}` : ''}`;
             return (
               <g pointerEvents="none">
-                <rect x={tx - 59} y={ty - 11} width={118} height={16} rx={5} fill={G('screen')} fillOpacity={0.92} stroke={dots[active].color} strokeOpacity={0.5} />
-                <text x={tx} y={ty} textAnchor="middle" fontSize={8.5} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <rect x={tx - px(98)} y={ty - px(12)} width={px(196)} height={px(24)} rx={px(5)} fill={G('screen')} fillOpacity={0.96} stroke={dots[readout].color} strokeOpacity={0.5} />
+                <text x={tx} y={ty} textAnchor="middle" fontSize={px(11)} fill={G('grab')} dominantBaseline="middle" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {label}
                 </text>
               </g>
             );
           })()}
 
-        {/* Peak meter — post-EQ, post-master, read-only. It says you are clipping; it does not stop
-            you. Limiting is a separate audio feature with its own settings and is not in 2.5, so
-            the absence of one here is a decision rather than a gap. Scaled over -60..0 dBFS, which
-            is the same span the graph already uses vertically. */}
+        {/* Common output peak after the shared limiter, scaled over -60…0 dBFS.
+            The spectrum remains specific to the selected tab. */}
         {meterOn &&
           (() => {
             const clipping = meter.clipUntil > 0;
