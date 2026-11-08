@@ -1,8 +1,20 @@
-# Store assets brief
+# Store assets — Umbra EQ 2.5.0
 
-Use screenshots of the current shipped interface, with the original left-hand master control and bottom navigation. This document is a production brief; no new store images or video have been generated or uploaded in this task.
+The six store cards use captures of the actual native Chrome popup from the production 2.5.0 ZIP. The extension was opened in a separate Chrome instance and operated through computer use (CUA). Each 620 × 580 popup capture is placed in a 1280 × 800 composition with explanatory text. This asset work does not change extension code or redesign the interface: the original left-hand master control and bottom navigation are retained.
 
-## Three initial screenshots
+## Files and upload order
+
+All six final cards are JPEG files at 1280 × 800. Use the three matching files for each listing language, in this order:
+
+| Order | View | English | Russian |
+|---|---|---|---|
+| 1 | EQ | [en-eq.jpg](screenshots/en-eq.jpg) | [ru-eq.jpg](screenshots/ru-eq.jpg) |
+| 2 | Rules | [en-rules.jpg](screenshots/en-rules.jpg) | [ru-rules.jpg](screenshots/ru-rules.jpg) |
+| 3 | Presets | [en-presets.jpg](screenshots/en-presets.jpg) | [ru-presets.jpg](screenshots/ru-presets.jpg) |
+
+The English and Russian READMEs reference their corresponding cards. Upload, review and publication status must be recorded separately after checking the developer dashboard; the presence of these files does not establish any of those states.
+
+## Three screenshots per locale
 
 1. **Tune the tab you are listening to / Настройте звук текущей вкладки.** Show the actual EQ with a moderate preset, readable graph and a genuinely captured tab. The primary image should make the purpose clear at thumbnail size.
 2. **A sound for each website / Свои настройки для каждого сайта.** Show actual site rules and their selected presets. Explain that a saved rule selects the sound after capture starts; do not depict automatic capture of every new tab.
@@ -20,4 +32,4 @@ For a short demonstration video, show one real flow: play an audio sample, start
 
 See [Supplying Images](https://developer.chrome.com/docs/webstore/images), [Creating a great listing](https://developer.chrome.com/docs/webstore/best-listing), and [Localized listings](https://developer.chrome.com/docs/webstore/cws-dashboard-listing).
 
-The user-supplied screenshots in this audit show analytics screens, not the current public promotional images. Their presence does not establish whether the existing store images are sharp, accurate or correctly sized. Review the actual uploaded assets before replacing them.
+After saving the listing, verify the three image previews and their order in both languages. Keep a dated record of what was uploaded and distinguish a saved draft from a submitted or published update.

@@ -1,6 +1,6 @@
 # Chrome Web Store privacy fields
 
-Prepared 2026-11-08. The text below is based on the current source and the repository's v2.4.1 tag. The installed store CRX was not independently compared byte-for-byte. These fields have not been changed in the developer dashboard.
+Prepared 2026-11-08; dashboard status recorded 2026-11-09. The text below is based on the inspected source and production 2.5.0 package; the previously installed store CRX was not independently compared byte-for-byte. The dashboard draft has the four permission justifications saved, No remote code selected, Website content / Web history / Personal communications selected, and all three data-use certifications checked. The release is ready; Chrome Web Store review is pending submission.
 
 ## Single purpose
 
@@ -36,20 +36,20 @@ Umbra uses a bundled offscreen document to consume tab audio streams and run the
 
 For the inspected production source and bundle: **No remote code**. JavaScript and the audio worklet are bundled locally; no remote executable loader was found. Chrome Sync transfers settings, not executable code. Reassess if future dependencies or code-loading behavior changes.
 
-## Data-use categories — recommendation, not a record of current selections
+## Data-use categories — saved draft and rationale
 
-The pasted dashboard text does not preserve checkbox states. Google requires disclosure of data handling even when processing or storage stays local, so "the developer receives nothing" is not enough to declare no handled data. [User Data FAQ, especially questions 3 and 14](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq).
+The selections below were checked in the actual dashboard draft. The earlier pasted form alone did not preserve checkbox states. Google requires disclosure of data handling even when processing or storage stays local, so "the developer receives nothing" is not enough to declare no handled data. [User Data FAQ, especially questions 3 and 14](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq).
 
-| Category | Recommended treatment for the inspected behavior |
+| Category | Saved selection and rationale |
 |---|---|
-| Website content / Содержимое сайтов | Select: the extension processes tab audio. The category explicitly includes sounds. Explain that no recording or upload is made. |
-| Web history / История веб-поиска | Select conservatively: tab URLs/titles are accessed, saved hostname rules can sync, and temporary diagnostic entries can contain full URLs. This does not mean the extension reads Chrome's history database. Google has no explicit ruling in the cited documentation for this exact combination of transient metadata and settings. |
-| Personal communications / Личная коммуникация | Review the intended scope before submission. The previous listing explicitly advertised calls, and the category includes conference calls. If browser-call processing remains a supported, advertised scenario, the conservative approach is to disclose it here too and explain that only the tab's playback audio is processed. The new copy does not advertise calls, but that wording change alone does not exclude their audio from the runtime. An explicit CWS interpretation of incidental call audio was not found. |
+| Website content / Содержимое сайтов | Selected: the extension processes tab audio. The category explicitly includes sounds. No recording or upload is made. |
+| Web history / История веб-поиска | Selected conservatively: tab URLs/titles are accessed, saved hostname rules can sync, and temporary diagnostic entries can contain full URLs. This does not mean the extension reads Chrome's history database. Google has no explicit ruling in the cited documentation for this exact combination of transient metadata and settings. |
+| Personal communications / Личная коммуникация | Selected conservatively because tab playback can include conference-call audio, a category example. The previous listing advertised calls; removing that wording does not exclude their audio from the runtime. Only tab playback is processed, not microphone input. An explicit CWS interpretation of incidental call audio was not found; this selection is not a claim that call services were compatibility-tested. |
 | Other listed categories | No dedicated collection of identity, medical, financial, authentication, location or user-interaction data was found in the inspected code. Do not infer these categories solely because arbitrary played audio could mention them. Reassess if integrations, accounts or analytics are added. |
 
 This is a reasoned mapping to Google's categories, not a guarantee of a particular review outcome. The exact category wording is shown in Google's [privacy-fields documentation](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy) and its [data-use illustration](https://developer.chrome.com/static/docs/webstore/cws-dashboard-privacy/image/screenshot-data-certifi-1955439870c37.png).
 
-All three certifications in the dashboard should reflect the actual behavior: no sale outside permitted cases, no unrelated uses, and no use for creditworthiness/lending. The reviewed code supports these statements. They are publisher declarations, not an SEO technique.
+All three certifications are checked in the saved dashboard draft: no sale outside permitted cases, no unrelated uses, and no use for creditworthiness/lending. The reviewed code supports these statements. They are publisher declarations, not an SEO technique or evidence of review approval.
 
 ## Privacy-policy URL
 
@@ -57,7 +57,7 @@ All three certifications in the dashboard should reflect the actual behavior: no
 https://github.com/skyjacc/Umbra/blob/main/PRIVACY.md
 ```
 
-Publish the revised policy to that exact public location before relying on it in a submission. The local policy now explains Chrome Sync, transient processing buffers, URL/title access and in-memory diagnostic logs. Neither audio nor diagnostic logs are uploaded by Umbra.
+Before submission, verify that this public URL serves the revised policy. The policy explains Chrome Sync, transient processing buffers, URL/title access and in-memory diagnostic logs. Neither audio nor diagnostic logs are uploaded by Umbra.
 
 ## Why the previous wording needed changes
 
